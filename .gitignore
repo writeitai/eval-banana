@@ -1,6 +1,23 @@
-repos/
-_claude_prompts/
-.idea/
-.mcp.json
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
 
-_additional_context
+# Virtual environments
+.venv/
+venv/
+
+# eval-banana results (generated artifacts)
+.eval-banana/results/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
