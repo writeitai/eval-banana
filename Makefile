@@ -1,20 +1,23 @@
-#==================================================================================
-# Development Tools
-#==================================================================================
+.PHONY: test fix format pyright all-check run
 
-.PHONY: claude claudecontinue codex
+test:
+	uv run pytest tests -v --tb=short
 
-## Start Claude Code with MCP configuration
-claude:
-	@test -f .mcp.json || (echo "Error: .mcp.json not found. Please create it first." && exit 1)
-	PATH="$(HOME)/.bun/bin:$(PATH)" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 TELEGRAM_STATE_DIR=$(PWD)/.claude/channels/telegram claude --dangerously-skip-permissions --mcp-config .mcp.json --chrome --channels plugin:telegram@claude-plugins-official
+format:
+	uv run ruff format src tests
 
-## Continue previous Claude Code session
-claudecontinue:
-	@test -f .mcp.json || (echo "Error: .mcp.json not found. Please create it first." && exit 1)
-	PATH="$(HOME)/.bun/bin:$(PATH)" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 TELEGRAM_STATE_DIR=$(PWD)/.claude/channels/telegram claude --dangerously-skip-permissions --mcp-config .mcp.json --continue --chrome --channels plugin:telegram@claude-plugins-official
+fix:
+	uv run ruff check --fix src tests
+	uv run ruff format src tests
 
-## Codex
-codex:
-	# do /fast
-	codex --yolo --model gpt-5.4
+pyright:
+	uv run pyright src tests
+
+all-check:
+	uv run ruff check src tests
+	uv run ruff format --check src tests
+	uv run pyright src tests
+	uv run pytest tests -v --tb=short
+
+run:
+	uv run eval-banana run

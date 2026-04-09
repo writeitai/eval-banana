@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install Python
+        run: uv python install ${{ matrix.python-version }}
+      - name: Sync dependencies
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
+      - name: Ruff check
+        run: uv run --python ${{ matrix.python-version }} ruff check src tests
+      - name: Ruff format
+        run: uv run --python ${{ matrix.python-version }} ruff format --check src tests
+      - name: Pyright
+        run: uv run --python ${{ matrix.python-version }} pyright src tests
+      - name: Pytest
+        run: uv run --python ${{ matrix.python-version }} pytest tests -v --tb=short
