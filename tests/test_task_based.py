@@ -307,6 +307,47 @@ def test_task_based_runner_sets_all_model_env_vars_only_when_model_selected(
     assert "ANTHROPIC_DEFAULT_SONNET_MODEL" not in captured_envs[1]
 
 
+def test_task_based_runner_check_model_overrides_harness_default_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    source_path = _make_source_path(tmp_path=tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["argv"] = args[0]
+        captured["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(
+            args=["codex"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("eval_banana.runners.task_based.subprocess.run", fake_run)
+    config = make_config(
+        project_root=tmp_path,
+        harnesses={
+            "codex": HarnessConfig(
+                command=["codex", "exec"],
+                default_model="default-model",
+                model_flag="--model",
+                model_env_vars=["CODEX_MODEL", "CODEX_FALLBACK_MODEL"],
+            )
+        },
+    )
+
+    run_task_based_check(
+        check=_make_task_check(
+            harness="codex", model="override-model", command=["prompt"]
+        ),
+        source_path=source_path,
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=config,
+    )
+
+    assert captured["argv"] == ["codex", "exec", "--model", "override-model", "prompt"]
+    assert captured["env"]["CODEX_MODEL"] == "override-model"
+    assert captured["env"]["CODEX_FALLBACK_MODEL"] == "override-model"
+
+
 def test_task_based_runner_resolves_provider_env_placeholders(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
@@ -515,6 +556,48 @@ def test_task_based_runner_check_env_values_not_interpolated(
     assert caplog.records == []
 
 
+def test_task_based_runner_eval_banana_vars_not_overridable_by_check_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    source_path = _make_source_path(tmp_path=tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(
+            args=["codex"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("eval_banana.runners.task_based.subprocess.run", fake_run)
+    config = make_config(
+        project_root=tmp_path,
+        harnesses={"codex": HarnessConfig(command=["codex", "exec"])},
+    )
+    output_dir = tmp_path / "out" / "checks"
+    check = _make_task_check(
+        check_id="env_guard",
+        harness="codex",
+        command=["prompt"],
+        env={
+            "EVAL_BANANA_PROJECT_ROOT": "hack",
+            "EVAL_BANANA_OUTPUT_DIR": "fake-output",
+            "EVAL_BANANA_CHECK_ID": "fake-id",
+        },
+    )
+
+    run_task_based_check(
+        check=check,
+        source_path=source_path,
+        project_root=tmp_path,
+        output_dir=output_dir,
+        config=config,
+    )
+
+    assert captured["env"]["EVAL_BANANA_PROJECT_ROOT"] == str(tmp_path)
+    assert captured["env"]["EVAL_BANANA_OUTPUT_DIR"] == str(output_dir / check.id)
+    assert captured["env"]["EVAL_BANANA_CHECK_ID"] == check.id
+
+
 def test_task_based_runner_returns_error_for_unknown_harness(
     tmp_path: Path, make_config: Callable[..., Config]
 ) -> None:
@@ -559,6 +642,39 @@ def test_working_directory_resolution(
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
         config=make_config(project_root=tmp_path),
+    )
+
+    assert captured["cwd"] == workdir.resolve()
+
+
+def test_task_based_runner_honors_working_directory_with_harness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    source_path = _make_source_path(tmp_path=tmp_path)
+    workdir = tmp_path / "subdir"
+    workdir.mkdir()
+    captured: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured["cwd"] = kwargs["cwd"]
+        return subprocess.CompletedProcess(
+            args=["codex"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("eval_banana.runners.task_based.subprocess.run", fake_run)
+    config = make_config(
+        project_root=tmp_path,
+        harnesses={"codex": HarnessConfig(command=["codex", "exec"])},
+    )
+
+    run_task_based_check(
+        check=_make_task_check(
+            harness="codex", command=["prompt"], working_directory="subdir"
+        ),
+        source_path=source_path,
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=config,
     )
 
     assert captured["cwd"] == workdir.resolve()

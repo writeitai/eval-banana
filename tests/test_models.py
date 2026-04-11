@@ -142,6 +142,20 @@ def test_task_based_definition_still_requires_command() -> None:
         )
 
 
+def test_task_based_definition_still_forbids_unknown_fields() -> None:
+    with pytest.raises(ValidationError):
+        _ADAPTER.validate_python(
+            {
+                "schema_version": 1,
+                "id": "task_with_extra",
+                "type": "task_based",
+                "description": "desc",
+                "command": ["pytest"],
+                "bogus": "x",
+            }
+        )
+
+
 def test_task_based_definition_rejects_model_without_harness() -> None:
     with pytest.raises(
         ValidationError,

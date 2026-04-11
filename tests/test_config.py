@@ -329,6 +329,123 @@ def test_harness_config_rejects_empty_command(
         load_config(cwd=str(project))
 
 
+def test_harness_config_rejects_non_string_default_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text='[harnesses.codex]\ncommand = ["codex"]\ndefault_model = 42\n',
+    )
+
+    with pytest.raises(SystemExit, match="default_model must be a string when set"):
+        load_config(cwd=str(project))
+
+
+def test_harness_config_rejects_non_string_model_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text='[harnesses.codex]\ncommand = ["codex"]\nmodel_flag = 42\n',
+    )
+
+    with pytest.raises(SystemExit, match="model_flag must be a string when set"):
+        load_config(cwd=str(project))
+
+
+def test_harness_config_rejects_non_list_model_env_vars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text='[harnesses.codex]\ncommand = ["codex"]\nmodel_env_vars = "FOO"\n',
+    )
+
+    with pytest.raises(
+        SystemExit, match="model_env_vars must be a list of strings when set"
+    ):
+        load_config(cwd=str(project))
+
+
+def test_harness_config_rejects_non_list_shared_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text='[harnesses.codex]\ncommand = ["codex"]\nshared_flags = "FOO"\n',
+    )
+
+    with pytest.raises(
+        SystemExit, match="shared_flags must be a list of strings when set"
+    ):
+        load_config(cwd=str(project))
+
+
+def test_harness_config_rejects_non_table_provider_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text='[harnesses.codex]\ncommand = ["codex"]\nprovider_env = "x"\n',
+    )
+
+    with pytest.raises(
+        SystemExit, match="provider_env must be a table of string values when set"
+    ):
+        load_config(cwd=str(project))
+
+
+def test_harness_config_rejects_non_string_provider_env_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml",
+        text=(
+            '[harnesses.codex]\ncommand = ["codex"]\n'
+            "\n"
+            "[harnesses.codex.provider_env]\n"
+            "FOO = 42\n"
+        ),
+    )
+
+    with pytest.raises(
+        SystemExit, match="provider_env must be a table of string values when set"
+    ):
+        load_config(cwd=str(project))
+
+
+def test_harnesses_section_rejects_non_table_top_level(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    monkeypatch.setenv("HOME", str(home))
+    _write_config(
+        project / ".eval-banana" / "config.toml", text='harnesses = "not a table"\n'
+    )
+
+    with pytest.raises(SystemExit, match=r"\[harnesses\] must be a table"):
+        load_config(cwd=str(project))
+
+
 def test_harnesses_absent_section_loads_empty_dict(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
