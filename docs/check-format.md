@@ -168,6 +168,32 @@ Notes:
 - `{env:VAR}` placeholder substitution applies only inside `harnesses.*.provider_env`, not in `task_based.env`
 - Unknown harness names return a per-check `error` result and do not stop other checks
 
+### Built-in harness recipes
+
+`eval-banana init` drops commented native + OpenRouter recipes for `codex`, `claude`, and `gemini` into the generated config file. Short form:
+
+```toml
+# Native Codex
+# [harnesses.codex]
+# command = ["codex", "exec"]
+# default_model = "gpt-5.4"
+# model_flag = "--model"
+
+# Native Claude
+# [harnesses.claude]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# model_flag = "--model"
+
+# Native Gemini
+# [harnesses.gemini]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "gemini-2.5-pro"
+# model_flag = "--model"
+```
+
+Uncomment the block you need and, for OpenRouter routing, use the corresponding `*_openrouter` variant shown in [docs/configuration.md](configuration.md#task-based-harness-behavior).
+
 ## Auto-discovery
 
 eval-banana walks from the project root and finds all directories named `eval_checks/`. Every `*.yaml` and `*.yml` file inside is loaded.

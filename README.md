@@ -176,21 +176,36 @@ eval-banana run --provider codex
 
 `[harnesses.<name>]` adds reusable argv/env presets for `task_based` checks only. Global and local config merge by harness name; nested `provider_env` keys merge by key, while list fields such as `command`, `shared_flags`, and `model_env_vars` replace on local override.
 
-Example:
+Commented native + OpenRouter recipes for `codex`, `claude`, and `gemini` ship in every generated config file (see `eval-banana init`). Uncomment the block you need. One shape for reference:
 
 ```toml
-[harnesses.claude_openrouter]
-command = ["claude"]
-shared_flags = ["--dangerously-skip-permissions"]
-default_model = "anthropic/claude-sonnet-4.6"
-model_flag = "--model"
-model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+# Native Codex
+# [harnesses.codex]
+# command = ["codex", "exec"]
+# shared_flags = ["--skip-git-repo-check"]
+# default_model = "gpt-5.4"
+# model_flag = "--model"
 
-[harnesses.claude_openrouter.provider_env]
-ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
-ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
-ANTHROPIC_API_KEY = ""
+# Claude via OpenRouter (export OPENROUTER_API_KEY first)
+# [harnesses.claude_openrouter]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# default_model = "anthropic/claude-sonnet-4.6"
+# model_flag = "--model"
+# model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+# [harnesses.claude_openrouter.provider_env]
+# ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+# ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+# ANTHROPIC_API_KEY = ""
+
+# Native Gemini
+# [harnesses.gemini]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "gemini-2.5-pro"
+# model_flag = "--model"
 ```
+
+The full catalog (codex / codex_openrouter / claude / claude_openrouter / gemini / gemini_openrouter) lives in [docs/configuration.md](docs/configuration.md#task-based-harness-behavior).
 
 `task_based.model` is only valid when `task_based.harness` is also set. `{env:VAR}` placeholders are resolved only inside `harnesses.*.provider_env`, not inside `task_based.env`.
 
