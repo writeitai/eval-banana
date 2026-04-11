@@ -133,19 +133,14 @@ def create_openai_compat_client(config: Config) -> OpenAI:
         else:
             msg = "Missing API key for OpenAI-compatible endpoint. Set EVAL_BANANA_API_KEY."
         raise ValueError(msg)
-    return OpenAI(api_key=api_key, base_url=config.api_base)
+    return OpenAI(api_key=api_key, base_url=config.api_base, timeout=None)
 
 
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api"
 
 
 def run_codex_judge_request(
-    *,
-    model: str,
-    auth: CodexAuth,
-    system_prompt: str,
-    user_prompt: str,
-    timeout_seconds: int = 90,
+    *, model: str, auth: CodexAuth, system_prompt: str, user_prompt: str
 ) -> str:
     base_url = CODEX_BACKEND_BASE_URL
     headers = {
@@ -163,7 +158,7 @@ def run_codex_judge_request(
             {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
         ],
     }
-    with httpx.Client(timeout=timeout_seconds) as client:
+    with httpx.Client(timeout=None) as client:
         response = client.post(f"{base_url}/responses", headers=headers, json=payload)
         response.raise_for_status()
         raw = response.json()

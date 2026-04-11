@@ -39,14 +39,13 @@ description: Human-readable  # Required. Non-empty.
 target_paths:                # Files/dirs the check operates on. Resolved from project_root.
   - path/to/file.json        # Optional for deterministic; required (non-empty) for llm_judge.
 tags: [fast, critical]       # Optional list of free-form tags.
-timeout_seconds: 60          # Optional override. Defaults: 30/90/300 (det/llm/task).
 ```
 
 Plus type-specific fields below.
 
 ## Writing a `deterministic` check
 
-Runs a Python script via subprocess. Exit code 0 = pass, non-zero = fail. Infrastructure problems (timeout, missing script file) = error.
+Runs a Python script via subprocess. Exit code 0 = pass, non-zero = fail. Infrastructure problems (missing script file, OS execution failure) = error.
 
 ```yaml
 schema_version: 1
@@ -103,7 +102,7 @@ Key points:
 - `sys.exit(0)` or falling off the end → passed
 - `sys.exit(1)` or any non-zero exit → failed
 - `AssertionError` or any uncaught exception → failed (non-zero exit)
-- Timeout / `FileNotFoundError` on the script itself → error
+- `FileNotFoundError` on the script itself → error
 
 ## Writing an `llm_judge` check
 
@@ -156,14 +155,12 @@ command:
   - pytest
   - tests
   - -q
-timeout_seconds: 300
 ```
 
 Fields:
 - `command`: list of strings. **Never a single shell string** — avoids shell injection.
 - `working_directory`: optional, relative to `project_root`. Defaults to `project_root`.
 - `env`: optional `dict[str, str]` merged on top of `os.environ`.
-- `timeout_seconds`: default 300.
 
 These environment variables are always injected so the command can find its context:
 - `EVAL_BANANA_PROJECT_ROOT`

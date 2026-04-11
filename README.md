@@ -108,7 +108,6 @@ command:
   - run
   - python
   - ui_checks/login_test.py
-timeout_seconds: 120
 ```
 
 ## Configuration

@@ -20,14 +20,6 @@ def _duration_ms(*, started: datetime, completed: datetime) -> int:
     return int((completed - started).total_seconds() * 1000)
 
 
-def _coerce_output(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _build_env(
     *, check: TaskBasedCheckDefinition, project_root: Path, output_dir: Path
 ) -> dict[str, str]:
@@ -64,24 +56,6 @@ def run_task_based_check(
                 check=check, project_root=project_root, output_dir=output_dir
             ),
             text=True,
-            timeout=check.timeout_seconds or config.task_timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        logger.error("Task-based check %s timed out", check.id)
-        completed = datetime.now(timezone.utc)
-        return CheckResult(
-            check_id=check.id,
-            check_type=CheckType.task_based,
-            description=check.description,
-            source_path=str(source_path.resolve()),
-            status=CheckStatus.error,
-            score=0,
-            started_at=started_at,
-            completed_at=completed.isoformat(),
-            duration_ms=_duration_ms(started=started, completed=completed),
-            error_detail=f"Task-based check timed out after {exc.timeout} seconds",
-            stdout=_coerce_output(exc.stdout),
-            stderr=_coerce_output(exc.stderr),
         )
     except (FileNotFoundError, OSError, PermissionError) as exc:
         logger.error("Task-based check %s failed to execute: %s", check.id, exc)

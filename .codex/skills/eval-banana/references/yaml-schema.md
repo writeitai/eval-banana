@@ -21,7 +21,6 @@ Complete field reference for eval-banana check definitions. Each check file defi
 | `description` | string | **Yes** | Non-empty after stripping | Human-readable, shown in reports |
 | `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Required non-empty for `llm_judge`. |
 | `tags` | list[string] | No | — | Free-form metadata. Not yet used for filtering but allowed. |
-| `timeout_seconds` | int | No | Must be `>= 1` if set | Overrides type-default (30/90/300) |
 
 `extra="forbid"` is enabled — any unknown field fails validation.
 
@@ -41,7 +40,6 @@ Type-specific fields:
 - Command: `python <script> <context_path>`
 - `cwd`: `project_root`
 - Environment: full parent env (no additional injection)
-- Timeout: `timeout_seconds` if set, else `core.deterministic_timeout_seconds` (default 30)
 
 ### `context.json` shape
 
@@ -73,7 +71,6 @@ Passed as `sys.argv[1]`. Always this exact shape:
 |---|---|---|
 | Exit 0 | `passed` | 1 |
 | Exit non-zero (includes `AssertionError`, uncaught exceptions, `sys.exit(1)`) | `failed` | 0 |
-| `TimeoutExpired` | `error` | 0 |
 | `FileNotFoundError` on script itself, `OSError` | `error` | 0 |
 
 `stdout` and `stderr` are captured on the `CheckResult` and written to `<output_dir>/checks/<check_id>.stdout.txt` / `.stderr.txt` (only if non-empty).
@@ -142,7 +139,6 @@ Type-specific fields:
   - `EVAL_BANANA_PROJECT_ROOT`: absolute project root
   - `EVAL_BANANA_OUTPUT_DIR`: per-check output directory
   - `EVAL_BANANA_CHECK_ID`: the check's id
-- Timeout: `timeout_seconds` if set, else `core.task_timeout_seconds` (default 300)
 
 ### Result mapping
 
@@ -150,7 +146,6 @@ Type-specific fields:
 |---|---|---|
 | Exit 0 | `passed` | 1 |
 | Exit non-zero | `failed` | 0 |
-| `TimeoutExpired` | `error` | 0 |
 | `FileNotFoundError` on command (binary not in PATH), `OSError` | `error` | 0 |
 
 `stdout`/`stderr` captured and written as for deterministic checks.
@@ -169,7 +164,6 @@ The loader raises a `ValueError` naming the file path for any of these:
 - `script` AND `script_path` both set, or neither set (deterministic)
 - `instructions` empty, or `target_paths` empty (llm_judge)
 - `command` empty or contains empty strings (task_based)
-- `timeout_seconds < 1`
 
 The runner raises `SystemExit` for:
 - Duplicate check IDs across files (shows both file paths)

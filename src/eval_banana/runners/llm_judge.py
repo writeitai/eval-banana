@@ -138,7 +138,6 @@ def run_llm_judge_check(
                 auth=auth,
                 system_prompt=JUDGE_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
-                timeout_seconds=check.timeout_seconds or config.llm_timeout_seconds,
             )
         else:
             client = create_openai_compat_client(config=config)
@@ -148,7 +147,7 @@ def run_llm_judge_check(
                     {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                timeout=check.timeout_seconds or config.llm_timeout_seconds,
+                timeout=None,
             )
             raw_response = _extract_message_content(response=response)
         details["raw_response"] = raw_response

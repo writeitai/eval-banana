@@ -140,3 +140,37 @@ def test_working_directory_resolution(
     )
 
     assert captured["cwd"] == workdir.resolve()
+
+
+def test_subprocess_run_called_without_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    source_path = tmp_path / "eval_checks" / "task.yaml"
+    source_path.parent.mkdir()
+    source_path.write_text("", encoding="utf-8")
+    captured_kwargs: dict[str, object] = {}
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=["pytest"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("eval_banana.runners.task_based.subprocess.run", fake_run)
+    check = TaskBasedCheckDefinition(
+        schema_version=1,
+        id="task_no_timeout",
+        type="task_based",
+        description="desc",
+        command=["pytest"],
+    )
+
+    run_task_based_check(
+        check=check,
+        source_path=source_path,
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path),
+    )
+
+    assert "timeout" not in captured_kwargs

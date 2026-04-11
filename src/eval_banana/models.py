@@ -39,7 +39,6 @@ class BaseCheckDefinition(BaseModel):
     description: str
     target_paths: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    timeout_seconds: int | None = None
 
     @field_validator("id")
     @classmethod
@@ -69,16 +68,6 @@ class BaseCheckDefinition(BaseModel):
             if not item.strip():
                 msg = "target_paths entries must be non-empty strings"
                 raise ValueError(msg)
-        return value
-
-    @field_validator("timeout_seconds")
-    @classmethod
-    def validate_timeout_seconds(cls, value: int | None) -> int | None:
-        if value is None:
-            return value
-        if value < 1:
-            msg = "timeout_seconds must be >= 1"
-            raise ValueError(msg)
         return value
 
 
