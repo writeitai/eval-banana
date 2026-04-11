@@ -21,3 +21,9 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+_additional_context
+_claude_prompts
+_feature_planning
+
+.mcp.json
