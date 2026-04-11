@@ -1,4 +1,4 @@
-.PHONY: test fix format pyright all-check run
+.PHONY: test fix format pyright all-check run install_globally
 
 test:
 	uv run pytest tests -v --tb=short
@@ -21,3 +21,6 @@ all-check:
 
 run:
 	uv run eval-banana run
+
+install_globally:
+	uv tool install --editable "$(CURDIR)"
