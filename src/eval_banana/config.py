@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 _GLOBAL_CONFIG_TEXT = """# Global eval-banana configuration.
 # Project-level .eval-banana/config.toml overrides these values.
 
+
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
@@ -22,12 +23,14 @@ llm_timeout_seconds = 90
 task_timeout_seconds = 300
 llm_max_input_chars = 12000
 
+
 [llm]
 provider = "openai_compat"
 model = "openai/gpt-4.1-mini"
 api_base = "https://openrouter.ai/api/v1"
 api_key = ""
 codex_auth_path = ""
+
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
@@ -37,6 +40,7 @@ _LOCAL_CONFIG_TEXT = """# Project-level eval-banana configuration.
 # Values here override ~/.eval-banana/config.toml.
 # Do not commit API keys.
 
+
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
@@ -45,10 +49,12 @@ llm_timeout_seconds = 90
 task_timeout_seconds = 300
 llm_max_input_chars = 12000
 
+
 [llm]
 provider = "openai_compat"
 model = "openai/gpt-4.1-mini"
 api_base = "https://openrouter.ai/api/v1"
+
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
