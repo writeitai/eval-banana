@@ -52,6 +52,35 @@ Local init also creates an example check in `eval_checks/`.
 
 Default excluded directories: `.git`, `.hg`, `.svn`, `.venv`, `venv`, `node_modules`, `__pycache__`, `dist`, `build`.
 
+### `[harnesses.<name>]` sections
+
+Harnesses are optional presets for `task_based` checks only.
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `command` | `list[str]` | Yes | Base argv to execute. Must be non-empty. |
+| `shared_flags` | `list[str]` | No | Extra argv entries inserted after `command`. |
+| `default_model` | `str` | No | Model used when the check omits `task_based.model`. |
+| `model_flag` | `str` | No | CLI flag paired with the selected model. |
+| `model_env_vars` | `list[str]` | No | Env vars set to the selected model when one is selected. |
+| `provider_env` | `table` | No | String env vars resolved at execution time. |
+
+Example:
+
+```toml
+[harnesses.claude_openrouter]
+command = ["claude"]
+shared_flags = ["--dangerously-skip-permissions"]
+default_model = "anthropic/claude-sonnet-4.6"
+model_flag = "--model"
+model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+
+[harnesses.claude_openrouter.provider_env]
+ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+ANTHROPIC_API_KEY = ""
+```
+
 ## Precedence rules
 
 Config values are resolved in this order (highest priority first):
@@ -68,6 +97,106 @@ Config values are resolved in this order (highest priority first):
 - Dict sections merge recursively (local overrides only the keys it sets)
 - Lists replace entirely (local `exclude_dirs` replaces global)
 - Relative `output_dir` resolves from the project root
+- `harnesses` merge by harness name across global and local config
+- Nested harness tables such as `provider_env` deep-merge by key
+- Harness list fields (`command`, `shared_flags`, `model_env_vars`) replace on local override
+
+## Task-based harness behavior
+
+When a check sets `harness: <name>`, eval-banana builds the subprocess argv as:
+
+```text
+harness.command
++ harness.shared_flags
++ optional (harness.model_flag, selected_model)
++ check.command
+```
+
+`check.command` is appended arguments only. Do not repeat the harness binary there.
+
+The subprocess environment is assembled in this order:
+
+```text
+os.environ
+< resolved harness.provider_env
+< model_env_vars (only when a model was selected)
+< task_based.env
+< injected EVAL_BANANA_* variables
+```
+
+`task_based.model` is valid only when `task_based.harness` is also set.
+
+Unknown harness names are runtime per-check errors, not config-load failures, so other checks still run.
+
+## Placeholder resolution
+
+`{env:VAR}` placeholders are supported only inside `harnesses.*.provider_env` values.
+
+- Missing env vars emit one warning per variable name per process
+- Missing placeholders substitute `""`
+- If the whole value is exactly one placeholder and that env var is unset, the env key is omitted entirely
+- `task_based.env` values are passed through verbatim; placeholder syntax is not interpreted there
+
+## Commented harness recipes
+
+`eval-banana init` includes these recipes as comments only. They do not create hidden runtime defaults.
+
+```toml
+# Native Codex
+# [harnesses.codex]
+# command = ["codex", "exec"]
+# shared_flags = ["--skip-git-repo-check"]
+# default_model = "gpt-5.4"
+# model_flag = "--model"
+
+# Codex via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.codex_openrouter]
+# command = ["codex", "exec"]
+# shared_flags = [
+#   "--skip-git-repo-check",
+#   "-c", "model_provider=openrouter",
+#   "-c", "model_providers.openrouter.base_url=\"https://openrouter.ai/api/v1\"",
+#   "-c", "model_providers.openrouter.env_key=\"OPENROUTER_API_KEY\"",
+# ]
+# default_model = "openai/gpt-4.1-mini"
+# model_flag = "--model"
+```
+
+```toml
+# Native Claude
+# [harnesses.claude]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# model_flag = "--model"
+
+# Claude via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.claude_openrouter]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# default_model = "anthropic/claude-sonnet-4.6"
+# model_flag = "--model"
+# model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+# [harnesses.claude_openrouter.provider_env]
+# ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+# ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+# ANTHROPIC_API_KEY = ""
+```
+
+```toml
+# Native Gemini
+# [harnesses.gemini]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "gemini-2.5-pro"
+# model_flag = "--model"
+
+# Gemini via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.gemini_openrouter]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "google/gemini-2.5-pro"
+# model_flag = "--model"
+# [harnesses.gemini_openrouter.provider_env]
+# GEMINI_API_KEY = "{env:OPENROUTER_API_KEY}"
+```
 
 ## Authentication
 

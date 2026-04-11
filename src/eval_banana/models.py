@@ -122,6 +122,8 @@ class LlmJudgeCheckDefinition(BaseCheckDefinition):
 class TaskBasedCheckDefinition(BaseCheckDefinition):
     type: Literal["task_based"]
     command: list[str]
+    harness: str | None = None
+    model: str | None = None
     working_directory: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
 
@@ -136,6 +138,13 @@ class TaskBasedCheckDefinition(BaseCheckDefinition):
                 msg = "every command item must be a non-empty string"
                 raise ValueError(msg)
         return value
+
+    @model_validator(mode="after")
+    def validate_model_requires_harness(self) -> TaskBasedCheckDefinition:
+        if self.model is not None and self.harness is None:
+            msg = "task_based.model requires task_based.harness to also be set"
+            raise ValueError(msg)
+        return self
 
 
 CheckDefinition = Annotated[

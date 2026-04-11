@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -168,3 +169,50 @@ def test_check_id_detects_duplicates(
         run_checks(
             config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="dup"
         )
+
+
+def test_run_continues_when_one_harnessed_task_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "missing_harness.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: missing_harness",
+                "type: task_based",
+                "description: desc",
+                "harness: missing",
+                "command:",
+                "  - prompt",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (checks_dir / "plain_task.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: plain_task",
+                "type: task_based",
+                "description: desc",
+                "command:",
+                f"  - {sys.executable}",
+                "  - -c",
+                "  - import sys; sys.exit(0)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(config=make_config(project_root=tmp_path, cwd=str(tmp_path)))
+
+    by_id = {result.check_id: result for result in report.checks}
+
+    assert report.total_checks == 2
+    assert report.errored_checks == 1
+    assert report.passed_checks == 1
+    assert by_id["missing_harness"].status == CheckStatus.error
+    assert by_id["plain_task"].status == CheckStatus.passed

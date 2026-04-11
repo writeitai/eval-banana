@@ -31,6 +31,59 @@ api_base = "https://openrouter.ai/api/v1"
 api_key = ""
 codex_auth_path = ""
 
+# Task-based harness presets
+
+# Native Codex
+# [harnesses.codex]
+# command = ["codex", "exec"]
+# shared_flags = ["--skip-git-repo-check"]
+# default_model = "gpt-5.4"
+# model_flag = "--model"
+
+# Codex via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.codex_openrouter]
+# command = ["codex", "exec"]
+# shared_flags = [
+#   "--skip-git-repo-check",
+#   "-c", "model_provider=openrouter",
+#   "-c", "model_providers.openrouter.base_url=\"https://openrouter.ai/api/v1\"",
+#   "-c", "model_providers.openrouter.env_key=\"OPENROUTER_API_KEY\"",
+# ]
+# default_model = "openai/gpt-4.1-mini"
+# model_flag = "--model"
+
+# Native Claude
+# [harnesses.claude]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# model_flag = "--model"
+
+# Claude via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.claude_openrouter]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# default_model = "anthropic/claude-sonnet-4.6"
+# model_flag = "--model"
+# model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+# [harnesses.claude_openrouter.provider_env]
+# ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+# ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+# ANTHROPIC_API_KEY = ""
+
+# Native Gemini
+# [harnesses.gemini]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "gemini-2.5-pro"
+# model_flag = "--model"
+
+# Gemini via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.gemini_openrouter]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "google/gemini-2.5-pro"
+# model_flag = "--model"
+# [harnesses.gemini_openrouter.provider_env]
+# GEMINI_API_KEY = "{env:OPENROUTER_API_KEY}"
+
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
@@ -55,10 +108,73 @@ provider = "openai_compat"
 model = "openai/gpt-4.1-mini"
 api_base = "https://openrouter.ai/api/v1"
 
+# Task-based harness presets
+
+# Native Codex
+# [harnesses.codex]
+# command = ["codex", "exec"]
+# shared_flags = ["--skip-git-repo-check"]
+# default_model = "gpt-5.4"
+# model_flag = "--model"
+
+# Codex via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.codex_openrouter]
+# command = ["codex", "exec"]
+# shared_flags = [
+#   "--skip-git-repo-check",
+#   "-c", "model_provider=openrouter",
+#   "-c", "model_providers.openrouter.base_url=\"https://openrouter.ai/api/v1\"",
+#   "-c", "model_providers.openrouter.env_key=\"OPENROUTER_API_KEY\"",
+# ]
+# default_model = "openai/gpt-4.1-mini"
+# model_flag = "--model"
+
+# Native Claude
+# [harnesses.claude]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# model_flag = "--model"
+
+# Claude via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.claude_openrouter]
+# command = ["claude"]
+# shared_flags = ["--dangerously-skip-permissions"]
+# default_model = "anthropic/claude-sonnet-4.6"
+# model_flag = "--model"
+# model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+# [harnesses.claude_openrouter.provider_env]
+# ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+# ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+# ANTHROPIC_API_KEY = ""
+
+# Native Gemini
+# [harnesses.gemini]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "gemini-2.5-pro"
+# model_flag = "--model"
+
+# Gemini via OpenRouter (export OPENROUTER_API_KEY in your shell)
+# [harnesses.gemini_openrouter]
+# command = ["gemini", "--approval-mode=yolo"]
+# default_model = "google/gemini-2.5-pro"
+# model_flag = "--model"
+# [harnesses.gemini_openrouter.provider_env]
+# GEMINI_API_KEY = "{env:OPENROUTER_API_KEY}"
+
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
 """
+
+
+@dataclass
+class HarnessConfig:
+    command: list[str]
+    shared_flags: list[str] = field(default_factory=list)
+    default_model: str | None = None
+    model_flag: str | None = None
+    model_env_vars: list[str] = field(default_factory=list)
+    provider_env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -87,6 +203,7 @@ class Config:
             "build",
         ]
     )
+    harnesses: dict[str, HarnessConfig] = field(default_factory=dict)
     cwd: str = "."
     project_root: Path | None = None
     global_config_path: Path | None = None
@@ -207,6 +324,113 @@ def _get_string_list(
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return list(value)
     return default
+
+
+def _invalid_harness_config(*, harness_name: str, detail: str) -> SystemExit:
+    return SystemExit(
+        f"Invalid harness config for [harnesses.{harness_name}]: {detail}"
+    )
+
+
+def _get_required_harness_command(
+    *, harness_name: str, section: dict[str, object]
+) -> list[str]:
+    command = section.get("command")
+    if not isinstance(command, list) or not all(
+        isinstance(item, str) for item in command
+    ):
+        raise _invalid_harness_config(
+            harness_name=harness_name,
+            detail="command is required and must be a non-empty list of strings",
+        )
+    if not command:
+        raise _invalid_harness_config(
+            harness_name=harness_name,
+            detail="command is required and must be a non-empty list of strings",
+        )
+    return list(command)
+
+
+def _get_optional_harness_string(
+    *, harness_name: str, section: dict[str, object], key: str
+) -> str | None:
+    value = section.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_harness_config(
+            harness_name=harness_name, detail=f"{key} must be a string when set"
+        )
+    return value
+
+
+def _get_harness_string_list(
+    *, harness_name: str, section: dict[str, object], key: str
+) -> list[str]:
+    value = section.get(key)
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise _invalid_harness_config(
+            harness_name=harness_name,
+            detail=f"{key} must be a list of strings when set",
+        )
+    return list(value)
+
+
+def _get_harness_provider_env(
+    *, harness_name: str, section: dict[str, object]
+) -> dict[str, str]:
+    value = section.get("provider_env")
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise _invalid_harness_config(
+            harness_name=harness_name,
+            detail="provider_env must be a table of string values when set",
+        )
+    provider_env: dict[str, str] = {}
+    for key, raw_value in value.items():
+        if not isinstance(key, str) or not isinstance(raw_value, str):
+            raise _invalid_harness_config(
+                harness_name=harness_name,
+                detail="provider_env must be a table of string values when set",
+            )
+        provider_env[key] = raw_value
+    return provider_env
+
+
+def _parse_harnesses(data: dict[str, object]) -> dict[str, HarnessConfig]:
+    raw = data.get("harnesses")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise SystemExit("Invalid harness config: [harnesses] must be a table")
+
+    harnesses: dict[str, HarnessConfig] = {}
+    for name, value in raw.items():
+        if not isinstance(name, str) or not isinstance(value, dict):
+            raise SystemExit(
+                "Invalid harness config: [harnesses] entries must be named tables"
+            )
+        section = cast(dict[str, object], value)
+        harnesses[name] = HarnessConfig(
+            command=_get_required_harness_command(harness_name=name, section=section),
+            shared_flags=_get_harness_string_list(
+                harness_name=name, section=section, key="shared_flags"
+            ),
+            default_model=_get_optional_harness_string(
+                harness_name=name, section=section, key="default_model"
+            ),
+            model_flag=_get_optional_harness_string(
+                harness_name=name, section=section, key="model_flag"
+            ),
+            model_env_vars=_get_harness_string_list(
+                harness_name=name, section=section, key="model_env_vars"
+            ),
+            provider_env=_get_harness_provider_env(harness_name=name, section=section),
+        )
+    return harnesses
 
 
 def load_config(
@@ -359,6 +583,7 @@ def load_config(
             key="exclude_dirs",
             default=Config().discovery_exclude_dirs,
         ),
+        harnesses=_parse_harnesses(merged),
         cwd=str(cwd_path),
         project_root=project_root,
         global_config_path=global_config_path,

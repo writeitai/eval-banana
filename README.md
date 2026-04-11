@@ -111,6 +111,20 @@ command:
 timeout_seconds: 120
 ```
 
+Task-based checks can also wrap a configured harness preset. In that mode, `command` is appended after the harness command and shared flags.
+
+```yaml
+schema_version: 1
+id: claude_login_flow
+type: task_based
+description: Claude can complete the login flow.
+harness: claude_openrouter
+model: anthropic/claude-sonnet-4.6
+command:
+  - --print
+  - Complete the login flow and write notes to $EVAL_BANANA_OUTPUT_DIR/result.txt
+```
+
 ## Configuration
 
 eval-banana uses TOML config with two tiers:
@@ -157,6 +171,28 @@ export OPENAI_API_KEY=your-key
 # Run `codex login` first, then:
 eval-banana run --provider codex
 ```
+
+### Task-based harness presets
+
+`[harnesses.<name>]` adds reusable argv/env presets for `task_based` checks only. Global and local config merge by harness name; nested `provider_env` keys merge by key, while list fields such as `command`, `shared_flags`, and `model_env_vars` replace on local override.
+
+Example:
+
+```toml
+[harnesses.claude_openrouter]
+command = ["claude"]
+shared_flags = ["--dangerously-skip-permissions"]
+default_model = "anthropic/claude-sonnet-4.6"
+model_flag = "--model"
+model_env_vars = ["ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL"]
+
+[harnesses.claude_openrouter.provider_env]
+ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+ANTHROPIC_API_KEY = ""
+```
+
+`task_based.model` is only valid when `task_based.harness` is also set. `{env:VAR}` placeholders are resolved only inside `harnesses.*.provider_env`, not inside `task_based.env`.
 
 ## CLI reference
 

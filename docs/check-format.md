@@ -116,15 +116,18 @@ Run an arbitrary command and check its exit code.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `command` | list[string] | Yes | Command and arguments to run |
+| `harness` | string | No | Name of a configured `[harnesses.<name>]` preset |
+| `model` | string | No | Harness-specific model override; requires `harness` |
 | `working_directory` | string | No | Working directory (relative to project root) |
 | `env` | dict[string, string] | No | Extra environment variables |
 
 ### How it works
 
 1. The command runs as a subprocess
-2. `EVAL_BANANA_PROJECT_ROOT`, `EVAL_BANANA_OUTPUT_DIR`, `EVAL_BANANA_CHECK_ID` are injected
-3. Exit code 0 = passed, non-zero = failed
-4. Infrastructure errors (timeout, command not found) = error
+2. If `harness` is set, eval-banana prepends the configured harness argv and env
+3. `EVAL_BANANA_PROJECT_ROOT`, `EVAL_BANANA_OUTPUT_DIR`, `EVAL_BANANA_CHECK_ID` are injected
+4. Exit code 0 = passed, non-zero = failed
+5. Infrastructure errors (timeout, command not found) = error
 
 ### Example
 
@@ -141,6 +144,29 @@ command:
   - -q
 timeout_seconds: 300
 ```
+
+Harnessed example:
+
+```yaml
+schema_version: 1
+id: claude_login_flow
+type: task_based
+description: Claude can complete the login flow.
+harness: claude_openrouter
+model: anthropic/claude-sonnet-4.6
+command:
+  - --print
+  - Complete the login flow and write notes to $EVAL_BANANA_OUTPUT_DIR/result.txt
+env:
+  TRACE_ID: run-123
+```
+
+Notes:
+
+- `model` without `harness` is a schema error
+- With a harness, `command` is appended after the harness command and shared flags
+- `{env:VAR}` placeholder substitution applies only inside `harnesses.*.provider_env`, not in `task_based.env`
+- Unknown harness names return a per-check `error` result and do not stop other checks
 
 ## Auto-discovery
 

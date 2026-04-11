@@ -170,3 +170,36 @@ def test_validate_exit_code_zero_and_one(
     )
     failure = runner.invoke(main, ["validate"])
     assert failure.exit_code == 1
+
+
+def test_init_local_template_includes_commented_harness_snippets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["init"])
+
+    assert result.exit_code == 0
+    config_text = (tmp_path / ".eval-banana" / "config.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "# [harnesses.codex]" in config_text
+    assert "# [harnesses.claude_openrouter.provider_env]" in config_text
+    assert "# [harnesses.gemini_openrouter.provider_env]" in config_text
+
+
+def test_init_global_template_includes_commented_harness_snippets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["init", "--global"])
+
+    assert result.exit_code == 0
+    config_text = (home / ".eval-banana" / "config.toml").read_text(encoding="utf-8")
+    assert "# [harnesses.codex_openrouter]" in config_text
+    assert "# [harnesses.claude]" in config_text
+    assert "# [harnesses.gemini]" in config_text

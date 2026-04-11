@@ -55,7 +55,7 @@ tests/               # One test file per source module
 |---|---|---|
 | `deterministic` | Exit code 0 = 1, non-zero = 0 | Python script via subprocess |
 | `llm_judge` | LLM returns `{"score": 0\|1}` | OpenAI-compatible API call |
-| `task_based` | Exit code 0 = 1, non-zero = 0 | Arbitrary command via subprocess |
+| `task_based` | Exit code 0 = 1, non-zero = 0 | Arbitrary command via subprocess; can optionally wrap a configured `[harnesses.*]` preset for shared argv/env |
 
 ## Key design decisions
 

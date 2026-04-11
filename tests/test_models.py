@@ -111,3 +111,49 @@ def test_score_validator_enforces_zero_or_one() -> None:
             completed_at="2026-04-09T12:00:01+00:00",
             duration_ms=1000,
         )
+
+
+def test_task_based_definition_accepts_optional_harness_and_model() -> None:
+    task = _ADAPTER.validate_python(
+        {
+            "schema_version": 1,
+            "id": "task_with_harness",
+            "type": "task_based",
+            "description": "desc",
+            "command": ["prompt", "--json"],
+            "harness": "codex",
+            "model": "gpt-5.4",
+        }
+    )
+
+    assert task.harness == "codex"
+    assert task.model == "gpt-5.4"
+
+
+def test_task_based_definition_still_requires_command() -> None:
+    with pytest.raises(ValidationError):
+        _ADAPTER.validate_python(
+            {
+                "schema_version": 1,
+                "id": "task_missing_command",
+                "type": "task_based",
+                "description": "desc",
+            }
+        )
+
+
+def test_task_based_definition_rejects_model_without_harness() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="task_based.model requires task_based.harness to also be set",
+    ):
+        _ADAPTER.validate_python(
+            {
+                "schema_version": 1,
+                "id": "task_bad_model",
+                "type": "task_based",
+                "description": "desc",
+                "command": ["pytest"],
+                "model": "gpt-5.4",
+            }
+        )
