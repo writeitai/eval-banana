@@ -34,7 +34,6 @@ class HarnessStatus(StrEnum):
     succeeded = "succeeded"
     failed = "failed"
     error = "error"
-    timeout = "timeout"
     skipped = "skipped"
 
 
@@ -191,7 +190,6 @@ class HarnessResult(BaseModel):
     result_path: str | None = None
     stdout_bytes: int | None = None
     stderr_bytes: int | None = None
-    timed_out_after_seconds: int | None = None
 
 
 class EvalReport(BaseModel):

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 def resolve_template(
     *, agent_type: str, user_templates: dict[str, AgentTemplate]
 ) -> AgentTemplate:
+    """Look up the template for *agent_type*, preferring user overrides."""
     if agent_type in user_templates:
         return user_templates[agent_type]
     if agent_type in DEFAULT_AGENT_TEMPLATES:
@@ -23,6 +24,11 @@ def resolve_template(
 def build_command_from_template(
     *, template: AgentTemplate, prompt: str, model: str | None = None
 ) -> list[str]:
+    """Construct the full argv list for spawning an agent CLI.
+
+    Handles prompt placement (tail vs after_command), model flag injection,
+    and reasoning-effort flag rendering.
+    """
     command = list(template.command)
     prompt_args = (
         [template.prompt_flag, prompt] if template.prompt_flag is not None else [prompt]

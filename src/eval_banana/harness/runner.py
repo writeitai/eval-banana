@@ -22,14 +22,6 @@ def _duration_ms(*, started: datetime, completed: datetime) -> int:
     return int((completed - started).total_seconds() * 1000)
 
 
-def _coerce_output_text(*, value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _text_size_bytes(*, text: str) -> int:
     return len(text.encode("utf-8"))
 
@@ -55,8 +47,8 @@ def build_harness_result(
     result_path: str | None = None,
     stdout_bytes: int | None = None,
     stderr_bytes: int | None = None,
-    timed_out_after_seconds: int | None = None,
 ) -> HarnessResult:
+    """Construct a ``HarnessResult`` Pydantic model from individual fields."""
     return HarnessResult(
         agent_type=agent_type,
         command=command,
@@ -77,7 +69,6 @@ def build_harness_result(
         result_path=result_path,
         stdout_bytes=stdout_bytes,
         stderr_bytes=stderr_bytes,
-        timed_out_after_seconds=timed_out_after_seconds,
     )
 
 
@@ -93,8 +84,13 @@ def run_harness(
     run_output_dir: Path,
     model: str | None = None,
     harness_env: dict[str, str] | None = None,
-    timeout: int | None = None,
 ) -> HarnessResult:
+    """Execute a harness agent synchronously and return the result.
+
+    Builds the command from the template, assembles the subprocess
+    environment, runs the agent via ``subprocess.run()``, captures
+    stdout/stderr, and writes all artifacts to ``run_output_dir/harness/``.
+    """
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
     harness_output_dir = run_output_dir / "harness"
@@ -130,7 +126,6 @@ def run_harness(
             cwd=project_root,
             env=env,
             text=True,
-            timeout=timeout,
         )
         stdout_text = completed_process.stdout
         stderr_text = completed_process.stderr
@@ -141,19 +136,10 @@ def run_harness(
         )
         exit_code = completed_process.returncode
         error_detail = None
-        timed_out_after_seconds = None
-    except subprocess.TimeoutExpired as exc:
-        stdout_text = _coerce_output_text(value=exc.stdout)
-        stderr_text = _coerce_output_text(value=exc.stderr)
-        status = HarnessStatus.timeout
-        exit_code = None
-        error_detail = f"Timed out after {exc.timeout} seconds"
-        timed_out_after_seconds = int(exc.timeout)
     except (FileNotFoundError, OSError, PermissionError) as exc:
         status = HarnessStatus.error
         exit_code = None
         error_detail = str(exc)
-        timed_out_after_seconds = None
 
     (run_output_dir / stdout_path).write_text(stdout_text, encoding="utf-8")
     (run_output_dir / stderr_path).write_text(stderr_text, encoding="utf-8")
@@ -179,7 +165,6 @@ def run_harness(
         result_path=str(result_path),
         stdout_bytes=_text_size_bytes(text=stdout_text),
         stderr_bytes=_text_size_bytes(text=stderr_text),
-        timed_out_after_seconds=timed_out_after_seconds,
     )
     (run_output_dir / result_path).write_text(
         result.model_dump_json(indent=2), encoding="utf-8"

@@ -24,7 +24,6 @@ def test_run_harness_success_writes_all_artifacts(
         cwd: Path,
         env: dict[str, str],
         text: bool,
-        timeout: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         captured.update(
             {
@@ -34,7 +33,6 @@ def test_run_harness_success_writes_all_artifacts(
                 "cwd": cwd,
                 "env": dict(env),
                 "text": text,
-                "timeout": timeout,
             }
         )
         return subprocess.CompletedProcess(
@@ -73,7 +71,6 @@ def test_run_harness_success_writes_all_artifacts(
     assert captured["check"] is False
     assert captured["cwd"] == tmp_path
     assert captured["text"] is True
-    assert captured["timeout"] is None
     assert captured["env"]["CI"] == "1"
     assert captured["env"]["EVAL_BANANA_PROJECT_ROOT"] == str(tmp_path)
     assert captured["env"]["EVAL_BANANA_RUN_ID"] == "run1"
@@ -112,45 +109,6 @@ def test_run_harness_nonzero_exit_maps_to_failed(
     assert result.exit_code == 2
 
 
-def test_run_harness_timeout_maps_to_timeout_and_writes_partial_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def fake_run(
-        command: list[str],
-        *,
-        capture_output: bool,
-        check: bool,
-        cwd: Path,
-        env: dict[str, str],
-        text: bool,
-        timeout: int | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(
-            cmd=command, timeout=15, output=b"partial-stdout", stderr=b"partial-stderr"
-        )
-
-    monkeypatch.setattr("eval_banana.harness.runner.subprocess.run", fake_run)
-
-    result = run_harness(
-        agent_type="codex",
-        template=AgentTemplate(command=("codex", "exec")),
-        prompt="Fix the repo",
-        prompt_source="inline",
-        prompt_file=None,
-        project_root=tmp_path,
-        run_id="run1",
-        run_output_dir=tmp_path / "out",
-        timeout=15,
-    )
-
-    assert result.status == HarnessStatus.timeout
-    assert result.exit_code is None
-    assert result.error_detail == "Timed out after 15 seconds"
-    assert result.timed_out_after_seconds == 15
-    assert (tmp_path / "out" / "harness" / "stdout.txt").read_text() == "partial-stdout"
-    assert (tmp_path / "out" / "harness" / "stderr.txt").read_text() == "partial-stderr"
-
-
 def test_run_harness_missing_binary_maps_to_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -162,7 +120,6 @@ def test_run_harness_missing_binary_maps_to_error(
         cwd: Path,
         env: dict[str, str],
         text: bool,
-        timeout: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError("No such file or directory: 'codex'")
 
@@ -201,7 +158,6 @@ def test_run_harness_env_merge_order(
         cwd: Path,
         env: dict[str, str],
         text: bool,
-        timeout: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         nonlocal captured
         captured = dict(env)
@@ -246,7 +202,6 @@ def test_run_harness_applies_harness_reasoning_override(
         cwd: Path,
         env: dict[str, str],
         text: bool,
-        timeout: int | None = None,
     ) -> subprocess.CompletedProcess[str]:
         nonlocal captured_args
         captured_args = list(command)

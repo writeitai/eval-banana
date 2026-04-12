@@ -14,6 +14,14 @@ _WARNED_MISSING_ENV_VARS: set[str] = set()
 
 @dataclass(frozen=True)
 class AgentTemplate:
+    """Describes how to invoke a single CLI coding agent.
+
+    Each field maps to a structural piece of the agent's command line or
+    environment.  Built-in templates for well-known agents are defined in
+    DEFAULT_AGENT_TEMPLATES; users can override or extend them via
+    ``[agents.*]`` TOML config sections.
+    """
+
     command: tuple[str, ...]
     shared_flags: tuple[str, ...] = ()
     prompt_flag: str | None = None
@@ -77,6 +85,13 @@ DEFAULT_AGENT_TEMPLATES: dict[str, AgentTemplate] = {
 def build_template_env(
     *, template: AgentTemplate, effective_model: str | None
 ) -> dict[str, str]:
+    """Return env vars that inject the effective model into agent-specific names.
+
+    For example, the Claude template sets ANTHROPIC_MODEL,
+    ANTHROPIC_DEFAULT_SONNET_MODEL, and ANTHROPIC_DEFAULT_OPUS_MODEL.
+    Returns an empty dict when no model is effective or the template has
+    no model_env_vars.
+    """
     if effective_model is None:
         return {}
     return {env_name: effective_model for env_name in template.model_env_vars}
@@ -105,6 +120,12 @@ def _resolve_provider_env_value(*, value: str) -> str:
 
 
 def build_provider_env(*, template: AgentTemplate) -> dict[str, str]:
+    """Resolve provider_env placeholders from the parent shell environment.
+
+    Values may contain ``{env:VARNAME}`` placeholders that are replaced with
+    the corresponding ``os.environ`` value at call time.  Missing env vars
+    resolve to ``""`` with a one-time warning.
+    """
     return {
         key: _resolve_provider_env_value(value=value)
         for key, value in template.provider_env
@@ -114,6 +135,12 @@ def build_provider_env(*, template: AgentTemplate) -> dict[str, str]:
 def render_reasoning_effort_flags(
     *, template: AgentTemplate, reasoning_effort: str | None = None
 ) -> list[str]:
+    """Return argv tokens for the agent's reasoning effort level.
+
+    Each token in ``template.reasoning_effort_flag`` has its ``{effort}``
+    placeholder replaced with the effective level.  Returns an empty list
+    when no reasoning effort is configured.
+    """
     effective_reasoning_effort = reasoning_effort or template.reasoning_effort
     if effective_reasoning_effort is None:
         return []

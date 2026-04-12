@@ -173,7 +173,7 @@ def test_config_templates_do_not_contain_legacy_timeout_keys() -> None:
         assert "deterministic_timeout_seconds" not in template
         assert "llm_timeout_seconds" not in template
         assert "task_timeout_seconds" not in template
-        assert "# timeout = 1800" in template
+        assert "timeout" not in template
 
 
 def test_parse_minimal_harness_config(
@@ -189,7 +189,6 @@ def test_parse_minimal_harness_config(
                 "[harness]",
                 'agent = "codex"',
                 'prompt = "Fix the failing tests"',
-                "timeout = 1800",
                 'reasoning_effort = "high"',
             ]
         ),
@@ -200,7 +199,6 @@ def test_parse_minimal_harness_config(
 
     assert config.harness_agent == "codex"
     assert config.harness_prompt == "Fix the failing tests"
-    assert config.harness_timeout == 1800
     assert config.harness_reasoning_effort == "high"
 
 
@@ -324,87 +322,40 @@ def test_cli_and_env_precedence_for_harness_fields(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (home / ".eval-banana" / "config.toml").write_text(
-        "\n".join(
-            ["[harness]", 'agent = "codex"', 'prompt = "from-global"', "timeout = 60"]
-        ),
+        "\n".join(["[harness]", 'agent = "codex"', 'prompt = "from-global"']),
         encoding="utf-8",
     )
     (project / ".eval-banana" / "config.toml").write_text(
-        "\n".join(
-            ["[harness]", 'agent = "claude"', 'prompt = "from-local"', "timeout = 90"]
-        ),
+        "\n".join(["[harness]", 'agent = "claude"', 'prompt = "from-local"']),
         encoding="utf-8",
     )
     monkeypatch.setenv("EVAL_BANANA_HARNESS_AGENT", "gemini")
-    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT", "120")
 
     config = load_config(
         cwd=str(project),
         harness_agent="opencode",
         harness_prompt="from-cli",
-        harness_timeout=180,
         harness_reasoning_effort="high",
         skip_harness=True,
     )
 
     assert config.harness_agent == "opencode"
     assert config.harness_prompt == "from-cli"
-    assert config.harness_timeout == 180
     assert config.harness_reasoning_effort == "high"
     assert config.skip_harness is True
 
 
-@pytest.mark.parametrize(
-    ("config_text", "message"),
-    [
-        (
-            "\n".join(
-                [
-                    "[harness]",
-                    'agent = "codex"',
-                    'prompt = "Fix it"',
-                    'timeout = "soon"',
-                ]
-            ),
-            r"\[harness\] timeout must be an integer",
-        ),
-        (
-            "\n".join(
-                ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', "timeout = 0"]
-            ),
-            r"\[harness\] timeout must be >= 1",
-        ),
-        (
-            "\n".join(
-                ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', 'skip = "yes"']
-            ),
-            r"\[harness\] skip must be a boolean",
-        ),
-    ],
-)
-def test_reject_invalid_harness_timeout_and_skip_values(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, config_text: str, message: str
-) -> None:
-    home = tmp_path / "home"
-    project = tmp_path / "project"
-    (project / ".eval-banana").mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(home))
-    (project / ".eval-banana" / "config.toml").write_text(config_text, encoding="utf-8")
-
-    with pytest.raises(SystemExit, match=message):
-        load_config(cwd=str(project))
-
-
-def test_reject_invalid_harness_timeout_env(
+def test_reject_invalid_harness_skip_value(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     home = tmp_path / "home"
     project = tmp_path / "project"
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT", "oops")
+    config_text = "\n".join(
+        ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', 'skip = "yes"']
+    )
+    (project / ".eval-banana" / "config.toml").write_text(config_text, encoding="utf-8")
 
-    with pytest.raises(
-        SystemExit, match="EVAL_BANANA_HARNESS_TIMEOUT must be an integer"
-    ):
+    with pytest.raises(SystemExit, match=r"\[harness\] skip must be a boolean"):
         load_config(cwd=str(project))

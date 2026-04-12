@@ -37,7 +37,6 @@ codex_auth_path = ""
 # agent = "codex"
 # prompt_file = "prompts/task.md"
 # model = "gpt-5.4"
-# timeout = 1800
 # reasoning_effort = "high"
 #
 # [harness.env]
@@ -69,7 +68,6 @@ api_base = "https://openrouter.ai/api/v1"
 # agent = "codex"
 # prompt_file = "prompts/task.md"
 # model = "gpt-5.4"
-# timeout = 1800
 # reasoning_effort = "high"
 #
 # [harness.env]
@@ -112,7 +110,6 @@ class Config:
     harness_prompt: str | None = None
     harness_prompt_file: str | None = None
     harness_model: str | None = None
-    harness_timeout: int | None = None
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
     skip_harness: bool = False
@@ -427,7 +424,6 @@ def load_config(
     harness_prompt: str | None = None,
     harness_prompt_file: str | None = None,
     harness_model: str | None = None,
-    harness_timeout: int | None = None,
     harness_reasoning_effort: str | None = None,
     skip_harness: bool | None = None,
 ) -> Config:
@@ -468,16 +464,6 @@ def load_config(
         if raw is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=caster(raw))
-    raw_harness_timeout = os.getenv("EVAL_BANANA_HARNESS_TIMEOUT")
-    if raw_harness_timeout is not None:
-        try:
-            parsed_harness_timeout = int(raw_harness_timeout)
-        except ValueError as exc:
-            msg = "EVAL_BANANA_HARNESS_TIMEOUT must be an integer"
-            raise SystemExit(msg) from exc
-        _set_nested_value(
-            merged, section="harness", key="timeout", value=parsed_harness_timeout
-        )
     raw_skip_harness = os.getenv("EVAL_BANANA_SKIP_HARNESS")
     if raw_skip_harness is not None:
         _set_nested_value(
@@ -502,10 +488,6 @@ def load_config(
         if value is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=value)
-    if harness_timeout is not None:
-        _set_nested_value(
-            merged, section="harness", key="timeout", value=harness_timeout
-        )
     if skip_harness is not None:
         _set_nested_value(merged, section="harness", key="skip", value=skip_harness)
 
@@ -551,21 +533,6 @@ def load_config(
             _set_nested_value(
                 merged, section="llm", key="api_key", value=provider_fallback_key
             )
-
-    raw_harness_timeout_value = _get_nested_value(
-        merged, section="harness", key="timeout"
-    )
-    parsed_harness_timeout: int | None = None
-    if raw_harness_timeout_value is not None:
-        if not isinstance(raw_harness_timeout_value, int) or isinstance(
-            raw_harness_timeout_value, bool
-        ):
-            msg = "[harness] timeout must be an integer"
-            raise SystemExit(msg)
-        if raw_harness_timeout_value < 1:
-            msg = "[harness] timeout must be >= 1"
-            raise SystemExit(msg)
-        parsed_harness_timeout = raw_harness_timeout_value
 
     raw_harness_skip = _get_nested_value(merged, section="harness", key="skip")
     if raw_harness_skip is None:
@@ -626,7 +593,6 @@ def load_config(
         harness_model=_normalize_optional_string(
             value=_get_nested_value(merged, section="harness", key="model")
         ),
-        harness_timeout=parsed_harness_timeout,
         harness_reasoning_effort=_normalize_optional_string(
             value=_get_nested_value(merged, section="harness", key="reasoning_effort")
         ),

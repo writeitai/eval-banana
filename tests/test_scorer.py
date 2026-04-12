@@ -116,7 +116,7 @@ def test_skipped_harness_does_not_block_run_passed(
     assert report.run_passed is True
 
 
-@pytest.mark.parametrize("status", [HarnessStatus.error, HarnessStatus.timeout])
+@pytest.mark.parametrize("status", [HarnessStatus.error])
 def test_abort_harness_statuses_force_run_passed_false(
     status: HarnessStatus,
     make_check_result: Callable[..., CheckResult],

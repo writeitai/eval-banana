@@ -251,7 +251,6 @@ def test_harness_prompt_file_is_resolved_and_forwarded_to_run_harness(
             harness_agent="codex",
             harness_prompt_file="prompts/task.md",
             harness_model="gpt-5.4",
-            harness_timeout=45,
             harness_reasoning_effort="high",
             harness_env={"CI": "1"},
         )
@@ -264,7 +263,6 @@ def test_harness_prompt_file_is_resolved_and_forwarded_to_run_harness(
     assert harness_kwargs["prompt_source"] == "file"
     assert harness_kwargs["prompt_file"] == str(prompt_path.resolve())
     assert harness_kwargs["model"] == "gpt-5.4"
-    assert harness_kwargs["timeout"] == 45
     assert harness_kwargs["harness_env"] == {"CI": "1"}
     assert harness_kwargs["template"].command == ("codex", "exec")
     assert harness_kwargs["template"].reasoning_effort == "high"

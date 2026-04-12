@@ -90,7 +90,6 @@ def init(use_global: bool, force: bool) -> None:
 @click.option("--harness-prompt")
 @click.option("--harness-prompt-file", type=click.Path(path_type=Path))
 @click.option("--harness-model")
-@click.option("--harness-timeout", type=int)
 @click.option("--harness-reasoning-effort")
 @click.option("--skip-harness", is_flag=True, default=None)
 @click.option("--cwd", default=".")
@@ -109,7 +108,6 @@ def run_cli(
     harness_prompt: str | None,
     harness_prompt_file: Path | None,
     harness_model: str | None,
-    harness_timeout: int | None,
     harness_reasoning_effort: str | None,
     skip_harness: bool | None,
     cwd: str,
@@ -130,7 +128,6 @@ def run_cli(
             str(harness_prompt_file) if harness_prompt_file is not None else None
         ),
         harness_model=harness_model,
-        harness_timeout=harness_timeout,
         harness_reasoning_effort=harness_reasoning_effort,
         skip_harness=skip_harness,
         cwd=cwd,

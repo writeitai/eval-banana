@@ -138,14 +138,13 @@ eval-banana run --harness-agent claude --harness-prompt-file prompts/task.md --h
 agent = "codex"
 prompt_file = "prompts/task.md"
 model = "gpt-5.4"
-timeout = 1800
 # reasoning_effort = "high"
 ```
 
 ### Harness behavior
 
 - The harness runs once before any checks execute.
-- If the harness fails (non-zero exit, timeout, missing binary), checks are **not** run and the eval run is marked as failed.
+- If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
 - Use `--skip-harness` to suppress a configured harness and score the current workspace state.
 - Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
 
@@ -231,7 +230,6 @@ Harness options (run only):
   --harness-prompt TEXT         Task prompt for the agent
   --harness-prompt-file PATH    File containing the task prompt
   --harness-model TEXT          Model override for the agent
-  --harness-timeout INT         Timeout in seconds
   --harness-reasoning-effort TEXT  Reasoning effort level
   --skip-harness                Suppress configured harness
 ```

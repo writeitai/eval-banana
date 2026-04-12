@@ -123,7 +123,6 @@ The harness drives an AI coding agent before checks run. Configure it in TOML or
 | `prompt` | (none) | `EVAL_BANANA_HARNESS_PROMPT` | Inline task prompt |
 | `prompt_file` | (none) | `EVAL_BANANA_HARNESS_PROMPT_FILE` | Path to prompt file (relative to project root) |
 | `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
-| `timeout` | (none) | `EVAL_BANANA_HARNESS_TIMEOUT` | Timeout in seconds |
 | `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
 
 Either `prompt` or `prompt_file` must be set when a harness agent is configured. They are mutually exclusive.
@@ -173,7 +172,7 @@ ANTHROPIC_API_KEY = ""
 
 ### Harness failure behavior
 
-If the harness fails (non-zero exit code, timeout, or spawn error), checks are **not** run and the eval run is marked as failed. Use `--skip-harness` to suppress a configured harness and score the current workspace state.
+If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. Use `--skip-harness` to suppress a configured harness and score the current workspace state.
 
 ### Missing credentials
 

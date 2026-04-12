@@ -82,8 +82,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
             "Fix it",
             "--harness-model",
             "gpt-5.4",
-            "--harness-timeout",
-            "1800",
             "--harness-reasoning-effort",
             "high",
             "--skip-harness",
@@ -99,7 +97,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
     assert captured["harness_prompt"] == "Fix it"
     assert captured["harness_prompt_file"] is None
     assert captured["harness_model"] == "gpt-5.4"
-    assert captured["harness_timeout"] == 1800
     assert captured["harness_reasoning_effort"] == "high"
     assert captured["skip_harness"] is True
     assert captured["cwd"] == "/tmp/project"

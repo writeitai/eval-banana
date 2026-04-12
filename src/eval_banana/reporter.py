@@ -9,11 +9,7 @@ from eval_banana.models import HarnessStatus
 
 logger = logging.getLogger(__name__)
 
-_HARNESS_FAILURE_STATUSES = {
-    HarnessStatus.failed,
-    HarnessStatus.error,
-    HarnessStatus.timeout,
-}
+_HARNESS_FAILURE_STATUSES = {HarnessStatus.failed, HarnessStatus.error}
 
 
 def emit_console_report(*, report: EvalReport) -> None:
