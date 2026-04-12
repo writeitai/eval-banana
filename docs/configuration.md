@@ -29,9 +29,6 @@ Local init also creates an example check in `eval_checks/`.
 |---|---|---|---|
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where output files go |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0-1.0) |
-| `deterministic_timeout_seconds` | `30` | `EVAL_BANANA_DETERMINISTIC_TIMEOUT_SECONDS` | Default timeout for deterministic checks |
-| `llm_timeout_seconds` | `90` | `EVAL_BANANA_LLM_TIMEOUT_SECONDS` | Default timeout for LLM judge checks |
-| `task_timeout_seconds` | `300` | `EVAL_BANANA_TASK_TIMEOUT_SECONDS` | Default timeout for task-based checks |
 | `llm_max_input_chars` | `12000` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to LLM per target file |
 
 ### `[llm]` section

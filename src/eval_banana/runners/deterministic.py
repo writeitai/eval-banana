@@ -27,14 +27,6 @@ def _duration_ms(*, started: datetime, completed: datetime) -> int:
     return int((completed - started).total_seconds() * 1000)
 
 
-def _coerce_output(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _resolve_script_path(
     *, check: DeterministicCheckDefinition, source_path: Path, temp_dir: Path
 ) -> Path:
@@ -116,9 +108,6 @@ def run_deterministic_check(
             context_path.write_text(
                 json.dumps(context_payload, indent=2), encoding="utf-8"
             )
-            timeout_seconds = (
-                check.timeout_seconds or config.deterministic_timeout_seconds
-            )
             logger.debug("Running deterministic check %s via %s", check.id, script_path)
             completed_process = subprocess.run(
                 [sys.executable, str(script_path), str(context_path)],
@@ -126,25 +115,7 @@ def run_deterministic_check(
                 check=False,
                 cwd=project_root,
                 text=True,
-                timeout=timeout_seconds,
             )
-    except subprocess.TimeoutExpired as exc:
-        logger.error("Deterministic check %s timed out", check.id)
-        completed = datetime.now(timezone.utc)
-        return CheckResult(
-            check_id=check.id,
-            check_type=CheckType.deterministic,
-            description=check.description,
-            source_path=str(source_path.resolve()),
-            status=CheckStatus.error,
-            score=0,
-            started_at=started_at,
-            completed_at=completed.isoformat(),
-            duration_ms=_duration_ms(started=started, completed=completed),
-            error_detail=f"Deterministic check timed out after {exc.timeout} seconds",
-            stdout=_coerce_output(exc.stdout),
-            stderr=_coerce_output(exc.stderr),
-        )
     except (FileNotFoundError, OSError, PermissionError) as exc:
         logger.error("Deterministic check %s failed to execute: %s", check.id, exc)
         completed = datetime.now(timezone.utc)

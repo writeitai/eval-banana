@@ -18,9 +18,6 @@ _GLOBAL_CONFIG_TEXT = """# Global eval-banana configuration.
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
-deterministic_timeout_seconds = 30
-llm_timeout_seconds = 90
-task_timeout_seconds = 300
 llm_max_input_chars = 12000
 
 
@@ -44,9 +41,6 @@ _LOCAL_CONFIG_TEXT = """# Project-level eval-banana configuration.
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
-deterministic_timeout_seconds = 30
-llm_timeout_seconds = 90
-task_timeout_seconds = 300
 llm_max_input_chars = 12000
 
 
@@ -70,9 +64,6 @@ class Config:
     api_base: str = "https://openrouter.ai/api/v1"
     api_key: str = ""
     codex_auth_path: str = ""
-    deterministic_timeout_seconds: int = 30
-    llm_timeout_seconds: int = 90
-    task_timeout_seconds: int = 300
     llm_max_input_chars: int = 12000
     discovery_exclude_dirs: list[str] = field(
         default_factory=lambda: [
@@ -240,14 +231,6 @@ def load_config(
     env_specs: list[tuple[str, str, str, type[Any]]] = [
         ("EVAL_BANANA_OUTPUT_DIR", "core", "output_dir", str),
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
-        (
-            "EVAL_BANANA_DETERMINISTIC_TIMEOUT_SECONDS",
-            "core",
-            "deterministic_timeout_seconds",
-            int,
-        ),
-        ("EVAL_BANANA_LLM_TIMEOUT_SECONDS", "core", "llm_timeout_seconds", int),
-        ("EVAL_BANANA_TASK_TIMEOUT_SECONDS", "core", "task_timeout_seconds", int),
         ("EVAL_BANANA_LLM_MAX_INPUT_CHARS", "core", "llm_max_input_chars", int),
         ("EVAL_BANANA_PROVIDER", "llm", "provider", str),
         ("EVAL_BANANA_MODEL", "llm", "model", str),
@@ -340,15 +323,6 @@ def load_config(
         api_key=_get_string(merged, section="llm", key="api_key", default=""),
         codex_auth_path=_get_string(
             merged, section="llm", key="codex_auth_path", default=""
-        ),
-        deterministic_timeout_seconds=_get_int(
-            merged, section="core", key="deterministic_timeout_seconds", default=30
-        ),
-        llm_timeout_seconds=_get_int(
-            merged, section="core", key="llm_timeout_seconds", default=90
-        ),
-        task_timeout_seconds=_get_int(
-            merged, section="core", key="task_timeout_seconds", default=300
         ),
         llm_max_input_chars=_get_int(
             merged, section="core", key="llm_max_input_chars", default=12000

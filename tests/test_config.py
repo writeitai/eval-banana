@@ -6,6 +6,8 @@ import pytest
 
 from eval_banana.config import _deep_merge
 from eval_banana.config import find_local_config
+from eval_banana.config import get_global_config_template
+from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
 
 
@@ -109,9 +111,6 @@ def test_toml_mapping_table_is_applied(
                 "[core]",
                 'output_dir = "out"',
                 "pass_threshold = 0.7",
-                "deterministic_timeout_seconds = 11",
-                "llm_timeout_seconds = 22",
-                "task_timeout_seconds = 33",
                 "llm_max_input_chars = 44",
                 "",
                 "[llm]",
@@ -132,9 +131,6 @@ def test_toml_mapping_table_is_applied(
 
     assert config.output_dir == str((project / "out").resolve())
     assert config.pass_threshold == 0.7
-    assert config.deterministic_timeout_seconds == 11
-    assert config.llm_timeout_seconds == 22
-    assert config.task_timeout_seconds == 33
     assert config.llm_max_input_chars == 44
     assert config.provider == "openai_compat"
     assert config.model == "my-model"
@@ -142,3 +138,38 @@ def test_toml_mapping_table_is_applied(
     assert config.api_key == "secret"
     assert config.codex_auth_path == "/tmp/auth.json"
     assert config.discovery_exclude_dirs == ["one", "two"]
+
+
+def test_stale_timeout_toml_is_silently_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            [
+                "[core]",
+                "deterministic_timeout_seconds = 30",
+                "llm_timeout_seconds = 90",
+                "task_timeout_seconds = 300",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(cwd=str(project))
+
+    assert not hasattr(config, "deterministic_timeout_seconds")
+    assert not hasattr(config, "llm_timeout_seconds")
+    assert not hasattr(config, "task_timeout_seconds")
+
+
+def test_config_templates_do_not_contain_timeout_keys() -> None:
+    for template in (get_global_config_template(), get_local_config_template()):
+        assert "deterministic_timeout_seconds" not in template
+        assert "llm_timeout_seconds" not in template
+        assert "task_timeout_seconds" not in template
+        assert "timeout" not in template.lower()

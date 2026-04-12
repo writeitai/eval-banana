@@ -127,28 +127,30 @@ def test_script_path_resolution(
     assert captured["script_path"] == str(script_path.resolve())
 
 
-def test_timeout_handling_returns_error(
+def test_subprocess_run_called_without_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     source_path = tmp_path / "eval_checks" / "one.yaml"
     source_path.parent.mkdir()
     source_path.write_text("", encoding="utf-8")
+    captured_kwargs: dict[str, object] = {}
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.TimeoutExpired(
-            cmd=args, timeout=30, output="out", stderr="err"
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=args, returncode=0, stdout="", stderr=""
         )
 
     monkeypatch.setattr("eval_banana.runners.deterministic.subprocess.run", fake_run)
     check = DeterministicCheckDefinition(
         schema_version=1,
-        id="timeout_check",
+        id="no_timeout_check",
         type="deterministic",
         description="desc",
         script="print('ok')",
     )
 
-    result = run_deterministic_check(
+    run_deterministic_check(
         check=check,
         source_path=source_path,
         project_root=tmp_path,
@@ -156,8 +158,7 @@ def test_timeout_handling_returns_error(
         config=make_config(project_root=tmp_path),
     )
 
-    assert result.status == "error"
-    assert result.stderr == "err"
+    assert "timeout" not in captured_kwargs
 
 
 def test_missing_script_returns_error(

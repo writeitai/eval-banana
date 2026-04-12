@@ -14,7 +14,6 @@ All check types share these fields:
 | `description` | string | Yes | Human-readable description |
 | `target_paths` | list[string] | No | Files/directories the check operates on |
 | `tags` | list[string] | No | Tags for filtering (future use) |
-| `timeout_seconds` | int | No | Override default timeout for this check |
 
 ## Deterministic checks
 
@@ -33,7 +32,7 @@ Exactly one of `script` or `script_path` must be set.
 2. A `context.json` file is written with check metadata and resolved targets
 3. The script runs as `python <script> <context.json>`
 4. Exit code 0 = passed, non-zero = failed
-5. Infrastructure errors (timeout, missing script) = error
+5. Infrastructure errors (missing script, OS execution failure) = error
 
 ### context.json shape
 
@@ -124,7 +123,7 @@ Run an arbitrary command and check its exit code.
 1. The command runs as a subprocess
 2. `EVAL_BANANA_PROJECT_ROOT`, `EVAL_BANANA_OUTPUT_DIR`, `EVAL_BANANA_CHECK_ID` are injected
 3. Exit code 0 = passed, non-zero = failed
-4. Infrastructure errors (timeout, command not found) = error
+4. Infrastructure errors (command not found, OS execution failure) = error
 
 ### Example
 
@@ -139,7 +138,6 @@ command:
   - pytest
   - tests
   - -q
-timeout_seconds: 300
 ```
 
 ## Auto-discovery
@@ -156,4 +154,4 @@ Check IDs must be unique across all discovered files.
 |---|---|---|
 | 0 | passed | 1 |
 | Non-zero | failed | 0 |
-| Timeout/OS error | error | 0 |
+| OS / execution error | error | 0 |

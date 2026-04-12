@@ -204,7 +204,6 @@ command:
   - pytest
   - tests
   - -q
-timeout_seconds: 300
 ```
 
 ## Task-based: run a linter
@@ -233,7 +232,6 @@ command:
   - bash
   - -c
   - 'curl -sf http://localhost:8000/health > /dev/null'
-timeout_seconds: 10
 ```
 
 Note: using `bash -c` here because the check needs a pipe/redirect. For simpler checks prefer passing args directly without a shell.
@@ -251,7 +249,6 @@ command:
   - python
   - ui_tests/login_flow.py
 working_directory: .
-timeout_seconds: 180
 env:
   HEADLESS: "1"
   BASE_URL: "http://localhost:3000"

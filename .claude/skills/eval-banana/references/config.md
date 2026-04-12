@@ -39,9 +39,6 @@ eval-banana init --force  # Overwrite existing
 |---|---|---|
 | `output_dir` | `.eval-banana/results` | Where run artifacts are written (relative to project root) |
 | `pass_threshold` | `1.0` | Minimum `points/total` ratio for the run to pass (0.0-1.0) |
-| `deterministic_timeout_seconds` | `30` | Default timeout for deterministic checks |
-| `llm_timeout_seconds` | `90` | Default timeout for LLM judge checks |
-| `task_timeout_seconds` | `300` | Default timeout for task-based checks |
 | `llm_max_input_chars` | `12000` | Max characters sent to LLM **per target file** (not cumulative) |
 
 ### `[llm]` section
@@ -81,9 +78,6 @@ Dict sections merge recursively. A local `[core]` override changes only the keys
 |---|---|
 | `EVAL_BANANA_OUTPUT_DIR` | `core.output_dir` |
 | `EVAL_BANANA_PASS_THRESHOLD` | `core.pass_threshold` |
-| `EVAL_BANANA_DETERMINISTIC_TIMEOUT_SECONDS` | `core.deterministic_timeout_seconds` |
-| `EVAL_BANANA_LLM_TIMEOUT_SECONDS` | `core.llm_timeout_seconds` |
-| `EVAL_BANANA_TASK_TIMEOUT_SECONDS` | `core.task_timeout_seconds` |
 | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | `core.llm_max_input_chars` |
 | `EVAL_BANANA_PROVIDER` | `llm.provider` |
 | `EVAL_BANANA_MODEL` | `llm.model` |
@@ -186,9 +180,6 @@ If your local config was created by `eval-banana init` (which writes explicit `m
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
-deterministic_timeout_seconds = 30
-llm_timeout_seconds = 90
-task_timeout_seconds = 300
 llm_max_input_chars = 12000
 
 
