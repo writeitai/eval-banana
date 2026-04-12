@@ -7,6 +7,8 @@ from pathlib import Path
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import EvalReport
+from eval_banana.models import HarnessResult
+from eval_banana.models import HarnessStatus
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,7 @@ def score_results(
     completed_at: str,
     pass_threshold: float,
     results: list[CheckResult],
+    harness: HarnessResult | None = None,
 ) -> EvalReport:
     started = datetime.fromisoformat(started_at)
     completed = datetime.fromisoformat(completed_at)
@@ -38,6 +41,11 @@ def score_results(
         percentage = round((points_earned / total_points) * 100, 1)
         meets_threshold = (points_earned / total_points) >= pass_threshold
 
+    harness_allows_pass = harness is None or harness.status in {
+        HarnessStatus.succeeded,
+        HarnessStatus.skipped,
+    }
+
     return EvalReport(
         run_id=run_id,
         project_root=str(project_root),
@@ -54,6 +62,7 @@ def score_results(
         percentage=percentage,
         pass_threshold=pass_threshold,
         meets_threshold=meets_threshold,
-        run_passed=meets_threshold and errored_checks == 0,
+        run_passed=meets_threshold and errored_checks == 0 and harness_allows_pass,
         checks=results,
+        harness=harness,
     )

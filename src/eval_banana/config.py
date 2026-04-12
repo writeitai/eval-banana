@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import replace
 import logging
 import os
 from pathlib import Path
 import tomllib
 from typing import Any
 from typing import cast
+
+from eval_banana.harness.template import AgentTemplate
+from eval_banana.harness.template import DEFAULT_AGENT_TEMPLATES
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,16 @@ api_key = ""
 codex_auth_path = ""
 
 
+# [harness]
+# agent = "codex"
+# prompt_file = "prompts/task.md"
+# model = "gpt-5.4"
+# reasoning_effort = "high"
+#
+# [harness.env]
+# CI = "1"
+
+
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
 """
@@ -48,6 +62,16 @@ llm_max_input_chars = 12000
 provider = "openai_compat"
 model = "openai/gpt-4.1-mini"
 api_base = "https://openrouter.ai/api/v1"
+
+
+# [harness]
+# agent = "codex"
+# prompt_file = "prompts/task.md"
+# model = "gpt-5.4"
+# reasoning_effort = "high"
+#
+# [harness.env]
+# CI = "1"
 
 
 [discovery]
@@ -82,6 +106,14 @@ class Config:
     project_root: Path | None = None
     global_config_path: Path | None = None
     local_config_path: Path | None = None
+    harness_agent: str | None = None
+    harness_prompt: str | None = None
+    harness_prompt_file: str | None = None
+    harness_model: str | None = None
+    harness_reasoning_effort: str | None = None
+    harness_env: dict[str, str] = field(default_factory=dict)
+    skip_harness: bool = False
+    agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
 
 def get_global_config_template() -> str:
@@ -186,7 +218,7 @@ def _get_float(
 
 def _get_int(data: dict[str, object], *, section: str, key: str, default: int) -> int:
     value = _get_nested_value(data, section=section, key=key)
-    if isinstance(value, int):
+    if isinstance(value, int) and not isinstance(value, bool):
         return value
     return default
 
@@ -200,6 +232,184 @@ def _get_string_list(
     return default
 
 
+def _get_string_dict(
+    data: dict[str, object], *, section: str, key: str
+) -> dict[str, str]:
+    value = _get_nested_value(data, section=section, key=key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or not all(
+        isinstance(item_key, str) and isinstance(item_value, str)
+        for item_key, item_value in value.items()
+    ):
+        msg = f"[{section}.{key}] must be a TOML table of string values"
+        raise SystemExit(msg)
+    return dict(value)
+
+
+def _normalize_optional_string(*, value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        msg = "Expected a string value"
+        raise SystemExit(msg)
+    if value == "":
+        return None
+    return value
+
+
+def _parse_prompt_position(*, agent_name: str, raw_value: object | None) -> str | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, str):
+        msg = f"[agents.{agent_name}] prompt_position must be a string"
+        raise SystemExit(msg)
+    if raw_value not in {"tail", "after_command"}:
+        msg = f"[agents.{agent_name}] prompt_position must be 'tail' or 'after_command'"
+        raise SystemExit(msg)
+    return raw_value
+
+
+def _parse_tuple_field(
+    *, agent_name: str, raw_value: object | None, field_name: str
+) -> tuple[str, ...] | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, list) or not all(
+        isinstance(item, str) for item in raw_value
+    ):
+        msg = f"[agents.{agent_name}] {field_name} must be a list of strings"
+        raise SystemExit(msg)
+    return tuple(raw_value)
+
+
+def _parse_provider_env(
+    *, agent_name: str, raw_value: object | None
+) -> tuple[tuple[str, str], ...] | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, dict) or not all(
+        isinstance(item_key, str) and isinstance(item_value, str)
+        for item_key, item_value in raw_value.items()
+    ):
+        msg = f"[agents.{agent_name}.provider_env] must be a TOML table of strings"
+        raise SystemExit(msg)
+    return tuple((key, value) for key, value in raw_value.items())
+
+
+def _parse_agent_templates(data: dict[str, object]) -> dict[str, AgentTemplate]:
+    raw_agents = data.get("agents")
+    if raw_agents is None:
+        return {}
+    if not isinstance(raw_agents, dict):
+        msg = "[agents] must be a TOML table"
+        raise SystemExit(msg)
+
+    parsed_templates: dict[str, AgentTemplate] = {}
+    for agent_name, raw_agent_config in raw_agents.items():
+        if not isinstance(agent_name, str) or not isinstance(raw_agent_config, dict):
+            msg = "[agents] entries must be TOML tables"
+            raise SystemExit(msg)
+
+        allowed_keys = {
+            "command",
+            "shared_flags",
+            "prompt_flag",
+            "prompt_position",
+            "model_flag",
+            "model_env_vars",
+            "default_model",
+            "reasoning_effort",
+            "reasoning_effort_flag",
+            "provider_env",
+        }
+        unknown_keys = set(raw_agent_config) - allowed_keys
+        if unknown_keys:
+            unknown_keys_text = ", ".join(sorted(unknown_keys))
+            msg = f"[agents.{agent_name}] contains unknown keys: {unknown_keys_text}"
+            raise SystemExit(msg)
+
+        if agent_name in DEFAULT_AGENT_TEMPLATES:
+            template = DEFAULT_AGENT_TEMPLATES[agent_name]
+        else:
+            template = AgentTemplate(command=())
+
+        command = _parse_tuple_field(
+            agent_name=agent_name,
+            raw_value=raw_agent_config.get("command"),
+            field_name="command",
+        )
+        shared_flags = _parse_tuple_field(
+            agent_name=agent_name,
+            raw_value=raw_agent_config.get("shared_flags"),
+            field_name="shared_flags",
+        )
+        model_env_vars = _parse_tuple_field(
+            agent_name=agent_name,
+            raw_value=raw_agent_config.get("model_env_vars"),
+            field_name="model_env_vars",
+        )
+        reasoning_effort_flag = _parse_tuple_field(
+            agent_name=agent_name,
+            raw_value=raw_agent_config.get("reasoning_effort_flag"),
+            field_name="reasoning_effort_flag",
+        )
+        prompt_position = _parse_prompt_position(
+            agent_name=agent_name, raw_value=raw_agent_config.get("prompt_position")
+        )
+
+        try:
+            prompt_flag = _normalize_optional_string(
+                value=raw_agent_config.get("prompt_flag")
+            )
+            model_flag = _normalize_optional_string(
+                value=raw_agent_config.get("model_flag")
+            )
+            default_model = _normalize_optional_string(
+                value=raw_agent_config.get("default_model")
+            )
+            reasoning_effort = _normalize_optional_string(
+                value=raw_agent_config.get("reasoning_effort")
+            )
+        except SystemExit as exc:
+            msg = f"[agents.{agent_name}] {exc}"
+            raise SystemExit(msg) from exc
+
+        provider_env = _parse_provider_env(
+            agent_name=agent_name, raw_value=raw_agent_config.get("provider_env")
+        )
+
+        if command is None and agent_name not in DEFAULT_AGENT_TEMPLATES:
+            msg = f"[agents.{agent_name}] command is required for custom agents"
+            raise SystemExit(msg)
+
+        updates: dict[str, object] = {}
+        if command is not None:
+            updates["command"] = command
+        if shared_flags is not None:
+            updates["shared_flags"] = shared_flags
+        if "prompt_flag" in raw_agent_config:
+            updates["prompt_flag"] = prompt_flag
+        if prompt_position is not None:
+            updates["prompt_position"] = prompt_position
+        if "model_flag" in raw_agent_config:
+            updates["model_flag"] = model_flag
+        if model_env_vars is not None:
+            updates["model_env_vars"] = model_env_vars
+        if "default_model" in raw_agent_config:
+            updates["default_model"] = default_model
+        if "reasoning_effort" in raw_agent_config:
+            updates["reasoning_effort"] = reasoning_effort
+        if reasoning_effort_flag is not None:
+            updates["reasoning_effort_flag"] = reasoning_effort_flag
+        if provider_env is not None:
+            updates["provider_env"] = provider_env
+
+        parsed_templates[agent_name] = replace(template, **updates)
+
+    return parsed_templates
+
+
 def load_config(
     *,
     output_dir: str | None = None,
@@ -210,6 +420,12 @@ def load_config(
     codex_auth_path: str | None = None,
     pass_threshold: float | None = None,
     cwd: str | None = None,
+    harness_agent: str | None = None,
+    harness_prompt: str | None = None,
+    harness_prompt_file: str | None = None,
+    harness_model: str | None = None,
+    harness_reasoning_effort: str | None = None,
+    skip_harness: bool | None = None,
 ) -> Config:
     cwd_path = Path(cwd or ".").resolve()
     global_config_path = Path.home() / ".eval-banana" / "config.toml"
@@ -237,12 +453,22 @@ def load_config(
         ("EVAL_BANANA_API_BASE", "llm", "api_base", str),
         ("EVAL_BANANA_API_KEY", "llm", "api_key", str),
         ("EVAL_BANANA_CODEX_AUTH_PATH", "llm", "codex_auth_path", str),
+        ("EVAL_BANANA_HARNESS_AGENT", "harness", "agent", str),
+        ("EVAL_BANANA_HARNESS_PROMPT", "harness", "prompt", str),
+        ("EVAL_BANANA_HARNESS_PROMPT_FILE", "harness", "prompt_file", str),
+        ("EVAL_BANANA_HARNESS_MODEL", "harness", "model", str),
+        ("EVAL_BANANA_HARNESS_REASONING_EFFORT", "harness", "reasoning_effort", str),
     ]
     for env_name, section, key, caster in env_specs:
         raw = os.getenv(env_name)
         if raw is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=caster(raw))
+    raw_skip_harness = os.getenv("EVAL_BANANA_SKIP_HARNESS")
+    if raw_skip_harness is not None:
+        _set_nested_value(
+            merged, section="harness", key="skip", value=_coerce_bool(raw_skip_harness)
+        )
 
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
@@ -252,11 +478,18 @@ def load_config(
         (api_base, "llm", "api_base"),
         (api_key, "llm", "api_key"),
         (codex_auth_path, "llm", "codex_auth_path"),
+        (harness_agent, "harness", "agent"),
+        (harness_prompt, "harness", "prompt"),
+        (harness_prompt_file, "harness", "prompt_file"),
+        (harness_model, "harness", "model"),
+        (harness_reasoning_effort, "harness", "reasoning_effort"),
     ]
     for value, section, key in cli_overrides:
         if value is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=value)
+    if skip_harness is not None:
+        _set_nested_value(merged, section="harness", key="skip", value=skip_harness)
 
     provider_value = str(
         _get_nested_value(merged, section="llm", key="provider") or "openai_compat"
@@ -301,6 +534,17 @@ def load_config(
                 merged, section="llm", key="api_key", value=provider_fallback_key
             )
 
+    raw_harness_skip = _get_nested_value(merged, section="harness", key="skip")
+    if raw_harness_skip is None:
+        resolved_skip_harness = False
+    elif isinstance(raw_harness_skip, bool):
+        resolved_skip_harness = raw_harness_skip
+    else:
+        msg = "[harness] skip must be a boolean"
+        raise SystemExit(msg)
+
+    agent_templates = _parse_agent_templates(merged)
+
     config = Config(
         output_dir=_get_string(
             merged, section="core", key="output_dir", default=".eval-banana/results"
@@ -337,6 +581,24 @@ def load_config(
         project_root=project_root,
         global_config_path=global_config_path,
         local_config_path=local_config_path,
+        harness_agent=_normalize_optional_string(
+            value=_get_nested_value(merged, section="harness", key="agent")
+        ),
+        harness_prompt=_normalize_optional_string(
+            value=_get_nested_value(merged, section="harness", key="prompt")
+        ),
+        harness_prompt_file=_normalize_optional_string(
+            value=_get_nested_value(merged, section="harness", key="prompt_file")
+        ),
+        harness_model=_normalize_optional_string(
+            value=_get_nested_value(merged, section="harness", key="model")
+        ),
+        harness_reasoning_effort=_normalize_optional_string(
+            value=_get_nested_value(merged, section="harness", key="reasoning_effort")
+        ),
+        harness_env=_get_string_dict(merged, section="harness", key="env"),
+        skip_harness=resolved_skip_harness,
+        agent_templates=agent_templates,
     )
 
     output_path = Path(config.output_dir)

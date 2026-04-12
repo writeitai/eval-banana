@@ -30,6 +30,13 @@ class CheckType(StrEnum):
     task_based = "task_based"
 
 
+class HarnessStatus(StrEnum):
+    succeeded = "succeeded"
+    failed = "failed"
+    error = "error"
+    skipped = "skipped"
+
+
 class BaseCheckDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -161,6 +168,30 @@ class CheckResult(BaseModel):
         return value
 
 
+class HarnessResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    agent_type: str
+    command: list[str] = Field(default_factory=list)
+    working_directory: str
+    status: HarnessStatus
+    started_at: str
+    completed_at: str
+    duration_ms: int
+    model: str | None = None
+    reasoning_effort: str | None = None
+    prompt_source: Literal["inline", "file"] | None = None
+    prompt_file: str | None = None
+    exit_code: int | None = None
+    error_detail: str | None = None
+    stdout_path: str | None = None
+    stderr_path: str | None = None
+    prompt_artifact_path: str | None = None
+    result_path: str | None = None
+    stdout_bytes: int | None = None
+    stderr_bytes: int | None = None
+
+
 class EvalReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -181,3 +212,4 @@ class EvalReport(BaseModel):
     meets_threshold: bool
     run_passed: bool
     checks: list[CheckResult]
+    harness: HarnessResult | None = None

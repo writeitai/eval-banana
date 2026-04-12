@@ -5,12 +5,30 @@ from pathlib import Path
 import re
 
 from eval_banana.models import EvalReport
+from eval_banana.models import HarnessStatus
 
 logger = logging.getLogger(__name__)
+
+_HARNESS_FAILURE_STATUSES = {HarnessStatus.failed, HarnessStatus.error}
 
 
 def emit_console_report(*, report: EvalReport) -> None:
     print(f"Run ID: {report.run_id}")
+    if report.harness is not None:
+        summary = ""
+        if report.harness.error_detail:
+            summary = report.harness.error_detail
+        elif (
+            report.harness.exit_code is not None
+            and report.harness.status in _HARNESS_FAILURE_STATUSES
+        ):
+            summary = f"exit_code={report.harness.exit_code}"
+        print(
+            f"Harness: {report.harness.status.value} ({report.harness.agent_type})"
+            f"{f' - {summary}' if summary else ''}"
+        )
+        if report.harness.status in _HARNESS_FAILURE_STATUSES:
+            print("Checks not run: harness failed before check execution.")
     print(f"Score: {report.points_earned}/{report.total_points}")
     print(f"Percentage: {report.percentage:.1f}%")
     print(f"Passed: {'yes' if report.run_passed else 'no'}")
@@ -41,9 +59,22 @@ def _build_markdown_report(*, report: EvalReport) -> str:
         f"| Pass Threshold | `{report.pass_threshold}` |",
         f"| Run Passed | `{report.run_passed}` |",
         "",
-        "| Check ID | Type | Status | Score | Duration (ms) |",
-        "| --- | --- | --- | --- | --- |",
     ]
+    if report.harness is not None:
+        lines.extend(
+            [
+                f"| Harness Agent | `{report.harness.agent_type}` |",
+                f"| Harness Status | `{report.harness.status.value}` |",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "| Check ID | Type | Status | Score | Duration (ms) |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+    )
     for check in report.checks:
         lines.append(
             f"| `{check.check_id}` | `{check.check_type.value}` | "
@@ -51,6 +82,25 @@ def _build_markdown_report(*, report: EvalReport) -> str:
         )
 
     details_blocks: list[str] = []
+    if report.harness is not None:
+        details_blocks.extend(["", "## Harness", ""])
+        details_blocks.append(f"- Agent: `{report.harness.agent_type}`")
+        details_blocks.append(f"- Status: `{report.harness.status.value}`")
+        if report.harness.model:
+            details_blocks.append(f"- Model: `{report.harness.model}`")
+        if report.harness.reasoning_effort:
+            details_blocks.append(
+                f"- Reasoning Effort: `{report.harness.reasoning_effort}`"
+            )
+        if report.harness.exit_code is not None:
+            details_blocks.append(f"- Exit Code: `{report.harness.exit_code}`")
+        if report.harness.error_detail:
+            details_blocks.append(f"- Error: {report.harness.error_detail}")
+        if report.harness.status in _HARNESS_FAILURE_STATUSES:
+            details_blocks.append(
+                "- Checks not run because the harness failed before check execution."
+            )
+
     for check in report.checks:
         if not check.reason and not check.error_detail:
             continue
