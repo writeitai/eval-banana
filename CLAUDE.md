@@ -24,10 +24,15 @@ src/eval_banana/
   auth.py            # OpenRouter + Codex authentication
   discovery.py       # Auto-discover eval_checks/ directories
   loader.py          # YAML loading + validation
-  runner.py          # Top-level orchestration
+  runner.py          # Top-level orchestration (harness + checks)
   scorer.py          # Pure scoring function
   reporter.py        # Console + JSON + Markdown output
   cli.py             # Click CLI (init, run, list, validate)
+  harness/
+    __init__.py      # Empty package marker
+    template.py      # AgentTemplate dataclass + built-in templates
+    registry.py      # Template resolution + command building
+    runner.py        # Synchronous harness subprocess execution
   runners/
     deterministic.py # Script-based checks
     llm_judge.py     # LLM-as-judge checks
@@ -57,6 +62,18 @@ tests/               # One test file per source module
 | `llm_judge` | LLM returns `{"score": 0\|1}` | OpenAI-compatible API call |
 | `task_based` | Exit code 0 = 1, non-zero = 0 | Arbitrary command via subprocess |
 
+## Harness support
+
+eval-banana can optionally drive an AI coding agent (harness) before running checks.
+
+- Configured via `[harness]` and `[agents.*]` TOML sections or `--harness-*` CLI flags
+- Built-in templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
+- Harness runs synchronously via `subprocess.run()` before the check loop
+- Harness failure aborts checks (use `--skip-harness` to override)
+- Harness metadata stored on `EvalReport.harness` (separate from check scoring)
+- AgentTemplate is a frozen dataclass (internal, not serialized)
+- `HarnessResult` is a Pydantic model with `extra="forbid"`
+
 ## Key design decisions
 
 - One YAML file per check (not per suite)
@@ -65,3 +82,6 @@ tests/               # One test file per source module
 - Provider-aware credential isolation (OpenRouter keys never sent to OpenAI, vice versa)
 - Codex backend URL is hardcoded -- `api_base` config does not affect Codex
 - `--check-id` uses relaxed validation (broken YAML in other files does not block)
+- Harness is a run-level phase, not a check type -- no `type: harness` in YAML
+- Single harness per run -- no multi-agent orchestration
+- No async -- harness uses synchronous subprocess.run() like task_based checks

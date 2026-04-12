@@ -9,6 +9,7 @@ from eval_banana.config import find_local_config
 from eval_banana.config import get_global_config_template
 from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
+from eval_banana.harness.template import DEFAULT_AGENT_TEMPLATES
 
 
 def test_find_local_config_walks_upward(tmp_path: Path) -> None:
@@ -167,9 +168,243 @@ def test_stale_timeout_toml_is_silently_ignored(
     assert not hasattr(config, "task_timeout_seconds")
 
 
-def test_config_templates_do_not_contain_timeout_keys() -> None:
+def test_config_templates_do_not_contain_legacy_timeout_keys() -> None:
     for template in (get_global_config_template(), get_local_config_template()):
         assert "deterministic_timeout_seconds" not in template
         assert "llm_timeout_seconds" not in template
         assert "task_timeout_seconds" not in template
-        assert "timeout" not in template.lower()
+        assert "# timeout = 1800" in template
+
+
+def test_parse_minimal_harness_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            [
+                "[harness]",
+                'agent = "codex"',
+                'prompt = "Fix the failing tests"',
+                "timeout = 1800",
+                'reasoning_effort = "high"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(cwd=str(project))
+
+    assert config.harness_agent == "codex"
+    assert config.harness_prompt == "Fix the failing tests"
+    assert config.harness_timeout == 1800
+    assert config.harness_reasoning_effort == "high"
+
+
+def test_parse_harness_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            [
+                "[harness]",
+                'agent = "codex"',
+                'prompt = "Fix the failing tests"',
+                "",
+                "[harness.env]",
+                'CI = "1"',
+                'PYTHONUNBUFFERED = "1"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(cwd=str(project))
+
+    assert config.harness_env == {"CI": "1", "PYTHONUNBUFFERED": "1"}
+
+
+def test_parse_agent_override_inherits_builtin_and_converts_arrays_to_tuples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            [
+                "[agents.codex]",
+                'shared_flags = ["--json"]',
+                'reasoning_effort = "medium"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(cwd=str(project))
+    template = config.agent_templates["codex"]
+
+    assert template.command == DEFAULT_AGENT_TEMPLATES["codex"].command
+    assert template.shared_flags == ("--json",)
+    assert template.reasoning_effort == "medium"
+
+
+def test_parse_custom_agent_requires_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        '[agents.custom]\nmodel_flag = "--model"\n', encoding="utf-8"
+    )
+
+    with pytest.raises(SystemExit, match="command is required for custom agents"):
+        load_config(cwd=str(project))
+
+
+def test_reject_malformed_provider_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            ["[agents.claude]", 'command = ["claude"]', 'provider_env = [["A", "B"]]']
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="provider_env"):
+        load_config(cwd=str(project))
+
+
+def test_empty_string_clears_inherited_template_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            [
+                "[agents.codex]",
+                'default_model = ""',
+                'reasoning_effort = ""',
+                'model_flag = ""',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_config(cwd=str(project))
+    template = config.agent_templates["codex"]
+
+    assert template.default_model is None
+    assert template.reasoning_effort is None
+    assert template.model_flag is None
+
+
+def test_cli_and_env_precedence_for_harness_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (home / ".eval-banana").mkdir(parents=True)
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (home / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            ["[harness]", 'agent = "codex"', 'prompt = "from-global"', "timeout = 60"]
+        ),
+        encoding="utf-8",
+    )
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(
+            ["[harness]", 'agent = "claude"', 'prompt = "from-local"', "timeout = 90"]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_AGENT", "gemini")
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT", "120")
+
+    config = load_config(
+        cwd=str(project),
+        harness_agent="opencode",
+        harness_prompt="from-cli",
+        harness_timeout=180,
+        harness_reasoning_effort="high",
+        skip_harness=True,
+    )
+
+    assert config.harness_agent == "opencode"
+    assert config.harness_prompt == "from-cli"
+    assert config.harness_timeout == 180
+    assert config.harness_reasoning_effort == "high"
+    assert config.skip_harness is True
+
+
+@pytest.mark.parametrize(
+    ("config_text", "message"),
+    [
+        (
+            "\n".join(
+                [
+                    "[harness]",
+                    'agent = "codex"',
+                    'prompt = "Fix it"',
+                    'timeout = "soon"',
+                ]
+            ),
+            r"\[harness\] timeout must be an integer",
+        ),
+        (
+            "\n".join(
+                ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', "timeout = 0"]
+            ),
+            r"\[harness\] timeout must be >= 1",
+        ),
+        (
+            "\n".join(
+                ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', 'skip = "yes"']
+            ),
+            r"\[harness\] skip must be a boolean",
+        ),
+    ],
+)
+def test_reject_invalid_harness_timeout_and_skip_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, config_text: str, message: str
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(config_text, encoding="utf-8")
+
+    with pytest.raises(SystemExit, match=message):
+        load_config(cwd=str(project))
+
+
+def test_reject_invalid_harness_timeout_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT", "oops")
+
+    with pytest.raises(
+        SystemExit, match="EVAL_BANANA_HARNESS_TIMEOUT must be an integer"
+    ):
+        load_config(cwd=str(project))

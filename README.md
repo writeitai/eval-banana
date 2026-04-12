@@ -6,6 +6,8 @@ Lightweight aspect-based evaluation framework for Python projects.
 
 eval-banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
+Optionally, eval-banana can drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace.
+
 Three check types:
 
 | Type | Purpose | How it works |
@@ -110,6 +112,55 @@ command:
   - ui_checks/login_test.py
 ```
 
+## Harness support
+
+eval-banana can drive an AI coding agent before running checks. The agent receives a task prompt, works on the project, and then eval-banana scores the result.
+
+Built-in agent templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`.
+
+### Inline prompt
+
+```bash
+eval-banana run --harness-agent codex --harness-prompt "Fix all failing tests"
+```
+
+### Prompt from file
+
+```bash
+eval-banana run --harness-agent claude --harness-prompt-file prompts/task.md --harness-model claude-sonnet-4-6
+```
+
+### TOML configuration
+
+```toml
+# .eval-banana/config.toml
+[harness]
+agent = "codex"
+prompt_file = "prompts/task.md"
+model = "gpt-5.4"
+timeout = 1800
+# reasoning_effort = "high"
+```
+
+### Harness behavior
+
+- The harness runs once before any checks execute.
+- If the harness fails (non-zero exit, timeout, missing binary), checks are **not** run and the eval run is marked as failed.
+- Use `--skip-harness` to suppress a configured harness and score the current workspace state.
+- Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
+
+### Custom agent templates
+
+Add `[agents.<name>]` sections to override built-in templates or define new ones:
+
+```toml
+[agents.myagent]
+command = ["my-cli", "run"]
+shared_flags = ["--headless"]
+prompt_flag = "--prompt"
+model_flag = "--model"
+```
+
 ## Configuration
 
 eval-banana uses TOML config with two tiers:
@@ -166,14 +217,23 @@ eval-banana list [OPTIONS]                 List discovered checks
 eval-banana validate [OPTIONS]             Validate YAML without running
 
 Options for run/list/validate:
-  --check-dir PATH       Scan only this directory
-  --check-id TEXT        Run only this check ID
-  --output-dir TEXT      Override output directory
-  --provider TEXT        LLM provider (openai_compat or codex)
-  --model TEXT           LLM model name
-  --pass-threshold FLOAT Minimum pass ratio (0.0-1.0)
-  --verbose              Enable debug logging
-  --cwd TEXT             Working directory
+  --check-dir PATH              Scan only this directory
+  --check-id TEXT               Run only this check ID
+  --output-dir TEXT             Override output directory
+  --provider TEXT               LLM provider (openai_compat or codex)
+  --model TEXT                  LLM model name
+  --pass-threshold FLOAT        Minimum pass ratio (0.0-1.0)
+  --verbose                     Enable debug logging
+  --cwd TEXT                    Working directory
+
+Harness options (run only):
+  --harness-agent TEXT          Agent CLI to run before checks
+  --harness-prompt TEXT         Task prompt for the agent
+  --harness-prompt-file PATH    File containing the task prompt
+  --harness-model TEXT          Model override for the agent
+  --harness-timeout INT         Timeout in seconds
+  --harness-reasoning-effort TEXT  Reasoning effort level
+  --skip-harness                Suppress configured harness
 ```
 
 ## Output
@@ -184,6 +244,11 @@ Each run creates a timestamped directory under the configured `output_dir`:
 .eval-banana/results/<run_id>/
   report.json       # Machine-readable full report
   report.md         # Human-readable Markdown report
+  harness/          # Only when a harness was executed
+    prompt.txt      # Resolved prompt sent to the agent
+    stdout.txt      # Agent stdout
+    stderr.txt      # Agent stderr
+    result.json     # Harness result metadata
   checks/
     <check_id>.json       # Per-check result
     <check_id>.stdout.txt # Captured stdout (if any)

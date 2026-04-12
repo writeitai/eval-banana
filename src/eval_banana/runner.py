@@ -1,21 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
 import logging
 from pathlib import Path
+from typing import Literal
 import uuid
 
 import yaml
 
 from eval_banana.config import Config
 from eval_banana.discovery import discover_check_files
+from eval_banana.harness.registry import resolve_template
+from eval_banana.harness.runner import build_harness_result
+from eval_banana.harness.runner import run_harness
 from eval_banana.loader import load_check_definition
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
 from eval_banana.models import EvalReport
+from eval_banana.models import HarnessResult
+from eval_banana.models import HarnessStatus
 from eval_banana.reporter import emit_console_report
 from eval_banana.reporter import write_report_files
 from eval_banana.runners.deterministic import run_deterministic_check
@@ -24,6 +31,12 @@ from eval_banana.runners.task_based import run_task_based_check
 from eval_banana.scorer import score_results
 
 logger = logging.getLogger(__name__)
+
+_HARNESS_ABORT_STATUSES = {
+    HarnessStatus.failed,
+    HarnessStatus.error,
+    HarnessStatus.timeout,
+}
 
 
 def _make_run_id() -> str:
@@ -38,6 +51,50 @@ def _prepare_run_output_dir(*, config: Config, run_id: str) -> Path:
     run_output_dir.mkdir(parents=True, exist_ok=True)
     (run_output_dir / "checks").mkdir(parents=True, exist_ok=True)
     return run_output_dir
+
+
+def _resolve_harness_prompt(
+    *, config: Config
+) -> tuple[str, Literal["inline", "file"], str | None]:
+    if config.harness_prompt is not None and config.harness_prompt_file is not None:
+        msg = "Harness prompt and prompt_file are mutually exclusive"
+        raise SystemExit(msg)
+    if config.harness_prompt is None and config.harness_prompt_file is None:
+        msg = "Harness requires either prompt or prompt_file"
+        raise SystemExit(msg)
+    if config.harness_prompt is not None:
+        return config.harness_prompt, "inline", None
+
+    if config.project_root is None or config.harness_prompt_file is None:
+        msg = "Config.project_root must be set before resolving harness prompts"
+        raise SystemExit(msg)
+
+    prompt_path = Path(config.harness_prompt_file)
+    if not prompt_path.is_absolute():
+        prompt_path = (config.project_root / prompt_path).resolve()
+    if not prompt_path.is_file():
+        msg = f"Harness prompt file not found: {prompt_path}"
+        raise SystemExit(msg)
+    return (prompt_path.read_text(encoding="utf-8"), "file", str(prompt_path))
+
+
+def _build_skipped_harness_result(*, config: Config, started_at: str) -> HarnessResult:
+    if config.project_root is None or config.harness_agent is None:
+        msg = "Cannot build skipped harness result without project_root and agent"
+        raise SystemExit(msg)
+    return build_harness_result(
+        agent_type=config.harness_agent,
+        command=[],
+        working_directory=config.project_root,
+        status=HarnessStatus.skipped,
+        started_at=started_at,
+        completed_at=started_at,
+        duration_ms=0,
+        model=config.harness_model,
+        reasoning_effort=config.harness_reasoning_effort,
+        prompt_source=None,
+        prompt_file=None,
+    )
 
 
 def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
@@ -110,6 +167,52 @@ def run_checks(
     run_id = _make_run_id()
     run_output_dir = _prepare_run_output_dir(config=config, run_id=run_id)
     checks_output_dir = run_output_dir / "checks"
+    harness_result: HarnessResult | None = None
+
+    if config.harness_agent is not None:
+        if config.skip_harness:
+            harness_result = _build_skipped_harness_result(
+                config=config, started_at=started_at
+            )
+        else:
+            prompt_text, prompt_source, prompt_file = _resolve_harness_prompt(
+                config=config
+            )
+            template = resolve_template(
+                agent_type=config.harness_agent, user_templates=config.agent_templates
+            )
+            if config.harness_reasoning_effort is not None:
+                template = replace(
+                    template, reasoning_effort=config.harness_reasoning_effort
+                )
+            harness_result = run_harness(
+                agent_type=config.harness_agent,
+                template=template,
+                prompt=prompt_text,
+                prompt_source=prompt_source,
+                prompt_file=prompt_file,
+                project_root=config.project_root,
+                run_id=run_id,
+                run_output_dir=run_output_dir,
+                model=config.harness_model,
+                harness_env=config.harness_env,
+                timeout=config.harness_timeout,
+            )
+            if harness_result.status in _HARNESS_ABORT_STATUSES:
+                completed = datetime.now(timezone.utc)
+                report = score_results(
+                    run_id=run_id,
+                    project_root=config.project_root,
+                    output_dir=run_output_dir,
+                    started_at=started_at,
+                    completed_at=completed.isoformat(),
+                    pass_threshold=config.pass_threshold,
+                    results=[],
+                    harness=harness_result,
+                )
+                emit_console_report(report=report)
+                write_report_files(report=report, output_dir=run_output_dir)
+                return report
 
     results: list[CheckResult] = []
     for source_path, definition in sorted(
@@ -135,6 +238,7 @@ def run_checks(
         completed_at=completed.isoformat(),
         pass_threshold=config.pass_threshold,
         results=results,
+        harness=harness_result,
     )
     emit_console_report(report=report)
     write_report_files(report=report, output_dir=run_output_dir)

@@ -2,6 +2,8 @@
 
 Every check is a single YAML file in an `eval_checks/` directory. eval-banana auto-discovers these files by walking from the project root.
 
+**Note:** The harness (AI coding agent) is configured in TOML config or CLI flags, not in YAML check files. There is no `type: harness` check type. See `docs/configuration.md` for harness setup.
+
 ## Common fields
 
 All check types share these fields:

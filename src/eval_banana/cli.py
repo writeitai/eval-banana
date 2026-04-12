@@ -86,6 +86,13 @@ def init(use_global: bool, force: bool) -> None:
 @click.option("--api-key")
 @click.option("--codex-auth-path")
 @click.option("--pass-threshold", type=float)
+@click.option("--harness-agent")
+@click.option("--harness-prompt")
+@click.option("--harness-prompt-file", type=click.Path(path_type=Path))
+@click.option("--harness-model")
+@click.option("--harness-timeout", type=int)
+@click.option("--harness-reasoning-effort")
+@click.option("--skip-harness", is_flag=True, default=None)
 @click.option("--cwd", default=".")
 @click.option("--verbose", is_flag=True)
 def run_cli(
@@ -98,6 +105,13 @@ def run_cli(
     api_key: str | None,
     codex_auth_path: str | None,
     pass_threshold: float | None,
+    harness_agent: str | None,
+    harness_prompt: str | None,
+    harness_prompt_file: Path | None,
+    harness_model: str | None,
+    harness_timeout: int | None,
+    harness_reasoning_effort: str | None,
+    skip_harness: bool | None,
     cwd: str,
     verbose: bool,
 ) -> None:
@@ -110,6 +124,15 @@ def run_cli(
         api_key=api_key,
         codex_auth_path=codex_auth_path,
         pass_threshold=pass_threshold,
+        harness_agent=harness_agent,
+        harness_prompt=harness_prompt,
+        harness_prompt_file=(
+            str(harness_prompt_file) if harness_prompt_file is not None else None
+        ),
+        harness_model=harness_model,
+        harness_timeout=harness_timeout,
+        harness_reasoning_effort=harness_reasoning_effort,
+        skip_harness=skip_harness,
         cwd=cwd,
     )
     report = run_checks(config=config, check_dir=check_dir, check_id=check_id)

@@ -111,6 +111,70 @@ codex login  # Create auth credentials
 eval-banana run --provider codex
 ```
 
+## Harness configuration
+
+The harness drives an AI coding agent before checks run. Configure it in TOML or via CLI flags.
+
+### `[harness]` section
+
+| Key | Default | Env var | Description |
+|---|---|---|---|
+| `agent` | (none) | `EVAL_BANANA_HARNESS_AGENT` | Agent template name (e.g. `codex`, `claude`, `gemini`) |
+| `prompt` | (none) | `EVAL_BANANA_HARNESS_PROMPT` | Inline task prompt |
+| `prompt_file` | (none) | `EVAL_BANANA_HARNESS_PROMPT_FILE` | Path to prompt file (relative to project root) |
+| `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
+| `timeout` | (none) | `EVAL_BANANA_HARNESS_TIMEOUT` | Timeout in seconds |
+| `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
+
+Either `prompt` or `prompt_file` must be set when a harness agent is configured. They are mutually exclusive.
+
+Relative `prompt_file` paths resolve from the project root.
+
+### `[harness.env]` section
+
+Extra environment variables injected into the harness subprocess:
+
+```toml
+[harness.env]
+CI = "1"
+PYTHONUNBUFFERED = "1"
+```
+
+### `[agents.*]` sections
+
+Override built-in agent templates or define custom ones. Built-in templates exist for: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`.
+
+```toml
+[agents.codex]
+default_model = "gpt-5.4"
+reasoning_effort = "high"
+```
+
+Omitted fields inherit from the built-in template. Custom agents must provide `command`:
+
+```toml
+[agents.myagent]
+command = ["my-cli", "run"]
+shared_flags = ["--headless"]
+prompt_flag = "--prompt"
+model_flag = "--model"
+```
+
+### `[agents.<name>.provider_env]`
+
+Provider-wide env vars for the agent subprocess. Values may contain `{env:VARNAME}` placeholders resolved from the parent shell:
+
+```toml
+[agents.claude.provider_env]
+ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+ANTHROPIC_API_KEY = ""
+```
+
+### Harness failure behavior
+
+If the harness fails (non-zero exit code, timeout, or spawn error), checks are **not** run and the eval run is marked as failed. Use `--skip-harness` to suppress a configured harness and score the current workspace state.
+
 ### Missing credentials
 
 If an `llm_judge` check runs but credentials are missing, it returns an `error` result with a remediation message. It does **not** skip silently. Other check types continue running normally.
