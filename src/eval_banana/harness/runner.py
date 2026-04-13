@@ -9,6 +9,7 @@ import subprocess
 from typing import Literal
 
 from eval_banana.harness.registry import build_command_from_template
+from eval_banana.harness.skills import distribute_skills
 from eval_banana.harness.template import AgentTemplate
 from eval_banana.harness.template import build_provider_env
 from eval_banana.harness.template import build_template_env
@@ -84,6 +85,7 @@ def run_harness(
     run_output_dir: Path,
     model: str | None = None,
     harness_env: dict[str, str] | None = None,
+    skills_dir: Path | None = None,
 ) -> HarnessResult:
     """Execute a harness agent synchronously and return the result.
 
@@ -93,6 +95,11 @@ def run_harness(
     """
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
+    if skills_dir is not None:
+        distribute_skills(
+            project_root=project_root, agent_type=agent_type, skills_dir=skills_dir
+        )
+
     harness_output_dir = run_output_dir / "harness"
     harness_output_dir.mkdir(parents=True, exist_ok=True)
 

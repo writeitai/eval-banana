@@ -271,6 +271,67 @@ def test_harness_prompt_file_is_resolved_and_forwarded_to_run_harness(
     assert report.harness.reasoning_effort == "high"
 
 
+def test_run_checks_passes_skills_dir_to_run_harness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_config: Callable[..., Config],
+    make_harness_result: Callable[..., HarnessResult],
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+    monkeypatch.setattr("eval_banana.runner.write_report_files", lambda **kwargs: None)
+    monkeypatch.setattr(
+        "eval_banana.runner.resolve_template",
+        lambda **kwargs: AgentTemplate(command=("codex", "exec")),
+    )
+
+    def fake_run_harness(**kwargs: object) -> HarnessResult:
+        captured.update(kwargs)
+        return make_harness_result(status="succeeded")
+
+    def fake_runner(**kwargs: object) -> CheckResult:
+        return CheckResult(
+            check_id="one",
+            check_type=CheckType.deterministic,
+            description="desc",
+            source_path=str(check_path),
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
+
+    monkeypatch.setattr("eval_banana.runner.run_harness", fake_run_harness)
+    monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+
+    config = make_config(
+        project_root=tmp_path,
+        cwd=str(tmp_path),
+        harness_agent="codex",
+        harness_prompt="Fix it",
+        skills_dir=str((tmp_path / "skills").resolve()),
+    )
+    run_checks(config=config)
+
+    assert captured["skills_dir"] == Path(config.skills_dir)
+
+
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [

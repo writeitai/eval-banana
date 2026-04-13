@@ -139,14 +139,38 @@ agent = "codex"
 prompt_file = "prompts/task.md"
 model = "gpt-5.4"
 # reasoning_effort = "high"
+# skills_dir = "skills"
 ```
 
 ### Harness behavior
 
 - The harness runs once before any checks execute.
+- Before the harness subprocess starts, eval-banana can distribute repo-local skills from `skills/` into agent-specific generated directories such as `.claude/skills/` and `.codex/skills/`.
 - If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
 - Use `--skip-harness` to suppress a configured harness and score the current workspace state.
 - Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
+
+### Skills
+
+Repo-local harness skills live under `skills/` and are not distributed with the wheel package:
+
+```text
+skills/
+  gemini_media_use/
+    SKILL.md
+    scripts/
+    references/
+```
+
+You can distribute them manually with:
+
+```bash
+eval-banana distribute-skills
+eval-banana distribute-skills --target-agents codex
+eval-banana distribute-skills --dry-run
+```
+
+The same distribution step also runs automatically before `eval-banana run` starts a supported harness agent. The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. Generated skill directories such as `.claude/skills/` and `.codex/skills/` should usually be added to `.gitignore`.
 
 ### Custom agent templates
 
@@ -214,6 +238,7 @@ eval-banana init [--global] [--force]     Create config files
 eval-banana run [OPTIONS]                  Run all discovered checks
 eval-banana list [OPTIONS]                 List discovered checks
 eval-banana validate [OPTIONS]             Validate YAML without running
+eval-banana distribute-skills [OPTIONS]    Copy repo-local skills to agent dirs
 
 Options for run/list/validate:
   --check-dir PATH              Scan only this directory

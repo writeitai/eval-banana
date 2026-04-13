@@ -192,6 +192,7 @@ def run_checks(
                 run_output_dir=run_output_dir,
                 model=config.harness_model,
                 harness_env=config.harness_env,
+                skills_dir=Path(config.skills_dir),
             )
             if harness_result.status in _HARNESS_ABORT_STATUSES:
                 completed = datetime.now(timezone.utc)
