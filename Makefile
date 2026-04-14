@@ -14,19 +14,19 @@ test:
 	uv run pytest tests -v --tb=short
 
 format:
-	uv run ruff format src tests
+	uv run ruff format src tests skills
 
 fix:
-	uv run ruff check --fix src tests
-	uv run ruff format src tests
+	uv run ruff check --fix src tests skills
+	uv run ruff format src tests skills
 
 pyright:
-	uv run pyright src tests
+	uv run pyright src tests skills
 
 all-check:
-	uv run ruff check src tests
-	uv run ruff format --check src tests
-	uv run pyright src tests
+	uv run ruff check src tests skills
+	uv run ruff format --check src tests skills
+	uv run pyright src tests skills
 	uv run pytest tests -v --tb=short
 
 run:

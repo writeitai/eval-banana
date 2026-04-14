@@ -230,3 +230,115 @@ def test_validate_exit_code_zero_and_one(
     )
     failure = runner.invoke(main, ["validate"])
     assert failure.exit_code == 1
+
+
+def test_distribute_skills_default_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    skills_dir = tmp_path / "skills"
+    (skills_dir / "gemini_media_use").mkdir(parents=True)
+    captured: list[str] = []
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(
+            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
+        ),
+    )
+
+    def fake_distribute_skills(**kwargs: object) -> list[str]:
+        agent_type = kwargs["agent_type"]
+        assert isinstance(agent_type, str)
+        captured.append(agent_type)
+        return ["gemini_media_use"]
+
+    monkeypatch.setattr("eval_banana.cli.distribute_skills", fake_distribute_skills)
+
+    result = runner.invoke(main, ["distribute-skills"])
+
+    assert result.exit_code == 0
+    assert captured == ["claude", "codex"]
+    assert "claude: distributed 1 skill" in result.output
+    assert "codex: distributed 1 skill" in result.output
+
+
+def test_distribute_skills_target_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    skills_dir = tmp_path / "skills"
+    (skills_dir / "gemini_media_use").mkdir(parents=True)
+    captured: list[str] = []
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(
+            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
+        ),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.distribute_skills",
+        lambda **kwargs: (
+            captured.append(str(kwargs["agent_type"])) or ["gemini_media_use"]
+        ),
+    )
+
+    result = runner.invoke(main, ["distribute-skills", "--target-agents", "codex"])
+
+    assert result.exit_code == 0
+    assert captured == ["codex"]
+    assert "codex: distributed 1 skill" in result.output
+
+
+def test_distribute_skills_missing_skills_dir_exits_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(
+            project_root=tmp_path,
+            skills_dir=str((tmp_path / "missing-skills").resolve()),
+        ),
+    )
+
+    result = runner.invoke(main, ["distribute-skills"])
+
+    assert result.exit_code == 0
+    assert "No skills directory found at" in result.output
+
+
+def test_distribute_skills_dry_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    skills_dir = tmp_path / "skills"
+    (skills_dir / "gemini_media_use").mkdir(parents=True)
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(
+            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
+        ),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.distribute_skills",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("distribute_skills must not be called during dry-run")
+        ),
+    )
+
+    result = runner.invoke(main, ["distribute-skills", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "claude: would distribute 1 skill" in result.output
+    assert "codex: would distribute 1 skill" in result.output
+
+
+def test_distribute_skills_invalid_target_agent(tmp_path: Path) -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        main, ["distribute-skills", "--target-agents", "invalid-agent"]
+    )
+
+    assert result.exit_code == 2
+    assert "Invalid value for '--target-agents'" in result.output

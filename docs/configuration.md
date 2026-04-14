@@ -124,10 +124,11 @@ The harness drives an AI coding agent before checks run. Configure it in TOML or
 | `prompt_file` | (none) | `EVAL_BANANA_HARNESS_PROMPT_FILE` | Path to prompt file (relative to project root) |
 | `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
 | `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
+| `skills_dir` | `skills` | (none) | Repo-local skill source directory (relative to project root unless absolute) |
 
 Either `prompt` or `prompt_file` must be set when a harness agent is configured. They are mutually exclusive.
 
-Relative `prompt_file` paths resolve from the project root.
+Relative `prompt_file` and `skills_dir` paths resolve from the project root.
 
 ### `[harness.env]` section
 
@@ -137,6 +138,21 @@ Extra environment variables injected into the harness subprocess:
 [harness.env]
 CI = "1"
 PYTHONUNBUFFERED = "1"
+```
+
+### Skill distribution
+
+`eval-banana distribute-skills` copies repo-local skills from `skills/` into agent-specific generated directories before a supported harness runs.
+
+- Supported target agents are currently `claude` and `codex`.
+- Unsupported agents are safe no-ops.
+- Missing `skills/` directories are also a no-op.
+- Generated directories such as `.claude/skills/` and `.codex/skills/` should usually be gitignored.
+
+```bash
+eval-banana distribute-skills
+eval-banana distribute-skills --target-agents codex
+eval-banana distribute-skills --dry-run
 ```
 
 ### `[agents.*]` sections

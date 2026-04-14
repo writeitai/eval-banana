@@ -38,6 +38,7 @@ codex_auth_path = ""
 # prompt_file = "prompts/task.md"
 # model = "gpt-5.4"
 # reasoning_effort = "high"
+# skills_dir = "skills"
 #
 # [harness.env]
 # CI = "1"
@@ -69,6 +70,7 @@ api_base = "https://openrouter.ai/api/v1"
 # prompt_file = "prompts/task.md"
 # model = "gpt-5.4"
 # reasoning_effort = "high"
+# skills_dir = "skills"
 #
 # [harness.env]
 # CI = "1"
@@ -112,6 +114,7 @@ class Config:
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
+    skills_dir: str = "skills"
     skip_harness: bool = False
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
@@ -597,6 +600,9 @@ def load_config(
             value=_get_nested_value(merged, section="harness", key="reasoning_effort")
         ),
         harness_env=_get_string_dict(merged, section="harness", key="env"),
+        skills_dir=_get_string(
+            merged, section="harness", key="skills_dir", default="skills"
+        ),
         skip_harness=resolved_skip_harness,
         agent_templates=agent_templates,
     )
@@ -605,6 +611,11 @@ def load_config(
     if not output_path.is_absolute():
         output_path = (project_root / output_path).resolve()
     config.output_dir = str(output_path)
+
+    skills_path = Path(config.skills_dir)
+    if not skills_path.is_absolute():
+        skills_path = (project_root / skills_path).resolve()
+    config.skills_dir = str(skills_path)
 
     logger.debug("Resolved config: %s", config)
     return config

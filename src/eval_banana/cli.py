@@ -9,6 +9,8 @@ from eval_banana.config import get_global_config_template
 from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
 from eval_banana.discovery import discover_check_files
+from eval_banana.harness.skills import AGENT_SKILL_TARGETS
+from eval_banana.harness.skills import distribute_skills
 from eval_banana.loader import load_check_definitions
 from eval_banana.runner import run_checks
 
@@ -189,3 +191,53 @@ def validate_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
         raise SystemExit(1) from exc
 
     click.echo(f"Validated {len(loaded)} checks successfully.")
+
+
+@main.command(name="distribute-skills")
+@click.option(
+    "--target-agents", multiple=True, type=click.Choice(sorted(AGENT_SKILL_TARGETS))
+)
+@click.option("--cwd", default=".")
+@click.option("--verbose", is_flag=True)
+@click.option("--dry-run", is_flag=True)
+def distribute_skills_cli(
+    target_agents: tuple[str, ...], cwd: str, verbose: bool, dry_run: bool
+) -> None:
+    _configure_logging(verbose=verbose)
+    try:
+        config = load_config(cwd=cwd)
+        if config.project_root is None:
+            msg = "Config.project_root must be set"
+            raise SystemExit(msg)
+
+        skills_dir = Path(config.skills_dir)
+        agents = list(target_agents) if target_agents else sorted(AGENT_SKILL_TARGETS)
+        if not skills_dir.is_dir():
+            click.echo(f"No skills directory found at {skills_dir}; skipping")
+            return
+
+        skill_names = [
+            path.name for path in sorted(skills_dir.iterdir()) if path.is_dir()
+        ]
+        if dry_run:
+            if not skill_names:
+                click.echo(f"No skill directories found in {skills_dir}; skipping")
+                return
+            for agent in agents:
+                count = len(skill_names)
+                noun = "skill" if count == 1 else "skills"
+                click.echo(f"{agent}: would distribute {count} {noun}")
+            return
+
+        for agent in agents:
+            distributed = distribute_skills(
+                project_root=config.project_root,
+                agent_type=agent,
+                skills_dir=skills_dir,
+            )
+            count = len(distributed)
+            noun = "skill" if count == 1 else "skills"
+            click.echo(f"{agent}: distributed {count} {noun}")
+    except (SystemExit, ValueError) as exc:
+        click.echo(str(exc), err=True)
+        raise SystemExit(1) from exc

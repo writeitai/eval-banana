@@ -11,6 +11,8 @@ venv/
 
 # eval-banana results (generated artifacts)
 .eval-banana/results/
+.claude/skills/
+.codex/skills/
 
 # IDE
 .idea/

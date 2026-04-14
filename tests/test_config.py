@@ -81,6 +81,37 @@ def test_relative_output_dir_resolves_from_project_root(
     assert config.output_dir == str((project / "custom-results").resolve())
 
 
+def test_default_skills_dir_resolves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    config = load_config(cwd=str(project))
+
+    assert config.skills_dir == str((project / "skills").resolve())
+
+
+def test_custom_skills_dir_resolves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    nested = project / "src" / "pkg"
+    nested.mkdir(parents=True)
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        '[harness]\nskills_dir = "custom-skills"\n', encoding="utf-8"
+    )
+
+    config = load_config(cwd=str(nested))
+
+    assert config.skills_dir == str((project / "custom-skills").resolve())
+
+
 def test_provider_defaults_normalization_for_codex(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

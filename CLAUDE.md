@@ -33,11 +33,13 @@ src/eval_banana/
     template.py      # AgentTemplate dataclass + built-in templates
     registry.py      # Template resolution + command building
     runner.py        # Synchronous harness subprocess execution
+    skills.py        # Repo-local skill distribution helpers
   runners/
     deterministic.py # Script-based checks
     llm_judge.py     # LLM-as-judge checks
     task_based.py    # Command-based checks
 tests/               # One test file per source module
+skills/              # Repo-local harness skills (not wheel-distributed)
 ```
 
 ## Conventions
@@ -69,6 +71,7 @@ eval-banana can optionally drive an AI coding agent (harness) before running che
 - Configured via `[harness]` and `[agents.*]` TOML sections or `--harness-*` CLI flags
 - Built-in templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
 - Harness runs synchronously via `subprocess.run()` before the check loop
+- Repo-local skills can be distributed as a filesystem step before the harness subprocess starts
 - Harness failure aborts checks (use `--skip-harness` to override)
 - Harness metadata stored on `EvalReport.harness` (separate from check scoring)
 - AgentTemplate is a frozen dataclass (internal, not serialized)

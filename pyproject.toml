@@ -31,7 +31,7 @@ dev = [
 packages = ["src/eval_banana"]
 
 [tool.ruff]
-src = ["src", "tests"]
+src = ["src", "tests", "skills"]
 target-version = "py312"
 line-length = 88
 
@@ -83,7 +83,7 @@ reportAssignmentType = false
 reportPrivateUsage = false
 reportTypeCommentUsage = false
 reportMatchNotExhaustive = false
-include = ["src", "tests"]
+include = ["src", "tests", "skills"]
 exclude = ["**/.venv", "**/__pycache__", "tmp"]
 
 [tool.pytest.ini_options]
