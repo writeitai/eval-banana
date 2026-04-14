@@ -19,6 +19,40 @@ def _get_api_key() -> str | None:
     return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 
+def _create_client(*, genai: Any) -> Any:
+    """Create a Gemini client trying API keys, then ADC via Vertex AI.
+
+    Auth precedence:
+      1. GEMINI_API_KEY env var (AI Studio mode)
+      2. GOOGLE_API_KEY env var (AI Studio mode)
+      3. ADC via Vertex AI when GOOGLE_CLOUD_PROJECT is set; ADC must be
+         configured (e.g. via `gcloud auth application-default login`).
+
+    For Vertex AI, GOOGLE_CLOUD_LOCATION can override the default
+    location of `us-central1`. analyze_media.py works in either mode,
+    but Vertex AI mode requires a `gs://` URI rather than the file URI
+    returned by the AI Studio File API.
+    """
+    api_key = _get_api_key()
+    if api_key:
+        return genai.Client(api_key=api_key)
+
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if project:
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        return genai.Client(vertexai=True, project=project, location=location)
+
+    print(
+        "No Gemini auth configured. Set one of:\n"
+        "  - GEMINI_API_KEY (AI Studio)\n"
+        "  - GOOGLE_API_KEY (AI Studio)\n"
+        "  - GOOGLE_CLOUD_PROJECT (Vertex AI via Application Default Credentials;\n"
+        "    run `gcloud auth application-default login` first).",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def _import_genai() -> Any:
     try:
         google_module = importlib.import_module("google")
@@ -72,19 +106,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    api_key = _get_api_key()
-    if not api_key:
-        print(
-            "Set GEMINI_API_KEY or GOOGLE_API_KEY before using this script.",
-            file=sys.stderr,
-        )
-        return 1
-
     genai = _import_genai()
     model_name = args.model or _DEFAULT_MODEL
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = _create_client(genai=genai)
         response = client.models.generate_content(
             model=model_name,
             contents=[

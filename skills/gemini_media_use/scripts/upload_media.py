@@ -19,6 +19,39 @@ def _get_api_key() -> str | None:
     return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 
+def _create_client(*, genai: Any) -> Any:
+    """Create a Gemini client trying API keys, then ADC via Vertex AI.
+
+    Auth precedence:
+      1. GEMINI_API_KEY env var (AI Studio mode)
+      2. GOOGLE_API_KEY env var (AI Studio mode)
+      3. ADC via Vertex AI when GOOGLE_CLOUD_PROJECT is set; ADC must be
+         configured (e.g. via `gcloud auth application-default login`).
+
+    Note: the File API only works in AI Studio mode. Vertex AI mode does
+    not support `client.files.upload()`. Callers that need uploads must
+    set an API key.
+    """
+    api_key = _get_api_key()
+    if api_key:
+        return genai.Client(api_key=api_key)
+
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if project:
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+        return genai.Client(vertexai=True, project=project, location=location)
+
+    print(
+        "No Gemini auth configured. Set one of:\n"
+        "  - GEMINI_API_KEY (AI Studio)\n"
+        "  - GOOGLE_API_KEY (AI Studio)\n"
+        "  - GOOGLE_CLOUD_PROJECT (Vertex AI via Application Default Credentials;\n"
+        "    run `gcloud auth application-default login` first).",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def _import_genai() -> Any:
     try:
         google_module = importlib.import_module("google")
@@ -73,10 +106,12 @@ def main() -> int:
         print(f"File not found: {file_path}", file=sys.stderr)
         return 1
 
-    api_key = _get_api_key()
-    if not api_key:
+    if not _get_api_key():
         print(
-            "Set GEMINI_API_KEY or GOOGLE_API_KEY before using this script.",
+            "upload_media.py requires an API key (GEMINI_API_KEY or GOOGLE_API_KEY).\n"
+            "The Gemini File API only works in AI Studio mode, not Vertex AI/ADC.\n"
+            "If you only have ADC, upload your media to GCS and pass the gs:// URI\n"
+            "directly to analyze_media.py instead.",
             file=sys.stderr,
         )
         return 1
@@ -84,7 +119,7 @@ def main() -> int:
     genai = _import_genai()
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = _create_client(genai=genai)
         uploaded_file = client.files.upload(path=str(file_path))
     except Exception as exc:  # pragma: no cover - depends on optional SDK/runtime
         logger.exception("Gemini file upload failed")

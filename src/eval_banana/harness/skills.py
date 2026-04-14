@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 AGENT_SKILL_TARGETS: dict[str, str] = {
     "claude": ".claude/skills",
     "codex": ".codex/skills",
+    "openhands": ".agents/skills",
+    "opencode": ".agents/skills",
+    "gemini": ".gemini/skills",
 }
 
 

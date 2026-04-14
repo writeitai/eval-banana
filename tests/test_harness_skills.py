@@ -73,10 +73,55 @@ def test_distribute_skills_unsupported_agent(tmp_path: Path) -> None:
 
     assert (
         distribute_skills(
-            project_root=tmp_path, agent_type="gemini", skills_dir=skills_dir
+            project_root=tmp_path, agent_type="mystery_agent", skills_dir=skills_dir
         )
         == []
     )
+
+
+def test_distribute_skills_openhands(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    _write_skill(skills_dir=skills_dir)
+
+    distributed = distribute_skills(
+        project_root=tmp_path, agent_type="openhands", skills_dir=skills_dir
+    )
+
+    target_dir = tmp_path / ".agents" / "skills" / "gemini_media_use"
+    assert distributed == ["gemini_media_use"]
+    assert (target_dir / "SKILL.md").is_file()
+    assert not (target_dir / "agents" / "openai.yaml").exists()
+
+
+def test_distribute_skills_opencode(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    _write_skill(skills_dir=skills_dir)
+
+    distributed = distribute_skills(
+        project_root=tmp_path, agent_type="opencode", skills_dir=skills_dir
+    )
+
+    target_dir = tmp_path / ".agents" / "skills" / "gemini_media_use"
+    assert distributed == ["gemini_media_use"]
+    assert (target_dir / "SKILL.md").is_file()
+    assert not (target_dir / "agents" / "openai.yaml").exists()
+
+
+def test_distribute_skills_gemini(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    _write_skill(skills_dir=skills_dir)
+
+    distributed = distribute_skills(
+        project_root=tmp_path, agent_type="gemini", skills_dir=skills_dir
+    )
+
+    target_dir = tmp_path / ".gemini" / "skills" / "gemini_media_use"
+    assert distributed == ["gemini_media_use"]
+    assert (target_dir / "SKILL.md").is_file()
+    assert not (target_dir / "agents" / "openai.yaml").exists()
 
 
 def test_distribute_skills_claude(tmp_path: Path) -> None:

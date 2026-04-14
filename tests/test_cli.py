@@ -257,9 +257,12 @@ def test_distribute_skills_default_agents(
     result = runner.invoke(main, ["distribute-skills"])
 
     assert result.exit_code == 0
-    assert captured == ["claude", "codex"]
+    assert captured == ["claude", "codex", "gemini", "opencode", "openhands"]
     assert "claude: distributed 1 skill" in result.output
     assert "codex: distributed 1 skill" in result.output
+    assert "gemini: distributed 1 skill" in result.output
+    assert "opencode: distributed 1 skill" in result.output
+    assert "openhands: distributed 1 skill" in result.output
 
 
 def test_distribute_skills_target_agents(
@@ -331,6 +334,9 @@ def test_distribute_skills_dry_run(
     assert result.exit_code == 0
     assert "claude: would distribute 1 skill" in result.output
     assert "codex: would distribute 1 skill" in result.output
+    assert "gemini: would distribute 1 skill" in result.output
+    assert "opencode: would distribute 1 skill" in result.output
+    assert "openhands: would distribute 1 skill" in result.output
 
 
 def test_distribute_skills_invalid_target_agent(tmp_path: Path) -> None:

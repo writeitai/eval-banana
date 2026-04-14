@@ -144,10 +144,17 @@ PYTHONUNBUFFERED = "1"
 
 `eval-banana distribute-skills` copies repo-local skills from `skills/` into agent-specific generated directories before a supported harness runs.
 
-- Supported target agents are currently `claude` and `codex`.
-- Unsupported agents are safe no-ops.
-- Missing `skills/` directories are also a no-op.
-- Generated directories such as `.claude/skills/` and `.codex/skills/` should usually be gitignored.
+Supported target agents and destinations:
+
+| Agent | Destination |
+|---|---|
+| `claude` | `.claude/skills/` |
+| `codex` | `.codex/skills/` |
+| `openhands` | `.agents/skills/` |
+| `opencode` | `.agents/skills/` |
+| `gemini` | `.gemini/skills/` |
+
+`openhands` and `opencode` share `.agents/skills/` because both consume that convention. `gemini` writes to its own native location. Unsupported agents (e.g. `pi`) are safe no-ops. Missing `skills/` directories are also a no-op. Generated directories should usually be gitignored.
 
 ```bash
 eval-banana distribute-skills
