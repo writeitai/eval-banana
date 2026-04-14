@@ -180,7 +180,7 @@ The same distribution step also runs automatically before `eval-banana run` star
 | `opencode` | `.agents/skills/` |
 | `gemini` | `.gemini/skills/` |
 
-The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. They authenticate via `GEMINI_API_KEY`, then `GOOGLE_API_KEY`, then Application Default Credentials with `GOOGLE_CLOUD_PROJECT` (Vertex AI mode -- requires `gcloud auth application-default login`).
+The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. They authenticate via `GEMINI_API_KEY`, then `GOOGLE_API_KEY`, then Application Default Credentials with `GOOGLE_CLOUD_PROJECT` (Vertex AI mode -- requires `gcloud auth application-default login`, not just `gcloud auth login`). The scripts print targeted setup instructions when auth is misconfigured, distinguishing between missing ADC, missing project, and nothing configured at all.
 
 Generated skill directories such as `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, and `.gemini/skills/` should usually be added to `.gitignore`.
 

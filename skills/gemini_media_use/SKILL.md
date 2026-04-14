@@ -13,11 +13,39 @@ Authentication (tried in this order):
 
 1. `GEMINI_API_KEY` env var (AI Studio mode).
 2. `GOOGLE_API_KEY` env var (AI Studio mode).
-3. Application Default Credentials (ADC) via Vertex AI mode -- requires `GOOGLE_CLOUD_PROJECT` to be set and ADC to be configured (`gcloud auth application-default login`). `GOOGLE_CLOUD_LOCATION` overrides the default `us-central1`.
+3. Application Default Credentials via Vertex AI mode -- requires both `GOOGLE_CLOUD_PROJECT` **and** an ADC file. `GOOGLE_CLOUD_LOCATION` overrides the default `us-central1`.
+
+### Setup options
+
+**Option A: AI Studio API key** (simplest, works everywhere including File API upload):
+
+```bash
+export GEMINI_API_KEY=<key-from-https://aistudio.google.com/apikey>
+```
+
+**Option B: Vertex AI via your Google account** (useful on a developer machine where you are signed in to Google Cloud):
+
+```bash
+gcloud auth application-default login   # NOT just `gcloud auth login`
+export GOOGLE_CLOUD_PROJECT=<gcp-project-id>
+# optional:
+# export GOOGLE_CLOUD_LOCATION=europe-west4  # default us-central1
+```
+
+`gcloud auth login` authenticates the gcloud CLI only; the google-genai SDK reads the separate ADC file written by `application-default login` (typically `~/.config/gcloud/application_default_credentials.json`).
+
+**Option C: service account key** (CI, servers):
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
+export GOOGLE_CLOUD_PROJECT=<gcp-project-id>
+```
+
+If auth is misconfigured, the scripts print a targeted message naming exactly what is missing (e.g. "project set but ADC missing" vs "ADC present but project missing").
 
 The bundled scripts depend on the `google-genai` package, not `google-generativeai`.
 
-File API caveat: `upload_media.py` requires an API key. The Gemini File API is only available in AI Studio mode, not in Vertex AI mode. If you only have ADC, upload media to a Google Cloud Storage bucket and pass the `gs://` URI directly to `analyze_media.py`.
+File API caveat: `upload_media.py` requires an API key (Option A). The Gemini File API is only available in AI Studio mode, not in Vertex AI mode. With Option B or C, upload media to a Google Cloud Storage bucket and pass the `gs://` URI directly to `analyze_media.py`.
 
 Bundled tools:
 

@@ -19,6 +19,51 @@ def _get_api_key() -> str | None:
     return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 
+def _adc_credentials_path() -> Path:
+    """Return the default filesystem location of ADC credentials for this OS."""
+    cloudsdk_config = os.getenv("CLOUDSDK_CONFIG")
+    if cloudsdk_config:
+        return Path(cloudsdk_config) / "application_default_credentials.json"
+    if sys.platform == "win32":
+        appdata = os.getenv("APPDATA")
+        if appdata:
+            return Path(appdata) / "gcloud" / "application_default_credentials.json"
+    return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+
+
+def _adc_available() -> bool:
+    """Best-effort check for Application Default Credentials availability."""
+    explicit = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if explicit and Path(explicit).is_file():
+        return True
+    return _adc_credentials_path().is_file()
+
+
+_SETUP_INSTRUCTIONS = (
+    "Gemini auth options (first one found wins):\n"
+    "\n"
+    "  1. AI Studio API key (simplest):\n"
+    "     export GEMINI_API_KEY=<key-from-https://aistudio.google.com/apikey>\n"
+    "     # or: export GOOGLE_API_KEY=<key>\n"
+    "\n"
+    "  2. Vertex AI via Application Default Credentials (uses your Google account):\n"
+    "     gcloud auth application-default login\n"
+    "     export GOOGLE_CLOUD_PROJECT=<gcp-project-id>\n"
+    "     # optional: export GOOGLE_CLOUD_LOCATION=europe-west4  # default us-central1\n"
+    "\n"
+    "  Note: `gcloud auth login` alone is NOT enough for option 2 --\n"
+    "  `gcloud auth application-default login` writes the ADC file that\n"
+    "  the google-genai SDK actually reads."
+)
+
+
+def _raise_auth_error(*, message: str) -> None:
+    print(message, file=sys.stderr)
+    print("", file=sys.stderr)
+    print(_SETUP_INSTRUCTIONS, file=sys.stderr)
+    raise SystemExit(1)
+
+
 def _create_client(*, genai: Any) -> Any:
     """Create a Gemini client trying API keys, then ADC via Vertex AI.
 
@@ -37,19 +82,33 @@ def _create_client(*, genai: Any) -> Any:
         return genai.Client(api_key=api_key)
 
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
-    if project:
+    adc_present = _adc_available()
+
+    if project and adc_present:
         location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
         return genai.Client(vertexai=True, project=project, location=location)
 
-    print(
-        "No Gemini auth configured. Set one of:\n"
-        "  - GEMINI_API_KEY (AI Studio)\n"
-        "  - GOOGLE_API_KEY (AI Studio)\n"
-        "  - GOOGLE_CLOUD_PROJECT (Vertex AI via Application Default Credentials;\n"
-        "    run `gcloud auth application-default login` first).",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+    if project and not adc_present:
+        _raise_auth_error(
+            message=(
+                "GOOGLE_CLOUD_PROJECT is set but Application Default Credentials\n"
+                "were not found. Run `gcloud auth application-default login`\n"
+                "to generate them at:\n"
+                f"  {_adc_credentials_path()}"
+            )
+        )
+
+    if adc_present and not project:
+        _raise_auth_error(
+            message=(
+                "Application Default Credentials were found but\n"
+                "GOOGLE_CLOUD_PROJECT is not set. Export a GCP project ID to\n"
+                "use Vertex AI mode, e.g.:\n"
+                "  export GOOGLE_CLOUD_PROJECT=<your-gcp-project-id>"
+            )
+        )
+
+    _raise_auth_error(message="No Gemini auth is configured.")
 
 
 def _import_genai() -> Any:

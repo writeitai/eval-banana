@@ -55,8 +55,20 @@ def _clear_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "GOOGLE_API_KEY",
         "GOOGLE_CLOUD_PROJECT",
         "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_APPLICATION_CREDENTIALS",
     ]:
         monkeypatch.delenv(var, raising=False)
+
+
+def _redirect_adc_to(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, present: bool
+) -> Path:
+    """Point ADC lookup at tmp_path; optionally create the credentials file."""
+    monkeypatch.setenv("CLOUDSDK_CONFIG", str(tmp_path))
+    adc_path = tmp_path / "application_default_credentials.json"
+    if present:
+        adc_path.write_text('{"type": "authorized_user"}', encoding="utf-8")
+    return adc_path
 
 
 @pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
@@ -95,10 +107,11 @@ def test_create_client_falls_back_to_google_api_key(
 
 @pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
 def test_create_client_falls_back_to_vertex_adc(
-    monkeypatch: pytest.MonkeyPatch, script_name: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, script_name: str
 ) -> None:
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+    _redirect_adc_to(monkeypatch=monkeypatch, tmp_path=tmp_path, present=True)
 
     module = _load_script_module(script_name=script_name)
     fake_genai = _FakeGenai()
@@ -112,11 +125,12 @@ def test_create_client_falls_back_to_vertex_adc(
 
 @pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
 def test_create_client_honors_google_cloud_location(
-    monkeypatch: pytest.MonkeyPatch, script_name: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, script_name: str
 ) -> None:
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west4")
+    _redirect_adc_to(monkeypatch=monkeypatch, tmp_path=tmp_path, present=True)
 
     module = _load_script_module(script_name=script_name)
     fake_genai = _FakeGenai()
@@ -129,12 +143,35 @@ def test_create_client_honors_google_cloud_location(
 
 
 @pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
-def test_create_client_raises_systemexit_without_any_auth(
+def test_create_client_accepts_explicit_credentials_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, script_name: str
+) -> None:
+    _clear_auth_env(monkeypatch)
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+    service_account = tmp_path / "sa.json"
+    service_account.write_text('{"type": "service_account"}', encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(service_account))
+
+    module = _load_script_module(script_name=script_name)
+    fake_genai = _FakeGenai()
+
+    module._create_client(genai=fake_genai)
+
+    assert fake_genai.calls == [
+        {"vertexai": True, "project": "my-project", "location": "us-central1"}
+    ]
+
+
+@pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
+def test_create_client_project_without_adc_shows_login_hint(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
     script_name: str,
 ) -> None:
     _clear_auth_env(monkeypatch)
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "my-project")
+    _redirect_adc_to(monkeypatch=monkeypatch, tmp_path=tmp_path, present=False)
 
     module = _load_script_module(script_name=script_name)
     fake_genai = _FakeGenai()
@@ -143,9 +180,54 @@ def test_create_client_raises_systemexit_without_any_auth(
         module._create_client(genai=fake_genai)
 
     captured = capsys.readouterr()
+    assert "Application Default Credentials" in captured.err
+    assert "gcloud auth application-default login" in captured.err
+    assert fake_genai.calls == []
+
+
+@pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
+def test_create_client_adc_without_project_shows_project_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    script_name: str,
+) -> None:
+    _clear_auth_env(monkeypatch)
+    _redirect_adc_to(monkeypatch=monkeypatch, tmp_path=tmp_path, present=True)
+
+    module = _load_script_module(script_name=script_name)
+    fake_genai = _FakeGenai()
+
+    with pytest.raises(SystemExit):
+        module._create_client(genai=fake_genai)
+
+    captured = capsys.readouterr()
+    assert "GOOGLE_CLOUD_PROJECT is not set" in captured.err
+    assert fake_genai.calls == []
+
+
+@pytest.mark.parametrize("script_name", ["upload_media", "analyze_media"])
+def test_create_client_raises_systemexit_without_any_auth(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    script_name: str,
+) -> None:
+    _clear_auth_env(monkeypatch)
+    _redirect_adc_to(monkeypatch=monkeypatch, tmp_path=tmp_path, present=False)
+
+    module = _load_script_module(script_name=script_name)
+    fake_genai = _FakeGenai()
+
+    with pytest.raises(SystemExit):
+        module._create_client(genai=fake_genai)
+
+    captured = capsys.readouterr()
+    assert "No Gemini auth is configured" in captured.err
     assert "GEMINI_API_KEY" in captured.err
     assert "GOOGLE_API_KEY" in captured.err
     assert "GOOGLE_CLOUD_PROJECT" in captured.err
+    assert "gcloud auth application-default login" in captured.err
 
 
 def test_upload_media_rejects_adc_only_mode(
