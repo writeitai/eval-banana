@@ -13,6 +13,8 @@ venv/
 .eval-banana/results/
 .claude/skills/
 .codex/skills/
+.agents/skills/
+.gemini/skills/
 
 # IDE
 .idea/

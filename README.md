@@ -170,7 +170,19 @@ eval-banana distribute-skills --target-agents codex
 eval-banana distribute-skills --dry-run
 ```
 
-The same distribution step also runs automatically before `eval-banana run` starts a supported harness agent. The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. Generated skill directories such as `.claude/skills/` and `.codex/skills/` should usually be added to `.gitignore`.
+The same distribution step also runs automatically before `eval-banana run` starts a supported harness agent. Supported target agents and their destination directories:
+
+| Agent | Destination |
+|---|---|
+| `claude` | `.claude/skills/` |
+| `codex` | `.codex/skills/` |
+| `openhands` | `.agents/skills/` |
+| `opencode` | `.agents/skills/` |
+| `gemini` | `.gemini/skills/` |
+
+The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. They authenticate via `GEMINI_API_KEY`, then `GOOGLE_API_KEY`, then Application Default Credentials with `GOOGLE_CLOUD_PROJECT` (Vertex AI mode -- requires `gcloud auth application-default login`).
+
+Generated skill directories such as `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, and `.gemini/skills/` should usually be added to `.gitignore`.
 
 ### Custom agent templates
 

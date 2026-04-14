@@ -42,7 +42,8 @@ The Gemini media workflow in this skill is intended for image, audio, and video 
 ## Storage and auth notes
 
 - Uploaded Gemini File API assets are temporary and are commonly retained for about 48 hours.
-- Use `GEMINI_API_KEY` first, with `GOOGLE_API_KEY` as a fallback.
+- Auth precedence: `GEMINI_API_KEY` -> `GOOGLE_API_KEY` -> Application Default Credentials (Vertex AI mode, requires `GOOGLE_CLOUD_PROJECT` and `gcloud auth application-default login`).
+- The Gemini File API only works in AI Studio mode, so `upload_media.py` requires an API key. With ADC only, upload media to GCS and pass the `gs://` URI directly to `analyze_media.py`.
 - These scripts expect the modern `google-genai` SDK, not `google-generativeai`.
 
 ## Upload vs inline
