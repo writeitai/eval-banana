@@ -15,70 +15,131 @@ from eval_banana.harness.template import DEFAULT_AGENT_TEMPLATES
 
 logger = logging.getLogger(__name__)
 
-_GLOBAL_CONFIG_TEXT = """# Global eval-banana configuration.
-# Project-level .eval-banana/config.toml overrides these values.
-
-
+_CORE_SECTION = """\
 [core]
+# Directory where run artifacts (report.json, report.md, per-check output) are
+# written. Relative paths resolve from the project root.
+# Env: EVAL_BANANA_OUTPUT_DIR
 output_dir = ".eval-banana/results"
+
+# Minimum pass ratio (0.0-1.0) for `run_passed` to be true. 1.0 means every
+# check must pass. Set lower (e.g. 0.8) to tolerate some failing checks.
+# Env: EVAL_BANANA_PASS_THRESHOLD
 pass_threshold = 1.0
+
+# Maximum characters of each target file sent to llm_judge checks. Content
+# beyond this is truncated with a [TRUNCATED] marker. Prevents huge prompts,
+# runaway costs, and context-window overflow on large files.
+# Env: EVAL_BANANA_LLM_MAX_INPUT_CHARS
 llm_max_input_chars = 12000
+"""
 
-
+_LLM_SECTION_COMMON = """\
 [llm]
+# LLM provider used by llm_judge checks.
+#   "openai_compat" - OpenAI-compatible HTTP API (OpenRouter, OpenAI direct,
+#                     local Ollama, vLLM, etc.). Uses `api_base` + `api_key`.
+#   "codex"         - Local ChatGPT subscription via `codex login`. Hardcoded
+#                     backend; `api_base` is ignored in this mode.
+# Env: EVAL_BANANA_PROVIDER
 provider = "openai_compat"
+
+# Model identifier. Format is provider-specific:
+#   OpenRouter: "<vendor>/<model>" (e.g. "openai/gpt-4.1-mini", "anthropic/claude-3.5-sonnet")
+#   OpenAI:     "<model>"          (e.g. "gpt-4.1-mini")
+#   Codex:      "<model>"          (e.g. "gpt-4.1-mini")
+# Env: EVAL_BANANA_MODEL
 model = "openai/gpt-4.1-mini"
+
+# Base URL for the openai_compat provider. Common values:
+#   https://openrouter.ai/api/v1  (default)
+#   https://api.openai.com/v1     (OpenAI direct)
+#   http://localhost:11434/v1     (local Ollama)
+# Ignored when provider = "codex".
+# Env: EVAL_BANANA_API_BASE
 api_base = "https://openrouter.ai/api/v1"
+"""
+
+_LLM_SECRETS_GLOBAL = """\
+
+# API key for the openai_compat provider. Prefer environment variables:
+#   OPENROUTER_API_KEY - automatically used when api_base contains "openrouter.ai"
+#   OPENAI_API_KEY     - automatically used when api_base contains "api.openai.com"
+#   EVAL_BANANA_API_KEY - overrides both above
+# Leave empty to force env-var lookup.
 api_key = ""
+
+# Override path to the Codex auth file (JSON written by `codex login`). Leave
+# empty to use $CODEX_HOME/auth.json or ~/.codex/auth.json.
+# Env: EVAL_BANANA_CODEX_AUTH_PATH
 codex_auth_path = ""
+"""
 
-
+_HARNESS_TEMPLATE = """\
 # [harness]
+# # AI coding agent to run once before the check loop. One of:
+# #   claude, codex, gemini, openhands, opencode, pi
+# # Env: EVAL_BANANA_HARNESS_AGENT
 # agent = "codex"
+#
+# # Task prompt for the agent. Use `prompt` for a short inline string, or
+# # `prompt_file` for a path (relative to project root). They are mutually
+# # exclusive.
+# # Env: EVAL_BANANA_HARNESS_PROMPT / EVAL_BANANA_HARNESS_PROMPT_FILE
+# # prompt = "Fix the failing tests"
 # prompt_file = "prompts/task.md"
+#
+# # Override the agent's default model. Format is agent-specific.
+# # Env: EVAL_BANANA_HARNESS_MODEL
 # model = "gpt-5.4"
+#
+# # Agent-specific reasoning-effort level. Common values: "low", "medium", "high".
+# # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
 # reasoning_effort = "high"
+#
+# # Repo-local skills directory distributed to the agent before it runs.
+# # Relative to project root. See `eval-banana distribute-skills`.
 # skills_dir = "skills"
 #
+# # Extra environment variables injected into the harness subprocess.
 # [harness.env]
 # CI = "1"
+# PYTHONUNBUFFERED = "1"
+"""
 
-
+_DISCOVERY_SECTION = """\
 [discovery]
+# Directories skipped when auto-discovering eval_checks/ folders. Override this
+# if your project uses a non-standard layout.
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
 """
 
-_LOCAL_CONFIG_TEXT = """# Project-level eval-banana configuration.
+_GLOBAL_CONFIG_TEXT = f"""\
+# Global eval-banana configuration.
+# Project-level .eval-banana/config.toml overrides these values.
+# All keys support environment-variable overrides (noted inline).
+
+{_CORE_SECTION}
+
+{_LLM_SECTION_COMMON}
+{_LLM_SECRETS_GLOBAL}
+
+{_HARNESS_TEMPLATE}
+
+{_DISCOVERY_SECTION}"""
+
+_LOCAL_CONFIG_TEXT = f"""\
+# Project-level eval-banana configuration.
 # Values here override ~/.eval-banana/config.toml.
-# Do not commit API keys.
+# Do not commit API keys -- use environment variables instead.
 
+{_CORE_SECTION}
 
-[core]
-output_dir = ".eval-banana/results"
-pass_threshold = 1.0
-llm_max_input_chars = 12000
+{_LLM_SECTION_COMMON}
 
+{_HARNESS_TEMPLATE}
 
-[llm]
-provider = "openai_compat"
-model = "openai/gpt-4.1-mini"
-api_base = "https://openrouter.ai/api/v1"
-
-
-# [harness]
-# agent = "codex"
-# prompt_file = "prompts/task.md"
-# model = "gpt-5.4"
-# reasoning_effort = "high"
-# skills_dir = "skills"
-#
-# [harness.env]
-# CI = "1"
-
-
-[discovery]
-exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
-"""
+{_DISCOVERY_SECTION}"""
 
 
 @dataclass
