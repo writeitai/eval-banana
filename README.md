@@ -139,38 +139,38 @@ agent = "codex"
 prompt_file = "prompts/task.md"
 model = "gpt-5.4"
 # reasoning_effort = "high"
-# skills_dir = "skills"
 ```
 
 ### Harness behavior
 
 - The harness runs once before any checks execute.
-- Before the harness subprocess starts, eval-banana can distribute repo-local skills from `skills/` into agent-specific generated directories such as `.claude/skills/` and `.codex/skills/`.
+- Install bundled skills explicitly with `eb install` before harness-driven work in a target project.
 - If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
 - Use `--skip-harness` to suppress a configured harness and score the current workspace state.
 - Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
 
 ### Skills
 
-Repo-local harness skills live under `skills/` and are not distributed with the wheel package:
+eval-banana ships two bundled skills inside the wheel package:
 
 ```text
-skills/
+src/eval_banana/skills/
+  eval-banana/
   gemini_media_use/
-    SKILL.md
-    scripts/
-    references/
 ```
 
-You can distribute them manually with:
+Install them into a target project's native agent directories with:
 
 ```bash
-eval-banana distribute-skills
-eval-banana distribute-skills --target-agents codex
-eval-banana distribute-skills --dry-run
+eb install
+eb install --target-agents codex
+eb install --skills gemini_media_use --dry-run
 ```
 
-The same distribution step also runs automatically before `eval-banana run` starts a supported harness agent. Supported target agents and their destination directories:
+`eb install` is the only supported way to move bundled skills out of the wheel
+and into a project. `eval-banana run` does not install them automatically.
+
+Supported target agents and their destination directories:
 
 | Agent | Destination |
 |---|---|
@@ -180,9 +180,16 @@ The same distribution step also runs automatically before `eval-banana run` star
 | `opencode` | `.agents/skills/` |
 | `gemini` | `.gemini/skills/` |
 
+The legacy `eval-banana distribute-skills` command remains as a deprecated alias
+for one release cycle. Use `eb install` for new workflows.
+
+If a project has custom skills, place them directly in the agent-native
+directories above. eval-banana no longer copies custom repo-local `skills/`
+directories at runtime.
+
 The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. They authenticate via `GEMINI_API_KEY`, then `GOOGLE_API_KEY`, then Application Default Credentials with `GOOGLE_CLOUD_PROJECT` (Vertex AI mode -- requires `gcloud auth application-default login`, not just `gcloud auth login`). The scripts print targeted setup instructions when auth is misconfigured, distinguishing between missing ADC, missing project, and nothing configured at all.
 
-Generated skill directories such as `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, and `.gemini/skills/` should usually be added to `.gitignore`.
+Generated skill directories such as `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, and `.gemini/skills/` should usually be added to `.gitignore` and treated as install artifacts.
 
 ### Custom agent templates
 
@@ -250,7 +257,8 @@ eval-banana init [--global] [--force]     Create config files
 eval-banana run [OPTIONS]                  Run all discovered checks
 eval-banana list [OPTIONS]                 List discovered checks
 eval-banana validate [OPTIONS]             Validate YAML without running
-eval-banana distribute-skills [OPTIONS]    Copy repo-local skills to agent dirs
+eval-banana install [OPTIONS]              Install bundled skills into agent dirs
+eval-banana distribute-skills [OPTIONS]    Deprecated alias for install
 
 Options for run/list/validate:
   --check-dir PATH              Scan only this directory
@@ -298,6 +306,7 @@ make test         # Run tests
 make fix          # Auto-fix lint + format
 make pyright      # Type check
 make all-check    # Lint + format + types + tests (matches CI)
+make install-skills  # Install bundled skills into the current project
 ```
 
 ## License
