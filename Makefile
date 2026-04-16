@@ -1,4 +1,4 @@
-.PHONY: claude claudecontinue test fix format pyright all-check run install_globally
+.PHONY: claude claudecontinue test fix format pyright all-check run install-skills test-packaging install_globally
 
 ## Start Claude Code with MCP configuration
 claude:
@@ -14,22 +14,29 @@ test:
 	uv run pytest tests -v --tb=short
 
 format:
-	uv run ruff format src tests skills
+	uv run ruff format src tests
 
 fix:
-	uv run ruff check --fix src tests skills
-	uv run ruff format src tests skills
+	uv run ruff check --fix src tests
+	uv run ruff format src tests
 
 pyright:
-	uv run pyright src tests skills
+	uv run pyright src tests
 
 all-check:
-	uv run ruff check src tests skills
-	uv run ruff format --check src tests skills
-	uv run pyright src tests skills
+	uv run ruff check src tests
+	uv run ruff format --check src tests
+	uv run pyright src tests
 	uv run pytest tests -v --tb=short
 
+install-skills:
+	uv run eb install
+
+test-packaging:
+	uv run pytest -m packaging
+
 run:
+	# Run `make install-skills` in the target project before harness-driven runs.
 	uv run eval-banana run
 
 install_globally:
