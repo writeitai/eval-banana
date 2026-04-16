@@ -269,8 +269,7 @@ def install_bundled_skills(
 
                     if overwrite_existing:
                         print(f"Overwriting existing: {target_dir}")
-                    else:
-                        print(f"Installing {skill_name} -> {target_dir}")
+                    print(f"Installing {skill_name} -> {target_dir}")
 
                     staging_dir = _make_staging_dir(
                         target_root=target_root, skill_name=skill_name

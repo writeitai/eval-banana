@@ -149,11 +149,13 @@ def test_install_bundled_skills_overwrites_owned_target(
         force=False,
         dry_run=False,
     )
+    output = capsys.readouterr().out
 
     assert report.failed == []
     assert report.installed == [f"gemini_media_use -> {target_dir}"]
     assert not (target_dir / "stale.txt").exists()
-    assert f"Overwriting existing: {target_dir}" in capsys.readouterr().out
+    assert f"Overwriting existing: {target_dir}" in output
+    assert f"Installing gemini_media_use -> {target_dir}" in output
 
 
 def test_install_bundled_skills_requires_force_for_non_owned_directory_and_continues(
@@ -196,11 +198,13 @@ def test_install_bundled_skills_force_overwrites_non_owned_directory(
         force=True,
         dry_run=False,
     )
+    output = capsys.readouterr().out
 
     assert report.failed == []
     assert report.installed == [f"gemini_media_use -> {target_dir}"]
     assert not (target_dir / "custom.txt").exists()
-    assert f"Overwriting existing: {target_dir}" in capsys.readouterr().out
+    assert f"Overwriting existing: {target_dir}" in output
+    assert f"Installing gemini_media_use -> {target_dir}" in output
 
 
 def test_install_bundled_skills_rejects_file_target_and_continues(
