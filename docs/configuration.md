@@ -124,11 +124,10 @@ The harness drives an AI coding agent before checks run. Configure it in TOML or
 | `prompt_file` | (none) | `EVAL_BANANA_HARNESS_PROMPT_FILE` | Path to prompt file (relative to project root) |
 | `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
 | `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
-| `skills_dir` | `skills` | (none) | Repo-local skill source directory (relative to project root unless absolute) |
 
 Either `prompt` or `prompt_file` must be set when a harness agent is configured. They are mutually exclusive.
 
-Relative `prompt_file` and `skills_dir` paths resolve from the project root.
+Relative `prompt_file` paths resolve from the project root.
 
 ### `[harness.env]` section
 
@@ -140,9 +139,10 @@ CI = "1"
 PYTHONUNBUFFERED = "1"
 ```
 
-### Skill distribution
+### Installing bundled skills
 
-`eval-banana distribute-skills` copies repo-local skills from `skills/` into agent-specific generated directories before a supported harness runs.
+eval-banana ships bundled skills inside the wheel and installs them into
+agent-native directories with `eb install`.
 
 Supported target agents and destinations:
 
@@ -154,13 +154,29 @@ Supported target agents and destinations:
 | `opencode` | `.agents/skills/` |
 | `gemini` | `.gemini/skills/` |
 
-`openhands` and `opencode` share `.agents/skills/` because both consume that convention. `gemini` writes to its own native location. Unsupported agents (e.g. `pi`) are safe no-ops. Missing `skills/` directories are also a no-op. Generated directories should usually be gitignored.
+`openhands` and `opencode` share `.agents/skills/` because both consume that
+convention. Generated directories should usually be gitignored and treated as
+installation artifacts.
 
 ```bash
-eval-banana distribute-skills
-eval-banana distribute-skills --target-agents codex
-eval-banana distribute-skills --dry-run
+eb install
+eb install --target-agents codex
+eb install --skills gemini_media_use --dry-run
 ```
+
+`eval-banana distribute-skills` remains as a deprecated alias for one release
+cycle, but new workflows should use `eb install`.
+
+`eval-banana run` does not perform installation automatically. Run `eb install`
+before harness-driven work in a target project.
+
+Legacy config files may still contain `[harness].skills_dir`. eval-banana
+ignores that one stale key so old configs keep loading, but the key has no
+runtime effect.
+
+If your project has custom skills, place them directly in `.claude/skills/`,
+`.codex/skills/`, `.agents/skills/`, or `.gemini/skills/` as appropriate.
+eval-banana no longer copies custom repo-local `skills/` directories.
 
 ### `[agents.*]` sections
 
