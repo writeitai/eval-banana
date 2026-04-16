@@ -1,6 +1,10 @@
 # eval-banana
 
-Lightweight aspect-based evaluation framework for Python projects.
+[![CI](https://github.com/writeitai/eval-banana/actions/workflows/ci.yml/badge.svg)](https://github.com/writeitai/eval-banana/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+
+Lightweight aspect-based evaluation framework for Python projects. Score LLM outputs and agent workflows with simple YAML check definitions.
 
 ## What it does
 
@@ -38,11 +42,16 @@ eval-banana validate
 ## Installation
 
 ```bash
-# From source (development)
-uv sync --extra dev
-
-# As a dependency in another project
+# Using uv (recommended)
 uv add eval-banana
+
+# Using pip
+pip install eval-banana
+
+# From source (development)
+git clone https://github.com/writeitai/eval-banana.git
+cd eval-banana
+uv sync --extra dev
 ```
 
 After installation, two CLI commands are available: `eval-banana` and `eb` (short alias).
@@ -309,6 +318,16 @@ make all-check    # Lint + format + types + tests (matches CI)
 make install-skills  # Install bundled skills into the current project
 ```
 
+## Contributing
+
+Issues and pull requests are welcome. Please run `make all-check` before opening a PR.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
+
+Copyright 2026 WriteIt.ai s.r.o.
