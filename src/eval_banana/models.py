@@ -126,6 +126,7 @@ class CheckResult(BaseModel):
     check_type: CheckType
     description: str
     source_path: str
+    tags: list[str] = Field(default_factory=list)
     status: CheckStatus
     score: int
     started_at: str

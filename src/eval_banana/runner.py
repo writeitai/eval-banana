@@ -116,8 +116,26 @@ def _find_check_path_by_id(*, paths: list[Path], check_id: str) -> Path | None:
     return matches[0] if matches else None
 
 
+def _filter_checks_by_tags(
+    *, checks: list[tuple[Path, CheckDefinition]], tags: list[str] | None
+) -> list[tuple[Path, CheckDefinition]]:
+    if not tags:
+        return checks
+
+    requested_tags = set(tags)
+    return [
+        (source_path, definition)
+        for source_path, definition in checks
+        if requested_tags.intersection(definition.tags)
+    ]
+
+
 def run_checks(
-    *, config: Config, check_dir: Path | None = None, check_id: str | None = None
+    *,
+    config: Config,
+    check_dir: Path | None = None,
+    check_id: str | None = None,
+    tags: list[str] | None = None,
 ) -> EvalReport:
     if config.project_root is None:
         msg = "Config.project_root must be set"
@@ -147,6 +165,8 @@ def run_checks(
         selected_checks = [(selected_path, load_check_definition(path=selected_path))]
     else:
         selected_checks = load_check_definitions(paths=discovered_paths)
+
+    selected_checks = _filter_checks_by_tags(checks=selected_checks, tags=tags)
 
     if not selected_checks:
         msg = "No checks found"

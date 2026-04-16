@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from eval_banana.config import Config
 from eval_banana.harness.template import AgentTemplate
+from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
@@ -177,6 +179,142 @@ def test_check_id_detects_duplicates(
         run_checks(
             config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="dup"
         )
+
+
+def test_tag_filter_runs_only_matching_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    alpha = checks_dir / "alpha.yaml"
+    beta = checks_dir / "beta.yaml"
+    alpha.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: alpha",
+                "type: deterministic",
+                "description: alpha",
+                "tags: [migration, smoke]",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    beta.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: beta",
+                "type: deterministic",
+                "description: beta",
+                "tags: [docs]",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_runner(**kwargs: object) -> CheckResult:
+        check = cast(CheckDefinition, kwargs["check"])
+        return CheckResult(
+            check_id=check.id,
+            check_type=CheckType.deterministic,
+            description=check.description,
+            source_path=str(kwargs["source_path"]),
+            tags=list(check.tags),
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
+
+    monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+    monkeypatch.setattr("eval_banana.runner.resolve_template", lambda **kwargs: None)
+    monkeypatch.setattr("eval_banana.runner.run_harness", lambda **kwargs: None)
+
+    report = run_checks(
+        config=make_config(project_root=tmp_path, cwd=str(tmp_path)), tags=["migration"]
+    )
+
+    assert report.total_checks == 1
+    assert [check.check_id for check in report.checks] == ["alpha"]
+    assert report.checks[0].tags == ["migration", "smoke"]
+
+
+def test_tag_filter_with_no_matches_fails(
+    tmp_path: Path, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "one.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "tags: [migration]",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="No checks found"):
+        run_checks(
+            config=make_config(project_root=tmp_path, cwd=str(tmp_path)),
+            tags=["nonexistent"],
+        )
+
+
+def test_no_tag_filter_runs_all_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    for check_id, tag in (("alpha", "migration"), ("beta", "docs")):
+        (checks_dir / f"{check_id}.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    f"id: {check_id}",
+                    "type: deterministic",
+                    f"description: {check_id}",
+                    f"tags: [{tag}]",
+                    "script: print('ok')",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_runner(**kwargs: object) -> CheckResult:
+        check = cast(CheckDefinition, kwargs["check"])
+        return CheckResult(
+            check_id=check.id,
+            check_type=CheckType.deterministic,
+            description=check.description,
+            source_path=str(kwargs["source_path"]),
+            tags=list(check.tags),
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
+
+    monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+    monkeypatch.setattr("eval_banana.runner.resolve_template", lambda **kwargs: None)
+    monkeypatch.setattr("eval_banana.runner.run_harness", lambda **kwargs: None)
+
+    report = run_checks(config=make_config(project_root=tmp_path, cwd=str(tmp_path)))
+
+    assert report.total_checks == 2
+    assert [check.check_id for check in report.checks] == ["alpha", "beta"]
 
 
 def test_harness_prompt_file_is_resolved_and_forwarded_to_run_harness(
