@@ -180,8 +180,8 @@ Supported target agents and their destination directories:
 | `opencode` | `.agents/skills/` |
 | `gemini` | `.gemini/skills/` |
 
-The legacy `eval-banana distribute-skills` command remains as a deprecated alias
-for one release cycle. Use `eb install` for new workflows.
+The legacy `eval-banana distribute-skills` command was deprecated in 0.2.x and
+will be removed no earlier than 0.3.0. Use `eb install` instead.
 
 If a project has custom skills, place them directly in the agent-native
 directories above. eval-banana no longer copies custom repo-local `skills/`

@@ -164,8 +164,7 @@ eb install --target-agents codex
 eb install --skills gemini_media_use --dry-run
 ```
 
-`eval-banana distribute-skills` remains as a deprecated alias for one release
-cycle, but new workflows should use `eb install`.
+`eval-banana distribute-skills` was deprecated in 0.2.x and will be removed no earlier than 0.3.0. Use `eb install` instead.
 
 `eval-banana run` does not perform installation automatically. Run `eb install`
 before harness-driven work in a target project.
