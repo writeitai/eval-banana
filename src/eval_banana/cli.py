@@ -267,9 +267,7 @@ def _run_install_command(
     ),
 )
 @click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Print the planned installs without writing files.",
+    "--dry-run", is_flag=True, help="Print the planned installs without writing files."
 )
 @click.option(
     "--force",
@@ -325,9 +323,7 @@ def install_skills_cli(
     ),
 )
 @click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Print the planned installs without writing files.",
+    "--dry-run", is_flag=True, help="Print the planned installs without writing files."
 )
 @click.option(
     "--force",

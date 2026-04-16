@@ -8,6 +8,6 @@ def test_deprecation_timeline_is_documented_in_readme_and_configuration_docs() -
     phrase = "no earlier than 0.3.0"
 
     assert phrase in (repo_root / "README.md").read_text(encoding="utf-8")
-    assert phrase in (
-        repo_root / "docs" / "configuration.md"
-    ).read_text(encoding="utf-8")
+    assert phrase in (repo_root / "docs" / "configuration.md").read_text(
+        encoding="utf-8"
+    )

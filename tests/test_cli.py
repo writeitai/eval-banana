@@ -381,9 +381,12 @@ def test_install_help_includes_command_and_option_descriptions() -> None:
         "Install bundled eval-banana agent skills into a project's native agent "
         "skill directories."
     ) in normalized_output
-    assert "Repeatable. Limit installation to specific agent targets." in normalized_output
     assert (
-        "Repeatable. Limit installation to specific bundled skills." in normalized_output
+        "Repeatable. Limit installation to specific agent targets." in normalized_output
+    )
+    assert (
+        "Repeatable. Limit installation to specific bundled skills."
+        in normalized_output
     )
     assert "Target project directory." in normalized_output
     assert "Print the planned installs without writing files." in normalized_output
