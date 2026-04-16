@@ -40,7 +40,7 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
     monkeypatch.setattr("eval_banana.cli.load_config", fake_load_config)
     monkeypatch.setattr(
         "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id: EvalReport(
+        lambda config, check_dir, check_id, tags: EvalReport(
             run_id="run1",
             project_root="/tmp",
             output_dir="/tmp/out",
@@ -118,7 +118,7 @@ def test_run_forwards_harness_prompt_file_as_string(
     monkeypatch.setattr("eval_banana.cli.load_config", fake_load_config)
     monkeypatch.setattr(
         "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id: EvalReport(
+        lambda config, check_dir, check_id, tags: EvalReport(
             run_id="run1",
             project_root="/tmp",
             output_dir="/tmp/out",
@@ -155,7 +155,7 @@ def test_run_exit_code_one(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("eval_banana.cli.load_config", lambda **kwargs: object())
     monkeypatch.setattr(
         "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id: EvalReport(
+        lambda config, check_dir, check_id, tags: EvalReport(
             run_id="run1",
             project_root="/tmp",
             output_dir="/tmp/out",
@@ -179,6 +179,49 @@ def test_run_exit_code_one(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.invoke(main, ["run"])
 
     assert result.exit_code == 1
+
+
+def test_run_passes_tags_to_run_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("eval_banana.cli.load_config", lambda **kwargs: object())
+
+    def fake_run_checks(
+        config: object,
+        check_dir: Path | None,
+        check_id: str | None,
+        tags: list[str] | None,
+    ) -> EvalReport:
+        captured["config"] = config
+        captured["check_dir"] = check_dir
+        captured["check_id"] = check_id
+        captured["tags"] = tags
+        return EvalReport(
+            run_id="run1",
+            project_root="/tmp",
+            output_dir="/tmp/out",
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+            total_checks=1,
+            passed_checks=1,
+            failed_checks=0,
+            errored_checks=0,
+            points_earned=1,
+            total_points=1,
+            percentage=100.0,
+            pass_threshold=1.0,
+            meets_threshold=True,
+            run_passed=True,
+            checks=[],
+        )
+
+    monkeypatch.setattr("eval_banana.cli.run_checks", fake_run_checks)
+
+    result = runner.invoke(main, ["run", "--tag", "migration", "--tag", "smoke"])
+
+    assert result.exit_code == 0
+    assert captured["tags"] == ["migration", "smoke"]
 
 
 def test_list_prints_discovered_checks(
@@ -208,6 +251,44 @@ def test_list_prints_discovered_checks(
 
     assert result.exit_code == 0
     assert "one" in result.output
+
+
+def test_list_filters_checks_by_tag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.discover_check_files",
+        lambda **kwargs: [
+            tmp_path / "eval_checks" / "one.yaml",
+            tmp_path / "eval_checks" / "two.yaml",
+        ],
+    )
+
+    class TaggedCheck:
+        def __init__(self, check_id: str, tags: list[str]) -> None:
+            self.id = check_id
+            self.type = "deterministic"
+            self.description = f"{check_id} desc"
+            self.tags = tags
+
+    monkeypatch.setattr(
+        "eval_banana.cli.load_check_definitions",
+        lambda paths: [
+            (tmp_path / "eval_checks" / "one.yaml", TaggedCheck("one", ["migration"])),
+            (tmp_path / "eval_checks" / "two.yaml", TaggedCheck("two", ["docs"])),
+        ],
+    )
+
+    result = runner.invoke(main, ["list", "--tag", "migration"])
+
+    assert result.exit_code == 0
+    assert "one" in result.output
+    assert "two" not in result.output
 
 
 def test_validate_exit_code_zero_and_one(

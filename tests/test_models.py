@@ -108,6 +108,23 @@ def test_score_validator_enforces_zero_or_one() -> None:
         )
 
 
+def test_check_result_tags_field_defaults_and_serializes() -> None:
+    result = CheckResult(
+        check_id="one",
+        check_type=CheckType.deterministic,
+        description="desc",
+        source_path="/tmp/check.yaml",
+        status=CheckStatus.passed,
+        score=1,
+        started_at="2026-04-09T12:00:00+00:00",
+        completed_at="2026-04-09T12:00:01+00:00",
+        duration_ms=1000,
+    )
+
+    assert result.tags == []
+    assert result.model_dump()["tags"] == []
+
+
 @pytest.mark.parametrize(
     "payload",
     [

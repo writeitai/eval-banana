@@ -83,6 +83,9 @@ def init(use_global: bool, force: bool) -> None:
 @main.command(name="run")
 @click.option("--check-dir", type=click.Path(path_type=Path))
 @click.option("--check-id")
+@click.option(
+    "--tag", "tags", multiple=True, help="Filter checks by tag (repeatable, OR logic)"
+)
 @click.option("--output-dir")
 @click.option("--provider")
 @click.option("--model")
@@ -101,6 +104,7 @@ def init(use_global: bool, force: bool) -> None:
 def run_cli(
     check_dir: Path | None,
     check_id: str | None,
+    tags: tuple[str, ...],
     output_dir: str | None,
     provider: str | None,
     model: str | None,
@@ -136,15 +140,22 @@ def run_cli(
         skip_harness=skip_harness,
         cwd=cwd,
     )
-    report = run_checks(config=config, check_dir=check_dir, check_id=check_id)
+    report = run_checks(
+        config=config, check_dir=check_dir, check_id=check_id, tags=list(tags) or None
+    )
     raise SystemExit(0 if report.run_passed else 1)
 
 
 @main.command(name="list")
 @click.option("--check-dir", type=click.Path(path_type=Path))
+@click.option(
+    "--tag", "tags", multiple=True, help="Filter checks by tag (repeatable, OR logic)"
+)
 @click.option("--cwd", default=".")
 @click.option("--verbose", is_flag=True)
-def list_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
+def list_checks(
+    check_dir: Path | None, tags: tuple[str, ...], cwd: str, verbose: bool
+) -> None:
     _configure_logging(verbose=verbose)
     try:
         config = load_config(cwd=cwd)
@@ -160,6 +171,13 @@ def list_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
             exclude_dirs=config.discovery_exclude_dirs,
         )
         loaded = load_check_definitions(paths=paths)
+        if tags:
+            requested_tags = set(tags)
+            loaded = [
+                (source_path, check)
+                for source_path, check in loaded
+                if requested_tags.intersection(check.tags)
+            ]
     except (SystemExit, ValueError) as exc:
         click.echo(str(exc), err=True)
         raise SystemExit(1) from exc
