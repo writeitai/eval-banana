@@ -97,10 +97,6 @@ _HARNESS_TEMPLATE = """\
 # # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
 # reasoning_effort = "high"
 #
-# # Repo-local skills directory distributed to the agent before it runs.
-# # Relative to project root. See `eval-banana distribute-skills`.
-# skills_dir = "skills"
-#
 # # Extra environment variables injected into the harness subprocess.
 # [harness.env]
 # CI = "1"
@@ -175,7 +171,6 @@ class Config:
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
-    skills_dir: str = "skills"
     skip_harness: bool = False
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
@@ -474,6 +469,38 @@ def _parse_agent_templates(data: dict[str, object]) -> dict[str, AgentTemplate]:
     return parsed_templates
 
 
+def _sanitize_harness_section(data: dict[str, object]) -> None:
+    raw_harness = data.get("harness")
+    if raw_harness is None:
+        return
+    if not isinstance(raw_harness, dict):
+        msg = "[harness] must be a TOML table"
+        raise SystemExit(msg)
+
+    allowed_keys = {
+        "agent",
+        "prompt",
+        "prompt_file",
+        "model",
+        "reasoning_effort",
+        "env",
+        "skip",
+        "skills_dir",
+    }
+    unknown_keys = set(raw_harness) - allowed_keys
+    if unknown_keys:
+        unknown_keys_text = ", ".join(sorted(unknown_keys))
+        msg = f"[harness] contains unknown keys: {unknown_keys_text}"
+        raise SystemExit(msg)
+
+    if "skills_dir" not in raw_harness:
+        return
+
+    sanitized_harness = dict(raw_harness)
+    sanitized_harness.pop("skills_dir")
+    data["harness"] = sanitized_harness
+
+
 def load_config(
     *,
     output_dir: str | None = None,
@@ -554,6 +581,8 @@ def load_config(
         _set_nested_value(merged, section=section, key=key, value=value)
     if skip_harness is not None:
         _set_nested_value(merged, section="harness", key="skip", value=skip_harness)
+
+    _sanitize_harness_section(merged)
 
     provider_value = str(
         _get_nested_value(merged, section="llm", key="provider") or "openai_compat"
@@ -661,9 +690,6 @@ def load_config(
             value=_get_nested_value(merged, section="harness", key="reasoning_effort")
         ),
         harness_env=_get_string_dict(merged, section="harness", key="env"),
-        skills_dir=_get_string(
-            merged, section="harness", key="skills_dir", default="skills"
-        ),
         skip_harness=resolved_skip_harness,
         agent_templates=agent_templates,
     )
@@ -672,11 +698,6 @@ def load_config(
     if not output_path.is_absolute():
         output_path = (project_root / output_path).resolve()
     config.output_dir = str(output_path)
-
-    skills_path = Path(config.skills_dir)
-    if not skills_path.is_absolute():
-        skills_path = (project_root / skills_path).resolve()
-    config.skills_dir = str(skills_path)
 
     logger.debug("Resolved config: %s", config)
     return config
