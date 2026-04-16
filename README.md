@@ -10,7 +10,7 @@ Lightweight aspect-based evaluation framework for Python projects. Score LLM out
 
 eval-banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-Optionally, eval-banana can drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace.
+eval-banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow. You can skip the harness (`--skip-harness`) when scoring a workspace that was produced some other way (your own script, an existing CI artifact).
 
 Two check types:
 
@@ -302,6 +302,15 @@ make pyright      # Type check
 make all-check    # Lint + format + types + tests (matches CI)
 make install-skills  # Install bundled skills into the current project
 ```
+
+## Inspiration
+
+eval-banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
+
+- **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
+- **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
+
+The `llm_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
 
 ## Contributing
 
