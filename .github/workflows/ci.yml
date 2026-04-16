@@ -26,3 +26,5 @@ jobs:
         run: uv run --python ${{ matrix.python-version }} pyright src tests
       - name: Pytest
         run: uv run --python ${{ matrix.python-version }} pytest tests -v --tb=short
+      - name: Pytest packaging (wheel regression)
+        run: uv run --python ${{ matrix.python-version }} pytest tests -v -m packaging --tb=short
