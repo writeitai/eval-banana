@@ -10,7 +10,7 @@ Lightweight aspect-based evaluation framework for Python projects. Score LLM out
 
 eval-banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-Optionally, eval-banana can drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace.
+eval-banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow. You can skip the harness (`--skip-harness`) when scoring a workspace that was produced some other way (your own script, an existing CI artifact).
 
 Three check types:
 
