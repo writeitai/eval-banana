@@ -1,16 +1,20 @@
-# eval-banana
+# Eval Banana
 
 [![CI](https://github.com/writeitai/eval-banana/actions/workflows/ci.yml/badge.svg)](https://github.com/writeitai/eval-banana/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-Lightweight aspect-based evaluation framework for Python projects. Score LLM outputs and agent workflows with simple YAML check definitions.
+Aspect-based evaluation framework - deterministic checks + LLM judges. Score anything (agentic outputs, workflows, banana!) with simple YAML check definitions.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/writeitai/eval-banana/main/docs/images/logo.png" alt="Eval Banana logo" width="400">
+</p>
 
 ## What it does
 
-eval-banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
+Eval Banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-eval-banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow. You can skip the harness (`--skip-harness`) when scoring a workspace that was produced some other way (your own script, an existing CI artifact).
+Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow. You can skip the harness (`--skip-harness`) when scoring a workspace that was produced some other way (your own script, an existing CI artifact).
 
 Two check types:
 
