@@ -5,9 +5,34 @@ build-backend = "hatchling.build"
 [project]
 name = "eval-banana"
 version = "0.1.0"
-description = "Lightweight aspect-based evaluation framework."
+description = "Lightweight aspect-based evaluation framework with YAML check definitions."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "WriteIt.ai s.r.o.", email = "info@writeit.ai" }]
+maintainers = [{ name = "WriteIt.ai s.r.o.", email = "info@writeit.ai" }]
+keywords = [
+    "llm",
+    "evaluation",
+    "evals",
+    "eval-framework",
+    "yaml",
+    "testing",
+    "llm-judge",
+    "ai-agents",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 dependencies = [
     "click>=8.1",
     "httpx>=0.28",
@@ -15,6 +40,12 @@ dependencies = [
     "pydantic>=2.11",
     "PyYAML>=6.0.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/writeitai/eval-banana"
+Repository = "https://github.com/writeitai/eval-banana"
+Issues = "https://github.com/writeitai/eval-banana/issues"
+Changelog = "https://github.com/writeitai/eval-banana/blob/main/CHANGELOG.md"
 
 [project.scripts]
 eb = "eval_banana.cli:main"
