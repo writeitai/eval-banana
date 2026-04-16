@@ -81,6 +81,21 @@ def test_wheel_contains_skills_and_installs_them(tmp_path: Path) -> None:
         text=True,
     )
 
+    import_origin = subprocess.run(
+        args=[
+            str(venv_python),
+            "-c",
+            "import eval_banana; print(eval_banana.__file__)",
+        ],
+        check=True,
+        capture_output=True,
+        cwd=repo_root,
+        text=True,
+    ).stdout.strip()
+    assert Path(import_origin).is_relative_to(venv_site_packages), (
+        f"eval_banana resolved from outside the installed wheel: {import_origin}"
+    )
+
     project_root = tmp_path / "project"
     project_root.mkdir()
     install_result = subprocess.run(

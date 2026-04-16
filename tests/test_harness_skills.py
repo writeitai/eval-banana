@@ -253,6 +253,51 @@ def test_install_bundled_skills_rejects_symlink_target_and_continues(
     assert codex_target.is_dir()
 
 
+def test_install_bundled_skills_force_does_not_bypass_file_target_rejection(
+    tmp_path: Path,
+) -> None:
+    file_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    file_target.parent.mkdir(parents=True)
+    file_target.write_text("not a directory\n", encoding="utf-8")
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=True,
+        dry_run=False,
+    )
+
+    assert report.installed == []
+    assert len(report.failed) == 1
+    assert "Skill target exists and is not a directory" in report.failed[0]
+    assert file_target.is_file()
+    assert file_target.read_text(encoding="utf-8") == "not a directory\n"
+
+
+def test_install_bundled_skills_force_does_not_bypass_symlink_target_rejection(
+    tmp_path: Path,
+) -> None:
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    symlink_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    symlink_target.parent.mkdir(parents=True)
+    symlink_target.symlink_to(real_dir, target_is_directory=True)
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=True,
+        dry_run=False,
+    )
+
+    assert report.installed == []
+    assert len(report.failed) == 1
+    assert "Refusing to replace symlinked skill target" in report.failed[0]
+    assert symlink_target.is_symlink()
+
+
 def test_install_bundled_skills_leaves_existing_target_untouched_when_staging_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
