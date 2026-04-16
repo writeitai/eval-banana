@@ -370,6 +370,39 @@ def test_distribute_skills_alias_emits_warning_and_delegates(
     )
 
 
+def test_install_help_includes_command_and_option_descriptions() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["install", "--help"])
+    normalized_output = " ".join(result.output.split())
+
+    assert result.exit_code == 0
+    assert (
+        "Install bundled eval-banana agent skills into a project's native agent "
+        "skill directories."
+    ) in normalized_output
+    assert "Repeatable. Limit installation to specific agent targets." in normalized_output
+    assert (
+        "Repeatable. Limit installation to specific bundled skills." in normalized_output
+    )
+    assert "Target project directory." in normalized_output
+    assert "Print the planned installs without writing files." in normalized_output
+    assert (
+        "Overwrite existing unmarked target directories. Does not replace files or symlinks."
+        in normalized_output
+    )
+    assert "Enable debug logging." in normalized_output
+
+
+def test_distribute_skills_help_includes_deprecated_alias_text() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["distribute-skills", "--help"])
+
+    assert result.exit_code == 0
+    assert "Deprecated alias for 'install'." in result.output
+
+
 def test_install_invalid_target_agent(tmp_path: Path) -> None:
     runner = CliRunner()
 

@@ -231,15 +231,52 @@ def _run_install_command(
         raise SystemExit(1)
 
 
-@main.command(name="install")
-@click.option(
-    "--target-agents", multiple=True, type=click.Choice(sorted(AGENT_SKILL_TARGETS))
+@main.command(
+    name="install",
+    help=(
+        "Install bundled eval-banana agent skills into a project's native agent "
+        "skill directories."
+    ),
 )
-@click.option("--skills", multiple=True, type=click.Choice(_BUNDLED_SKILL_CHOICES))
-@click.option("--cwd", default=".")
-@click.option("--dry-run", is_flag=True)
-@click.option("--force", is_flag=True)
-@click.option("--verbose", is_flag=True)
+@click.option(
+    "--target-agents",
+    multiple=True,
+    type=click.Choice(sorted(AGENT_SKILL_TARGETS)),
+    help=(
+        "Repeatable. Limit installation to specific agent targets. Default: all "
+        "agent names in AGENT_SKILL_TARGETS. Note: install work is deduped by "
+        "unique destination directory."
+    ),
+)
+@click.option(
+    "--skills",
+    multiple=True,
+    type=click.Choice(_BUNDLED_SKILL_CHOICES),
+    help=(
+        "Repeatable. Limit installation to specific bundled skills. Default: all "
+        "bundled skills discovered from package resources."
+    ),
+)
+@click.option(
+    "--cwd",
+    default=".",
+    help=(
+        "Target project directory. Uses load_config(cwd=PATH) project-root "
+        "resolution: if .eval-banana/config.toml is found upward, use that "
+        "project root; otherwise use PATH itself."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the planned installs without writing files.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite existing unmarked target directories. Does not replace files or symlinks.",
+)
+@click.option("--verbose", is_flag=True, help="Enable debug logging.")
 def install_skills_cli(
     target_agents: tuple[str, ...],
     skills: tuple[str, ...],
@@ -258,15 +295,46 @@ def install_skills_cli(
     )
 
 
-@main.command(name="distribute-skills")
+@main.command(name="distribute-skills", help="Deprecated alias for 'install'.")
 @click.option(
-    "--target-agents", multiple=True, type=click.Choice(sorted(AGENT_SKILL_TARGETS))
+    "--target-agents",
+    multiple=True,
+    type=click.Choice(sorted(AGENT_SKILL_TARGETS)),
+    help=(
+        "Repeatable. Limit installation to specific agent targets. Default: all "
+        "agent names in AGENT_SKILL_TARGETS. Note: install work is deduped by "
+        "unique destination directory."
+    ),
 )
-@click.option("--skills", multiple=True, type=click.Choice(_BUNDLED_SKILL_CHOICES))
-@click.option("--cwd", default=".")
-@click.option("--dry-run", is_flag=True)
-@click.option("--force", is_flag=True)
-@click.option("--verbose", is_flag=True)
+@click.option(
+    "--skills",
+    multiple=True,
+    type=click.Choice(_BUNDLED_SKILL_CHOICES),
+    help=(
+        "Repeatable. Limit installation to specific bundled skills. Default: all "
+        "bundled skills discovered from package resources."
+    ),
+)
+@click.option(
+    "--cwd",
+    default=".",
+    help=(
+        "Target project directory. Uses load_config(cwd=PATH) project-root "
+        "resolution: if .eval-banana/config.toml is found upward, use that "
+        "project root; otherwise use PATH itself."
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the planned installs without writing files.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite existing unmarked target directories. Does not replace files or symlinks.",
+)
+@click.option("--verbose", is_flag=True, help="Enable debug logging.")
 def distribute_skills_cli(
     target_agents: tuple[str, ...],
     skills: tuple[str, ...],
