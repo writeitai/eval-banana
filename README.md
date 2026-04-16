@@ -318,6 +318,15 @@ make all-check    # Lint + format + types + tests (matches CI)
 make install-skills  # Install bundled skills into the current project
 ```
 
+## Inspiration
+
+eval-banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
+
+- **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
+- **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
+
+The `llm_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
+
 ## Contributing
 
 Issues and pull requests are welcome. Please run `make all-check` before opening a PR.
