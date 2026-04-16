@@ -275,6 +275,10 @@ def install_bundled_skills(
                     staging_dir = _make_staging_dir(
                         target_root=target_root, skill_name=skill_name
                     )
+                    backup_dir = (
+                        target_dir.parent
+                        / f".eval-banana-backup-{target_dir.name}-{os.getpid()}"
+                    )
                     try:
                         shutil.copytree(source_dir, staging_dir, symlinks=False)
                         if target_root_relative == AGENT_SKILL_TARGETS["codex"]:
@@ -292,10 +296,21 @@ def install_bundled_skills(
                             encoding="utf-8",
                         )
                         if target_dir.exists():
-                            shutil.rmtree(target_dir)
-                        os.replace(staging_dir, target_dir)
+                            os.replace(target_dir, backup_dir)
+                        if target_dir.exists():
+                            msg = f"Failed to move existing target to backup: {target_dir}"
+                            raise RuntimeError(msg)
+                        try:
+                            os.replace(staging_dir, target_dir)
+                        except Exception:
+                            if backup_dir.exists():
+                                os.replace(backup_dir, target_dir)
+                            raise
+                        if backup_dir.exists():
+                            shutil.rmtree(backup_dir, ignore_errors=True)
                     except Exception:
                         shutil.rmtree(staging_dir, ignore_errors=True)
+                        shutil.rmtree(backup_dir, ignore_errors=True)
                         raise
 
                     report.installed.append(report_item)

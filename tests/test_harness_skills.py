@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 import importlib.metadata
+import os
 from pathlib import Path
 
 import pytest
@@ -279,6 +280,48 @@ def test_install_bundled_skills_leaves_existing_target_untouched_when_staging_fa
     assert len(report.failed) == 1
     assert sentinel_path.read_text(encoding="utf-8") == "keep\n"
     assert list((tmp_path / ".codex" / "skills").glob(".eval-banana-staging-*")) == []
+
+
+def test_install_bundled_skills_restores_existing_target_when_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+    target_dir = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    sentinel_path = target_dir / "sentinel.txt"
+    sentinel_path.write_text("keep\n", encoding="utf-8")
+    original_replace = os.replace
+    call_count = 0
+
+    def flaky_replace(src: os.PathLike[str] | str, dst: os.PathLike[str] | str) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise RuntimeError("swap failed")
+        original_replace(src, dst)
+
+    monkeypatch.setattr("eval_banana.harness.skills.os.replace", flaky_replace)
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    assert report.installed == []
+    assert len(report.failed) == 1
+    assert "swap failed" in report.failed[0]
+    assert sentinel_path.read_text(encoding="utf-8") == "keep\n"
+    assert (target_dir / OWNERSHIP_MARKER).is_file()
+    assert list((tmp_path / ".claude" / "skills").glob(".eval-banana-staging-*")) == []
+    assert list((tmp_path / ".claude" / "skills").glob(".eval-banana-backup-*")) == []
 
 
 def test_install_bundled_skills_reports_parent_permission_error_and_continues(
