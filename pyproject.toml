@@ -31,7 +31,7 @@ dev = [
 packages = ["src/eval_banana"]
 
 [tool.ruff]
-src = ["src", "tests", "skills"]
+src = ["src", "tests"]
 target-version = "py312"
 line-length = 88
 
@@ -83,8 +83,10 @@ reportAssignmentType = false
 reportPrivateUsage = false
 reportTypeCommentUsage = false
 reportMatchNotExhaustive = false
-include = ["src", "tests", "skills"]
+include = ["src", "tests"]
 exclude = ["**/.venv", "**/__pycache__", "tmp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["packaging: build-wheel regression tests (slow)"]
+addopts = "-m 'not packaging'"
