@@ -37,19 +37,9 @@ def test_valid_definitions_parse() -> None:
             "instructions": "judge it",
         }
     )
-    task = _ADAPTER.validate_python(
-        {
-            "schema_version": 1,
-            "id": "check3",
-            "type": "task_based",
-            "description": "desc",
-            "command": ["pytest"],
-        }
-    )
 
     assert deterministic.id == "check_1"
     assert llm.id == "check-2"
-    assert task.id == "check3"
 
 
 def test_invalid_union_fails() -> None:
@@ -138,16 +128,8 @@ def test_score_validator_enforces_zero_or_one() -> None:
             "instructions": "grade",
             "timeout_seconds": 30,
         },
-        {
-            "schema_version": 1,
-            "id": "foo",
-            "type": "task_based",
-            "description": "d",
-            "command": ["pytest"],
-            "timeout_seconds": 30,
-        },
     ],
-    ids=["deterministic", "llm_judge", "task_based"],
+    ids=["deterministic", "llm_judge"],
 )
 def test_stale_timeout_seconds_yaml_is_rejected(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):

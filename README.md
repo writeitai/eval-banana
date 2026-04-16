@@ -12,13 +12,12 @@ eval-banana discovers YAML check definitions from `eval_checks/` directories, ru
 
 Optionally, eval-banana can drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace.
 
-Three check types:
+Two check types:
 
 | Type | Purpose | How it works |
 |---|---|---|
 | `deterministic` | File existence, content assertions, data validation | Runs a Python script via subprocess; exit 0 = pass |
 | `llm_judge` | Qualitative evaluation (coherence, accuracy, tone) | Sends target files + instructions to an LLM; expects `{"score": 0\|1}` |
-| `task_based` | End-to-end workflow validation (UI, CLI, API) | Runs an arbitrary command; exit 0 = pass |
 
 ## Quick start
 
@@ -106,20 +105,6 @@ instructions: |
 ```
 
 Requires an API key. Set `OPENROUTER_API_KEY` or configure in `.eval-banana/config.toml`.
-
-### Task-based check
-
-```yaml
-schema_version: 1
-id: login_flow_works
-type: task_based
-description: The UI agent can complete the login flow.
-command:
-  - uv
-  - run
-  - python
-  - ui_checks/login_test.py
-```
 
 ## Harness support
 

@@ -38,7 +38,6 @@ src/eval_banana/
   runners/
     deterministic.py # Script-based checks
     llm_judge.py     # LLM-as-judge checks
-    task_based.py    # Command-based checks
 tests/               # One test file per source module
 ```
 
@@ -62,7 +61,6 @@ tests/               # One test file per source module
 |---|---|---|
 | `deterministic` | Exit code 0 = 1, non-zero = 0 | Python script via subprocess |
 | `llm_judge` | LLM returns `{"score": 0\|1}` | OpenAI-compatible API call |
-| `task_based` | Exit code 0 = 1, non-zero = 0 | Arbitrary command via subprocess |
 
 ## Harness support
 
@@ -87,4 +85,4 @@ eval-banana can optionally drive an AI coding agent (harness) before running che
 - `--check-id` uses relaxed validation (broken YAML in other files does not block)
 - Harness is a run-level phase, not a check type -- no `type: harness` in YAML
 - Single harness per run -- no multi-agent orchestration
-- No async -- harness uses synchronous subprocess.run() like task_based checks
+- No async -- harness uses synchronous subprocess.run()

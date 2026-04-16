@@ -12,7 +12,7 @@ All check types share these fields:
 |---|---|---|---|
 | `schema_version` | `1` | Yes | Schema version (must be `1`) |
 | `id` | string | Yes | Unique identifier (`[a-zA-Z0-9_-]` only) |
-| `type` | string | Yes | One of: `deterministic`, `llm_judge`, `task_based` |
+| `type` | string | Yes | One of: `deterministic`, `llm_judge` |
 | `description` | string | Yes | Human-readable description |
 | `target_paths` | list[string] | No | Files/directories the check operates on |
 | `tags` | list[string] | No | Tags for filtering (future use) |
@@ -108,38 +108,6 @@ target_paths:
 instructions: |
   Does the README give a new user enough information to install
   and run the package locally? Score 1 if yes, 0 if no.
-```
-
-## Task-based checks
-
-Run an arbitrary command and check its exit code.
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `command` | list[string] | Yes | Command and arguments to run |
-| `working_directory` | string | No | Working directory (relative to project root) |
-| `env` | dict[string, string] | No | Extra environment variables |
-
-### How it works
-
-1. The command runs as a subprocess
-2. `EVAL_BANANA_PROJECT_ROOT`, `EVAL_BANANA_OUTPUT_DIR`, `EVAL_BANANA_CHECK_ID` are injected
-3. Exit code 0 = passed, non-zero = failed
-4. Infrastructure errors (command not found, OS execution failure) = error
-
-### Example
-
-```yaml
-schema_version: 1
-id: unit_tests_pass
-type: task_based
-description: The unit test suite passes.
-command:
-  - uv
-  - run
-  - pytest
-  - tests
-  - -q
 ```
 
 ## Auto-discovery

@@ -12,10 +12,6 @@ Gallery of real-world eval-banana check patterns. Copy and adapt.
 - LLM judge: tone / professionalism
 - LLM judge: factual consistency
 - LLM judge: multi-file comparison
-- Task-based: run the test suite
-- Task-based: run a linter
-- Task-based: API smoke test
-- Task-based: Playwright UI flow
 
 ## Deterministic: file existence and content
 
@@ -191,67 +187,3 @@ instructions: |
   there is any drift between the two files.
 ```
 
-## Task-based: run the test suite
-
-```yaml
-schema_version: 1
-id: pytest_passes
-type: task_based
-description: The unit test suite passes.
-command:
-  - uv
-  - run
-  - pytest
-  - tests
-  - -q
-```
-
-## Task-based: run a linter
-
-```yaml
-schema_version: 1
-id: ruff_clean
-type: task_based
-description: Ruff finds no lint issues in src/.
-command:
-  - uv
-  - run
-  - ruff
-  - check
-  - src
-```
-
-## Task-based: API smoke test
-
-```yaml
-schema_version: 1
-id: health_endpoint_returns_200
-type: task_based
-description: The /health endpoint returns HTTP 200.
-command:
-  - bash
-  - -c
-  - 'curl -sf http://localhost:8000/health > /dev/null'
-```
-
-Note: using `bash -c` here because the check needs a pipe/redirect. For simpler checks prefer passing args directly without a shell.
-
-## Task-based: Playwright UI flow
-
-```yaml
-schema_version: 1
-id: login_flow_works
-type: task_based
-description: The login flow completes successfully in a headless browser.
-command:
-  - uv
-  - run
-  - python
-  - ui_tests/login_flow.py
-working_directory: .
-env:
-  HEADLESS: "1"
-  BASE_URL: "http://localhost:3000"
-```
-
-The referenced `ui_tests/login_flow.py` is a normal Python script that uses Playwright (or any other library). eval-banana only cares about the exit code. Inside that script, you can read `os.environ["EVAL_BANANA_OUTPUT_DIR"]` to write screenshots or traces that end up alongside the check result.

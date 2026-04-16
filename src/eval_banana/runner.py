@@ -27,7 +27,6 @@ from eval_banana.reporter import emit_console_report
 from eval_banana.reporter import write_report_files
 from eval_banana.runners.deterministic import run_deterministic_check
 from eval_banana.runners.llm_judge import run_llm_judge_check
-from eval_banana.runners.task_based import run_task_based_check
 from eval_banana.scorer import score_results
 
 logger = logging.getLogger(__name__)
@@ -96,12 +95,7 @@ def _build_skipped_harness_result(*, config: Config, started_at: str) -> Harness
 def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
     if check.type == "deterministic":
         return run_deterministic_check
-    if check.type == "llm_judge":
-        return run_llm_judge_check
-    if check.type == "task_based":
-        return run_task_based_check
-    msg = f"Unsupported check type: {check.type}"
-    raise ValueError(msg)
+    return run_llm_judge_check
 
 
 def _find_check_path_by_id(*, paths: list[Path], check_id: str) -> Path | None:
