@@ -7,7 +7,6 @@ Complete field reference for eval-banana check definitions. Each check file defi
 - Common fields (all check types)
 - `deterministic` fields
 - `llm_judge` fields
-- `task_based` fields
 - Validation rules
 - Error messages and what they mean
 
@@ -17,7 +16,7 @@ Complete field reference for eval-banana check definitions. Each check file defi
 |---|---|---|---|---|
 | `schema_version` | int | **Yes** | Must equal `1` | No default. Omitting → validation error. |
 | `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`, non-empty after stripping | Must be unique across ALL discovered check files |
-| `type` | string | **Yes** | One of `deterministic`, `llm_judge`, `task_based` | Discriminator for the Pydantic union |
+| `type` | string | **Yes** | One of `deterministic`, `llm_judge` | Discriminator for the Pydantic union |
 | `description` | string | **Yes** | Non-empty after stripping | Human-readable, shown in reports |
 | `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Required non-empty for `llm_judge`. |
 | `tags` | list[string] | No | — | Free-form metadata. Not yet used for filtering but allowed. |
@@ -121,35 +120,6 @@ The runner builds a prompt with:
 - `provider = "openai_compat"` (default): uses OpenAI SDK with `api_base` URL
 - `provider = "codex"`: uses hardcoded ChatGPT backend URL (`https://chatgpt.com/backend-api`), ignores `api_base`
 
-## `task_based` check
-
-Type-specific fields:
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `command` | list[string] | **Yes** | Non-empty. Each item must be a non-empty string. **Never a single shell string.** |
-| `working_directory` | string | No | Relative to `project_root`. Defaults to `project_root`. |
-| `env` | dict[string, string] | No | Extra env vars layered on top of `os.environ` |
-
-### Subprocess contract
-
-- Command: `subprocess.run(command, shell=False, ...)` — no shell interpolation
-- `cwd`: resolved `working_directory` or `project_root`
-- Environment: `os.environ` + `check.env` + these always-injected variables:
-  - `EVAL_BANANA_PROJECT_ROOT`: absolute project root
-  - `EVAL_BANANA_OUTPUT_DIR`: per-check output directory
-  - `EVAL_BANANA_CHECK_ID`: the check's id
-
-### Result mapping
-
-| Outcome | Status | Score |
-|---|---|---|
-| Exit 0 | `passed` | 1 |
-| Exit non-zero | `failed` | 0 |
-| `FileNotFoundError` on command (binary not in PATH), `OSError` | `error` | 0 |
-
-`stdout`/`stderr` captured and written as for deterministic checks.
-
 ## Validation rules summary
 
 The loader raises a `ValueError` naming the file path for any of these:
@@ -160,10 +130,9 @@ The loader raises a `ValueError` naming the file path for any of these:
 - `id` doesn't match `^[a-zA-Z0-9_-]+$`
 - `description` empty or whitespace-only
 - Unknown top-level field (blocked by `extra="forbid"`)
-- `type` not one of the three allowed values
+- `type` not one of the allowed values
 - `script` AND `script_path` both set, or neither set (deterministic)
 - `instructions` empty, or `target_paths` empty (llm_judge)
-- `command` empty or contains empty strings (task_based)
 
 The runner raises `SystemExit` for:
 - Duplicate check IDs across files (shows both file paths)

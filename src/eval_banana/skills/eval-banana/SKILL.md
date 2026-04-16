@@ -1,21 +1,20 @@
 ---
 name: eval-banana
-description: Guide for using eval-banana, a lightweight aspect-based evaluation framework with YAML check definitions. Use when the user is working in a project with `eval_checks/` directories, wants to write or debug YAML eval definitions, needs to score LLM outputs or workflow behavior with pass/fail checks, is running `eval-banana` / `eb` CLI commands, is setting up eval-banana in a new project, or needs to configure OpenRouter/OpenAI/Codex credentials for LLM judge checks. Covers deterministic checks (subprocess scripts), LLM judge checks (model-graded), task-based checks (arbitrary commands), auto-discovery rules, context.json contract, config precedence, and report interpretation.
+description: Guide for using eval-banana, a lightweight aspect-based evaluation framework with YAML check definitions. Use when the user is working in a project with `eval_checks/` directories, wants to write or debug YAML eval definitions, needs to score LLM outputs or workflow behavior with pass/fail checks, is running `eval-banana` / `eb` CLI commands, is setting up eval-banana in a new project, or needs to configure OpenRouter/OpenAI/Codex credentials for LLM judge checks. Covers deterministic checks (subprocess scripts), LLM judge checks (model-graded), auto-discovery rules, context.json contract, config precedence, and report interpretation.
 ---
 
 # eval-banana
 
 ## Overview
 
-eval-banana is a lightweight evaluation framework. Check definitions live in YAML files under `eval_checks/` directories and are auto-discovered. Each check scores 0 or 1 (pass/fail) with equal weight. Three check types cover most needs. One YAML file per check — there is no suite wrapper.
+eval-banana is a lightweight evaluation framework. Check definitions live in YAML files under `eval_checks/` directories and are auto-discovered. Each check scores 0 or 1 (pass/fail) with equal weight. Two check types cover most needs. One YAML file per check — there is no suite wrapper.
 
-## The three check types
+## The two check types
 
 | Type | Use when | Mechanism |
 |---|---|---|
 | `deterministic` | Asserting file content, structure, or values objectively | Python script via subprocess; exit 0 = pass, non-zero = fail |
 | `llm_judge` | Evaluating qualitative properties (coherence, tone, factuality) | LLM returns `{"score": 0\|1, "reason": "..."}` |
-| `task_based` | End-to-end workflow validation (UI, CLI, API flows) | Arbitrary command via subprocess; exit 0 = pass, non-zero = fail |
 
 **Default to `deterministic`** when the condition can be checked with code — it's the cheapest, most reliable, and requires no credentials.
 
@@ -34,7 +33,7 @@ Every check file starts with these fields regardless of type:
 ```yaml
 schema_version: 1            # Always 1. Required. No default.
 id: my_check_id              # Unique across the project. Pattern: [a-zA-Z0-9_-]+
-type: deterministic          # One of: deterministic, llm_judge, task_based
+type: deterministic          # One of: deterministic, llm_judge
 description: Human-readable  # Required. Non-empty.
 target_paths:                # Files/dirs the check operates on. Resolved from project_root.
   - path/to/file.json        # Optional for deterministic; required (non-empty) for llm_judge.
@@ -140,33 +139,6 @@ Optional fields:
 - **Codex** (local ChatGPT subscription): run `codex login`, then `eval-banana run --provider codex`. Backend URL is hardcoded; `api_base` has no effect for Codex.
 - **Missing credentials** → per-check `error` result (not silent skip). Other check types continue running.
 
-## Writing a `task_based` check
-
-Runs an arbitrary command. Exit 0 = pass, non-zero = fail. Use for tests, linters, UI flows, API smoke checks.
-
-```yaml
-schema_version: 1
-id: pytest_passes
-type: task_based
-description: The unit test suite passes.
-command:
-  - uv
-  - run
-  - pytest
-  - tests
-  - -q
-```
-
-Fields:
-- `command`: list of strings. **Never a single shell string** — avoids shell injection.
-- `working_directory`: optional, relative to `project_root`. Defaults to `project_root`.
-- `env`: optional `dict[str, str]` merged on top of `os.environ`.
-
-These environment variables are always injected so the command can find its context:
-- `EVAL_BANANA_PROJECT_ROOT`
-- `EVAL_BANANA_OUTPUT_DIR` (per-check output directory)
-- `EVAL_BANANA_CHECK_ID`
-
 ## Auto-discovery rules
 
 - eval-banana walks from the project root (the directory containing `.eval-banana/`).
@@ -244,12 +216,6 @@ Exit code: 0 on `run_passed`, 1 otherwise. Usable directly in CI.
   - "the tone is professional and friendly"
   - "the docs explain the concept clearly"
 
-- **`task_based`** — you already have a command that encodes the check:
-  - "pytest passes"
-  - "the Playwright login flow works"
-  - "curl /health returns 200"
-  - "ruff finds no issues"
-
 **If in doubt, prefer `deterministic`** — cheapest, most reliable, no credentials needed.
 
 ## Common gotchas
@@ -259,7 +225,7 @@ Exit code: 0 on `run_passed`, 1 otherwise. Usable directly in CI.
 - **Putting a shell string in `command:`** — must be a list, e.g. `["pytest", "-q"]`, never `"pytest -q"`.
 - **Duplicate IDs across files** — fatal. Grep for the ID before adding a new check.
 - **Expecting silent skip on missing LLM credentials** — eval-banana always returns an `error` result, never skips.
-- **Assuming `cwd` is where you invoked `eval-banana`** — deterministic and task-based checks run with `cwd = project_root`.
+- **Assuming `cwd` is where you invoked `eval-banana`** — deterministic scripts run with `cwd = project_root`.
 - **LLM judge returns prose instead of JSON** — the runner requires strict `{"score": 0|1, "reason": "..."}`. Tell the LLM to respond with JSON only.
 
 ## References

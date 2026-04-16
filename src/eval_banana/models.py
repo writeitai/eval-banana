@@ -27,7 +27,6 @@ class CheckStatus(StrEnum):
 class CheckType(StrEnum):
     deterministic = "deterministic"
     llm_judge = "llm_judge"
-    task_based = "task_based"
 
 
 class HarnessStatus(StrEnum):
@@ -115,28 +114,8 @@ class LlmJudgeCheckDefinition(BaseCheckDefinition):
         return self
 
 
-class TaskBasedCheckDefinition(BaseCheckDefinition):
-    type: Literal["task_based"]
-    command: list[str]
-    working_directory: str | None = None
-    env: dict[str, str] = Field(default_factory=dict)
-
-    @field_validator("command")
-    @classmethod
-    def validate_command(cls, value: list[str]) -> list[str]:
-        if not value:
-            msg = "command must be a non-empty list"
-            raise ValueError(msg)
-        for item in value:
-            if not item.strip():
-                msg = "every command item must be a non-empty string"
-                raise ValueError(msg)
-        return value
-
-
 CheckDefinition = Annotated[
-    DeterministicCheckDefinition | LlmJudgeCheckDefinition | TaskBasedCheckDefinition,
-    Field(discriminator="type"),
+    DeterministicCheckDefinition | LlmJudgeCheckDefinition, Field(discriminator="type")
 ]
 
 
