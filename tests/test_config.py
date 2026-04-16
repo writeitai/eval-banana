@@ -81,20 +81,7 @@ def test_relative_output_dir_resolves_from_project_root(
     assert config.output_dir == str((project / "custom-results").resolve())
 
 
-def test_default_skills_dir_resolves(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    home = tmp_path / "home"
-    project = tmp_path / "project"
-    project.mkdir()
-    monkeypatch.setenv("HOME", str(home))
-
-    config = load_config(cwd=str(project))
-
-    assert config.skills_dir == str((project / "skills").resolve())
-
-
-def test_custom_skills_dir_resolves(
+def test_legacy_harness_skills_dir_is_ignored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     home = tmp_path / "home"
@@ -104,12 +91,37 @@ def test_custom_skills_dir_resolves(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        '[harness]\nskills_dir = "custom-skills"\n', encoding="utf-8"
+        "\n".join(
+            [
+                "[harness]",
+                'agent = "codex"',
+                'prompt = "Fix it"',
+                'skills_dir = "custom-skills"',
+            ]
+        ),
+        encoding="utf-8",
     )
 
     config = load_config(cwd=str(nested))
 
-    assert config.skills_dir == str((project / "custom-skills").resolve())
+    assert config.harness_agent == "codex"
+    assert config.harness_prompt == "Fix it"
+    assert not hasattr(config, "skills_dir")
+
+
+def test_unknown_harness_key_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        '[harness]\nunknown_key = "value"\n', encoding="utf-8"
+    )
+
+    with pytest.raises(SystemExit, match="\\[harness\\] contains unknown keys"):
+        load_config(cwd=str(project))
 
 
 def test_provider_defaults_normalization_for_codex(

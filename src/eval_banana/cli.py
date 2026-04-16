@@ -10,11 +10,13 @@ from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
 from eval_banana.discovery import discover_check_files
 from eval_banana.harness.skills import AGENT_SKILL_TARGETS
-from eval_banana.harness.skills import distribute_skills
+from eval_banana.harness.skills import discover_bundled_skills
+from eval_banana.harness.skills import install_bundled_skills
 from eval_banana.loader import load_check_definitions
 from eval_banana.runner import run_checks
 
 logger = logging.getLogger(__name__)
+_BUNDLED_SKILL_CHOICES = discover_bundled_skills()
 
 _EXAMPLE_CHECK_TEXT = """schema_version: 1
 id: example_check
@@ -193,51 +195,159 @@ def validate_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
     click.echo(f"Validated {len(loaded)} checks successfully.")
 
 
-@main.command(name="distribute-skills")
-@click.option(
-    "--target-agents", multiple=True, type=click.Choice(sorted(AGENT_SKILL_TARGETS))
-)
-@click.option("--cwd", default=".")
-@click.option("--verbose", is_flag=True)
-@click.option("--dry-run", is_flag=True)
-def distribute_skills_cli(
-    target_agents: tuple[str, ...], cwd: str, verbose: bool, dry_run: bool
+def _run_install_command(
+    *,
+    target_agents: tuple[str, ...],
+    skills: tuple[str, ...],
+    cwd: str,
+    verbose: bool,
+    dry_run: bool,
+    force: bool,
 ) -> None:
     _configure_logging(verbose=verbose)
     try:
         config = load_config(cwd=cwd)
-        if config.project_root is None:
-            msg = "Config.project_root must be set"
-            raise SystemExit(msg)
-
-        skills_dir = Path(config.skills_dir)
+        project_root = config.project_root or Path(cwd).resolve()
         agents = list(target_agents) if target_agents else sorted(AGENT_SKILL_TARGETS)
-        if not skills_dir.is_dir():
-            click.echo(f"No skills directory found at {skills_dir}; skipping")
-            return
-
-        skill_names = [
-            path.name for path in sorted(skills_dir.iterdir()) if path.is_dir()
-        ]
-        if dry_run:
-            if not skill_names:
-                click.echo(f"No skill directories found in {skills_dir}; skipping")
-                return
-            for agent in agents:
-                count = len(skill_names)
-                noun = "skill" if count == 1 else "skills"
-                click.echo(f"{agent}: would distribute {count} {noun}")
-            return
-
-        for agent in agents:
-            distributed = distribute_skills(
-                project_root=config.project_root,
-                agent_type=agent,
-                skills_dir=skills_dir,
-            )
-            count = len(distributed)
-            noun = "skill" if count == 1 else "skills"
-            click.echo(f"{agent}: distributed {count} {noun}")
+        selected_skills = list(skills) if skills else list(_BUNDLED_SKILL_CHOICES)
+        report = install_bundled_skills(
+            project_root=project_root,
+            agent_types=agents,
+            skill_names=selected_skills,
+            force=force,
+            dry_run=dry_run,
+        )
     except (SystemExit, ValueError) as exc:
         click.echo(str(exc), err=True)
         raise SystemExit(1) from exc
+
+    click.echo(
+        "Summary: "
+        f"installed={len(report.installed)} "
+        f"skipped={len(report.skipped)} "
+        f"failed={len(report.failed)}"
+    )
+    if report.failed:
+        raise SystemExit(1)
+
+
+@main.command(
+    name="install",
+    help=(
+        "Install bundled eval-banana agent skills into a project's native agent "
+        "skill directories."
+    ),
+)
+@click.option(
+    "--target-agents",
+    multiple=True,
+    type=click.Choice(sorted(AGENT_SKILL_TARGETS)),
+    help=(
+        "Repeatable. Limit installation to specific agent targets. Default: all "
+        "agent names in AGENT_SKILL_TARGETS. Note: install work is deduped by "
+        "unique destination directory."
+    ),
+)
+@click.option(
+    "--skills",
+    multiple=True,
+    type=click.Choice(_BUNDLED_SKILL_CHOICES),
+    help=(
+        "Repeatable. Limit installation to specific bundled skills. Default: all "
+        "bundled skills discovered from package resources."
+    ),
+)
+@click.option(
+    "--cwd",
+    default=".",
+    help=(
+        "Target project directory. Uses load_config(cwd=PATH) project-root "
+        "resolution: if .eval-banana/config.toml is found upward, use that "
+        "project root; otherwise use PATH itself."
+    ),
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Print the planned installs without writing files."
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite existing unmarked target directories. Does not replace files or symlinks.",
+)
+@click.option("--verbose", is_flag=True, help="Enable debug logging.")
+def install_skills_cli(
+    target_agents: tuple[str, ...],
+    skills: tuple[str, ...],
+    cwd: str,
+    dry_run: bool,
+    force: bool,
+    verbose: bool,
+) -> None:
+    _run_install_command(
+        target_agents=target_agents,
+        skills=skills,
+        cwd=cwd,
+        verbose=verbose,
+        dry_run=dry_run,
+        force=force,
+    )
+
+
+@main.command(name="distribute-skills", help="Deprecated alias for 'install'.")
+@click.option(
+    "--target-agents",
+    multiple=True,
+    type=click.Choice(sorted(AGENT_SKILL_TARGETS)),
+    help=(
+        "Repeatable. Limit installation to specific agent targets. Default: all "
+        "agent names in AGENT_SKILL_TARGETS. Note: install work is deduped by "
+        "unique destination directory."
+    ),
+)
+@click.option(
+    "--skills",
+    multiple=True,
+    type=click.Choice(_BUNDLED_SKILL_CHOICES),
+    help=(
+        "Repeatable. Limit installation to specific bundled skills. Default: all "
+        "bundled skills discovered from package resources."
+    ),
+)
+@click.option(
+    "--cwd",
+    default=".",
+    help=(
+        "Target project directory. Uses load_config(cwd=PATH) project-root "
+        "resolution: if .eval-banana/config.toml is found upward, use that "
+        "project root; otherwise use PATH itself."
+    ),
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Print the planned installs without writing files."
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite existing unmarked target directories. Does not replace files or symlinks.",
+)
+@click.option("--verbose", is_flag=True, help="Enable debug logging.")
+def distribute_skills_cli(
+    target_agents: tuple[str, ...],
+    skills: tuple[str, ...],
+    cwd: str,
+    dry_run: bool,
+    force: bool,
+    verbose: bool,
+) -> None:
+    click.echo(
+        "DeprecationWarning: 'distribute-skills' is deprecated; use 'eb install'",
+        err=True,
+    )
+    _run_install_command(
+        target_agents=target_agents,
+        skills=skills,
+        cwd=cwd,
+        verbose=verbose,
+        dry_run=dry_run,
+        force=force,
+    )

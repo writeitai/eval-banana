@@ -271,7 +271,7 @@ def test_harness_prompt_file_is_resolved_and_forwarded_to_run_harness(
     assert report.harness.reasoning_effort == "high"
 
 
-def test_run_checks_passes_skills_dir_to_run_harness(
+def test_run_checks_no_longer_passes_skills_dir_to_run_harness(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     make_config: Callable[..., Config],
@@ -325,11 +325,10 @@ def test_run_checks_passes_skills_dir_to_run_harness(
         cwd=str(tmp_path),
         harness_agent="codex",
         harness_prompt="Fix it",
-        skills_dir=str((tmp_path / "skills").resolve()),
     )
     run_checks(config=config)
 
-    assert captured["skills_dir"] == Path(config.skills_dir)
+    assert "skills_dir" not in captured
 
 
 @pytest.mark.parametrize(
