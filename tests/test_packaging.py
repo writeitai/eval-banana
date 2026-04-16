@@ -47,13 +47,7 @@ def test_wheel_contains_skills_and_installs_them(tmp_path: Path) -> None:
 
     venv_dir = tmp_path / "venv"
     subprocess.run(
-        args=[
-            sys.executable,
-            "-m",
-            "venv",
-            "--system-site-packages",
-            str(venv_dir),
-        ],
+        args=[sys.executable, "-m", "venv", "--system-site-packages", str(venv_dir)],
         check=True,
         capture_output=True,
         cwd=repo_root,

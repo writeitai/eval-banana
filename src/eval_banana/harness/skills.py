@@ -211,7 +211,9 @@ def install_bundled_skills(
     available_skills = set(discover_bundled_skills())
     selected_skills = _dedupe_values(values=skill_names)
     unknown_skills = sorted(
-        skill_name for skill_name in selected_skills if skill_name not in available_skills
+        skill_name
+        for skill_name in selected_skills
+        if skill_name not in available_skills
     )
     if unknown_skills:
         msg = f"Unknown bundled skills: {', '.join(unknown_skills)}"
@@ -227,7 +229,9 @@ def install_bundled_skills(
         skill_resource = _bundled_skill_resource(skill_name=skill_name)
         for target_root_relative, target_root in target_roots:
             target_dir = target_root / skill_name
-            report_item = _format_report_item(skill_name=skill_name, target_dir=target_dir)
+            report_item = _format_report_item(
+                skill_name=skill_name, target_dir=target_dir
+            )
             try:
                 if dry_run:
                     if target_root.is_symlink():

@@ -55,9 +55,7 @@ def _write_skill_source(
 
 
 def _patch_bundled_sources(
-    *,
-    monkeypatch: pytest.MonkeyPatch,
-    skill_sources: dict[str, Path],
+    *, monkeypatch: pytest.MonkeyPatch, skill_sources: dict[str, Path]
 ) -> None:
     monkeypatch.setattr(
         "eval_banana.harness.skills.discover_bundled_skills",
@@ -204,7 +202,9 @@ def test_install_bundled_skills_force_overwrites_non_owned_directory(
     assert f"Overwriting existing: {target_dir}" in capsys.readouterr().out
 
 
-def test_install_bundled_skills_rejects_file_target_and_continues(tmp_path: Path) -> None:
+def test_install_bundled_skills_rejects_file_target_and_continues(
+    tmp_path: Path,
+) -> None:
     file_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
     file_target.parent.mkdir(parents=True)
     file_target.write_text("not a directory\n", encoding="utf-8")
@@ -284,10 +284,9 @@ def test_install_bundled_skills_leaves_existing_target_untouched_when_staging_fa
 def test_install_bundled_skills_reports_parent_permission_error_and_continues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    original_ensure_target_root = (
-        __import__("eval_banana.harness.skills", fromlist=["_ensure_target_root"])
-        ._ensure_target_root
-    )
+    original_ensure_target_root = __import__(
+        "eval_banana.harness.skills", fromlist=["_ensure_target_root"]
+    )._ensure_target_root
 
     def fake_ensure_target_root(*, target_root: Path) -> None:
         if target_root == tmp_path / ".claude" / "skills":
@@ -316,13 +315,9 @@ def test_install_bundled_skills_preserves_packaged_openai_yaml(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source_root = tmp_path / "sources"
-    skill_dir = _write_skill_source(
-        root_dir=source_root,
-        include_openai_yaml=True,
-    )
+    skill_dir = _write_skill_source(root_dir=source_root, include_openai_yaml=True)
     _patch_bundled_sources(
-        monkeypatch=monkeypatch,
-        skill_sources={"gemini_media_use": skill_dir},
+        monkeypatch=monkeypatch, skill_sources={"gemini_media_use": skill_dir}
     )
 
     report = install_bundled_skills(
@@ -355,8 +350,7 @@ def test_install_bundled_skills_invalid_packaged_skill_fails(
     invalid_skill_dir = source_root / "gemini_media_use"
     invalid_skill_dir.mkdir(parents=True)
     _patch_bundled_sources(
-        monkeypatch=monkeypatch,
-        skill_sources={"gemini_media_use": invalid_skill_dir},
+        monkeypatch=monkeypatch, skill_sources={"gemini_media_use": invalid_skill_dir}
     )
 
     report = install_bundled_skills(
@@ -372,7 +366,9 @@ def test_install_bundled_skills_invalid_packaged_skill_fails(
     assert "Missing SKILL.md" in report.failed[0]
 
 
-def test_parse_skill_frontmatter_requires_frontmatter_delimiters(tmp_path: Path) -> None:
+def test_parse_skill_frontmatter_requires_frontmatter_delimiters(
+    tmp_path: Path,
+) -> None:
     skill_md_path = tmp_path / "SKILL.md"
     skill_md_path.write_text("name: gemini_media_use\n", encoding="utf-8")
 
@@ -419,9 +415,7 @@ def test_install_bundled_skills_marker_contains_package_version(tmp_path: Path) 
         dry_run=False,
     )
 
-    marker_path = (
-        tmp_path / ".claude" / "skills" / "eval-banana" / OWNERSHIP_MARKER
-    )
+    marker_path = tmp_path / ".claude" / "skills" / "eval-banana" / OWNERSHIP_MARKER
     expected_version = importlib.metadata.version("eval-banana")
 
     assert marker_path.read_text(encoding="utf-8") == (

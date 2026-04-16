@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+
 def _load_script_module(*, script_name: str) -> ModuleType:
     script_resource = importlib.resources.files("eval_banana").joinpath(
         "skills", "gemini_media_use", "scripts", f"{script_name}.py"

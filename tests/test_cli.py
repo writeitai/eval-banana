@@ -276,7 +276,7 @@ def test_install_target_agents_filter(
 
     monkeypatch.setattr(
         "eval_banana.cli.install_bundled_skills",
-        lambda **kwargs: (captured.update(kwargs) or InstallReport()),
+        lambda **kwargs: captured.update(kwargs) or InstallReport(),
     )
 
     result = runner.invoke(main, ["install", "--target-agents", "codex"])
@@ -296,7 +296,7 @@ def test_install_skills_filter(
     )
     monkeypatch.setattr(
         "eval_banana.cli.install_bundled_skills",
-        lambda **kwargs: (captured.update(kwargs) or InstallReport()),
+        lambda **kwargs: captured.update(kwargs) or InstallReport(),
     )
 
     result = runner.invoke(main, ["install", "--skills", "gemini_media_use"])
@@ -316,7 +316,7 @@ def test_install_dry_run_is_forwarded(
     )
     monkeypatch.setattr(
         "eval_banana.cli.install_bundled_skills",
-        lambda **kwargs: (captured.update(kwargs) or InstallReport(skipped=["one"])),
+        lambda **kwargs: captured.update(kwargs) or InstallReport(skipped=["one"]),
     )
 
     result = runner.invoke(main, ["install", "--dry-run"])
@@ -337,7 +337,7 @@ def test_install_force_is_forwarded(
     )
     monkeypatch.setattr(
         "eval_banana.cli.install_bundled_skills",
-        lambda **kwargs: (captured.update(kwargs) or InstallReport(installed=["one"])),
+        lambda **kwargs: captured.update(kwargs) or InstallReport(installed=["one"]),
     )
 
     result = runner.invoke(main, ["install", "--force"])
@@ -357,7 +357,7 @@ def test_distribute_skills_alias_emits_warning_and_delegates(
     )
     monkeypatch.setattr(
         "eval_banana.cli.install_bundled_skills",
-        lambda **kwargs: (captured.update(kwargs) or InstallReport(installed=["one"])),
+        lambda **kwargs: captured.update(kwargs) or InstallReport(installed=["one"]),
     )
 
     result = runner.invoke(main, ["distribute-skills", "--target-agents", "codex"])
