@@ -403,6 +403,21 @@ def test_distribute_skills_help_includes_deprecated_alias_text() -> None:
     assert "Deprecated alias for 'install'." in result.output
 
 
+def test_install_failures_are_reported_to_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("bad config")),
+    )
+
+    result = runner.invoke(main, ["install"])
+
+    assert result.exit_code == 1
+    assert "bad config" in result.stderr
+
+
 def test_install_invalid_target_agent(tmp_path: Path) -> None:
     runner = CliRunner()
 

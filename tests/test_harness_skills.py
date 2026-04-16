@@ -174,7 +174,7 @@ def test_install_bundled_skills_requires_force_for_non_owned_directory_and_conti
     )
 
     codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
-    failure_output = capsys.readouterr().out
+    failure_output = capsys.readouterr().err
 
     assert report.installed == [f"gemini_media_use -> {codex_target}"]
     assert len(report.failed) == 1

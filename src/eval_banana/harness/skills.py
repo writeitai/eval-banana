@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
+import sys
 import uuid
 
 import yaml
@@ -315,7 +316,7 @@ def install_bundled_skills(
                     report.installed.append(report_item)
             except (Exception, SystemExit) as exc:
                 failure = f"{report_item}: {exc}"
-                print(f"Failed: {failure}")
+                print(f"Failed: {failure}", file=sys.stderr)
                 report.failed.append(failure)
 
     return report
