@@ -13,6 +13,7 @@ from eval_banana.harness.skills import AGENT_SKILL_TARGETS
 from eval_banana.harness.skills import discover_bundled_skills
 from eval_banana.harness.skills import install_bundled_skills
 from eval_banana.loader import load_check_definitions
+from eval_banana.runner import require_harness_for_llm_judge
 from eval_banana.runner import run_checks
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,6 @@ def init(use_global: bool, force: bool) -> None:
 @click.option("--harness-prompt-file", type=click.Path(path_type=Path))
 @click.option("--harness-model")
 @click.option("--harness-reasoning-effort")
-@click.option("--skip-harness", is_flag=True, default=None)
 @click.option("--cwd", default=".")
 @click.option("--verbose", is_flag=True)
 def run_cli(
@@ -117,7 +117,6 @@ def run_cli(
     harness_prompt_file: Path | None,
     harness_model: str | None,
     harness_reasoning_effort: str | None,
-    skip_harness: bool | None,
     cwd: str,
     verbose: bool,
 ) -> None:
@@ -137,7 +136,6 @@ def run_cli(
         ),
         harness_model=harness_model,
         harness_reasoning_effort=harness_reasoning_effort,
-        skip_harness=skip_harness,
         cwd=cwd,
     )
     report = run_checks(
@@ -206,6 +204,7 @@ def validate_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
             exclude_dirs=config.discovery_exclude_dirs,
         )
         loaded = load_check_definitions(paths=paths)
+        require_harness_for_llm_judge(config=config, selected_checks=loaded)
     except (SystemExit, ValueError) as exc:
         click.echo(str(exc), err=True)
         raise SystemExit(1) from exc

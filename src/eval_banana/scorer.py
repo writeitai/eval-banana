@@ -41,10 +41,7 @@ def score_results(
         percentage = round((points_earned / total_points) * 100, 1)
         meets_threshold = (points_earned / total_points) >= pass_threshold
 
-    harness_allows_pass = harness is None or harness.status in {
-        HarnessStatus.succeeded,
-        HarnessStatus.skipped,
-    }
+    harness_allows_pass = harness is None or harness.status == HarnessStatus.succeeded
 
     return EvalReport(
         run_id=run_id,

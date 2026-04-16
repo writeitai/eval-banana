@@ -94,7 +94,7 @@ def test_failed_harness_forces_run_passed_false(
     assert report.run_passed is False
 
 
-def test_skipped_harness_does_not_block_run_passed(
+def test_succeeded_harness_allows_run_passed_true(
     make_check_result: Callable[..., CheckResult],
     make_harness_result: Callable[..., HarnessResult],
     tmp_path: Path,
@@ -110,13 +110,13 @@ def test_skipped_harness_does_not_block_run_passed(
             make_check_result(check_id="one", status="passed", score=1),
             make_check_result(check_id="two", status="passed", score=1),
         ],
-        harness=make_harness_result(status="skipped", command=[]),
+        harness=make_harness_result(status="succeeded"),
     )
 
     assert report.run_passed is True
 
 
-@pytest.mark.parametrize("status", [HarnessStatus.error])
+@pytest.mark.parametrize("status", [HarnessStatus.error, HarnessStatus.failed])
 def test_abort_harness_statuses_force_run_passed_false(
     status: HarnessStatus,
     make_check_result: Callable[..., CheckResult],
