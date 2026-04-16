@@ -229,7 +229,21 @@ def install_bundled_skills(
             target_dir = target_root / skill_name
             report_item = _format_report_item(skill_name=skill_name, target_dir=target_dir)
             try:
-                _ensure_target_root(target_root=target_root)
+                if dry_run:
+                    if target_root.is_symlink():
+                        msg = (
+                            "Refusing to install into symlinked skill target root: "
+                            f"{target_root}"
+                        )
+                        raise SystemExit(msg)
+                    if target_root.exists() and not target_root.is_dir():
+                        msg = (
+                            "Skill target root exists and is not a directory: "
+                            f"{target_root}"
+                        )
+                        raise SystemExit(msg)
+                else:
+                    _ensure_target_root(target_root=target_root)
                 with importlib.resources.as_file(skill_resource) as source_dir:
                     if not source_dir.is_dir():
                         msg = f"Missing bundled skill directory: {skill_name}"

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+import importlib.metadata
 from pathlib import Path
 
 import pytest
@@ -7,19 +10,22 @@ import yaml
 
 from eval_banana.harness.skills import _build_codex_openai_yaml
 from eval_banana.harness.skills import _parse_skill_frontmatter
-from eval_banana.harness.skills import distribute_skills
+from eval_banana.harness.skills import AGENT_SKILL_TARGETS
+from eval_banana.harness.skills import discover_bundled_skills
+from eval_banana.harness.skills import install_bundled_skills
+from eval_banana.harness.skills import OWNERSHIP_MARKER
 
 
-def _write_skill(
+def _write_skill_source(
     *,
-    skills_dir: Path,
+    root_dir: Path,
     dir_name: str = "gemini_media_use",
     frontmatter_name: str = "gemini_media_use",
     description: str = "Use Gemini media APIs.",
     body: str = "# Skill body\n",
     include_openai_yaml: bool = False,
 ) -> Path:
-    skill_dir = skills_dir / dir_name
+    skill_dir = root_dir / dir_name
     (skill_dir / "scripts").mkdir(parents=True)
     (skill_dir / "references").mkdir(parents=True)
     skill_dir.joinpath("SKILL.md").write_text(
@@ -43,371 +49,338 @@ def _write_skill(
     if include_openai_yaml:
         (skill_dir / "agents").mkdir()
         (skill_dir / "agents" / "openai.yaml").write_text(
-            "interface:\n  display_name: custom\n", encoding="utf-8"
+            "interface:\n  display_name: packaged\n", encoding="utf-8"
         )
     return skill_dir
 
 
-def test_distribute_skills_none_skills_dir(tmp_path: Path) -> None:
-    assert (
-        distribute_skills(project_root=tmp_path, agent_type="claude", skills_dir=None)
-        == []
+def _patch_bundled_sources(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    skill_sources: dict[str, Path],
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.harness.skills.discover_bundled_skills",
+        lambda: sorted(skill_sources),
+    )
+    monkeypatch.setattr(
+        "eval_banana.harness.skills._bundled_skill_resource",
+        lambda *, skill_name: skill_sources[skill_name],
+    )
+
+    @contextmanager
+    def _fake_as_file(resource: object) -> Iterator[Path]:
+        if not isinstance(resource, Path):
+            msg = f"Expected Path resource, got {type(resource)!r}"
+            raise AssertionError(msg)
+        yield resource
+
+    monkeypatch.setattr(
+        "eval_banana.harness.skills.importlib.resources.as_file", _fake_as_file
     )
 
 
-def test_distribute_skills_missing_skills_dir(tmp_path: Path) -> None:
-    assert (
-        distribute_skills(
-            project_root=tmp_path,
-            agent_type="claude",
-            skills_dir=tmp_path / "missing-skills",
-        )
-        == []
+def test_discover_bundled_skills_lists_packaged_directories() -> None:
+    assert discover_bundled_skills() == ["eval-banana", "gemini_media_use"]
+
+
+def test_install_bundled_skills_dedupes_shared_agent_target(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["openhands", "opencode", "codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
     )
 
+    agents_target = tmp_path / ".agents" / "skills" / "gemini_media_use"
+    codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    marker_text = (codex_target / OWNERSHIP_MARKER).read_text(encoding="utf-8")
 
-def test_distribute_skills_unsupported_agent(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
+    assert report.installed == [
+        f"gemini_media_use -> {agents_target}",
+        f"gemini_media_use -> {codex_target}",
+    ]
+    assert report.failed == []
+    assert agents_target.is_dir()
+    assert codex_target.is_dir()
+    assert (codex_target / "agents" / "openai.yaml").is_file()
+    assert "eval_banana_version=" in marker_text
+    assert capsys.readouterr().out.count("Installing gemini_media_use ->") == 2
 
-    assert (
-        distribute_skills(
-            project_root=tmp_path, agent_type="mystery_agent", skills_dir=skills_dir
-        )
-        == []
+
+def test_install_bundled_skills_dry_run_reports_skipped_without_writing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude", "codex"],
+        skill_names=["eval-banana"],
+        force=False,
+        dry_run=True,
     )
 
+    assert report.installed == []
+    assert report.failed == []
+    assert len(report.skipped) == 2
+    assert not (tmp_path / ".claude").exists()
+    assert not (tmp_path / ".codex").exists()
+    assert "Would install eval-banana ->" in capsys.readouterr().out
 
-def test_distribute_skills_openhands(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
 
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="openhands", skills_dir=skills_dir
+def test_install_bundled_skills_overwrites_owned_target(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
     )
-
-    target_dir = tmp_path / ".agents" / "skills" / "gemini_media_use"
-    assert distributed == ["gemini_media_use"]
-    assert (target_dir / "SKILL.md").is_file()
-    assert not (target_dir / "agents" / "openai.yaml").exists()
-
-
-def test_distribute_skills_opencode(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="opencode", skills_dir=skills_dir
-    )
-
-    target_dir = tmp_path / ".agents" / "skills" / "gemini_media_use"
-    assert distributed == ["gemini_media_use"]
-    assert (target_dir / "SKILL.md").is_file()
-    assert not (target_dir / "agents" / "openai.yaml").exists()
-
-
-def test_distribute_skills_gemini(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="gemini", skills_dir=skills_dir
-    )
-
-    target_dir = tmp_path / ".gemini" / "skills" / "gemini_media_use"
-    assert distributed == ["gemini_media_use"]
-    assert (target_dir / "SKILL.md").is_file()
-    assert not (target_dir / "agents" / "openai.yaml").exists()
-
-
-def test_distribute_skills_claude(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-    )
-
     target_dir = tmp_path / ".claude" / "skills" / "gemini_media_use"
-    assert distributed == ["gemini_media_use"]
-    assert (target_dir / "SKILL.md").is_file()
-    assert (target_dir / "scripts" / "upload_media.py").is_file()
-    assert (target_dir / "references" / "supported_formats.md").is_file()
-    assert not (target_dir / "agents" / "openai.yaml").exists()
-
-
-def test_distribute_skills_codex_generates_openai_yaml(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(
-        skills_dir=skills_dir,
-        description="Use Gemini media APIs to upload and analyze files.",
-    )
-
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="codex", skills_dir=skills_dir
-    )
-
-    openai_yaml_path = (
-        tmp_path / ".codex" / "skills" / "gemini_media_use" / "agents" / "openai.yaml"
-    )
-    payload = yaml.safe_load(openai_yaml_path.read_text(encoding="utf-8"))
-
-    assert distributed == ["gemini_media_use"]
-    assert payload["interface"]["display_name"] == "gemini_media_use"
-    assert (
-        payload["interface"]["short_description"]
-        == "Use Gemini media APIs to upload and analyze files."
-    )
-
-
-def test_distribute_skills_codex_preserves_openai_yaml(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir, include_openai_yaml=True)
-
-    distribute_skills(project_root=tmp_path, agent_type="codex", skills_dir=skills_dir)
-
-    openai_yaml_path = (
-        tmp_path / ".codex" / "skills" / "gemini_media_use" / "agents" / "openai.yaml"
-    )
-    assert openai_yaml_path.read_text(encoding="utf-8") == (
-        "interface:\n  display_name: custom\n"
-    )
-
-
-def test_distribute_skills_malformed_frontmatter_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skill_dir = skills_dir / "gemini_media_use"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: [broken\ndescription: ok\n---\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="Invalid YAML frontmatter"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_missing_skill_md_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    (skills_dir / "gemini_media_use").mkdir(parents=True)
-
-    with pytest.raises(SystemExit, match="Missing SKILL.md"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_replaces_existing_target(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-    target_dir = tmp_path / ".claude" / "skills" / "gemini_media_use"
-    target_dir.mkdir(parents=True)
     (target_dir / "stale.txt").write_text("old\n", encoding="utf-8")
 
-    distribute_skills(project_root=tmp_path, agent_type="claude", skills_dir=skills_dir)
-
-    assert not (target_dir / "stale.txt").exists()
-    assert (target_dir / "SKILL.md").is_file()
-
-
-def test_distribute_skills_skips_non_directory_entries(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    (skills_dir / ".gitkeep").write_text("", encoding="utf-8")
-    _write_skill(skills_dir=skills_dir)
-
-    distributed = distribute_skills(
-        project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-    )
-
-    assert distributed == ["gemini_media_use"]
-
-
-def test_distribute_skills_name_mismatch_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(
-        skills_dir=skills_dir,
-        dir_name="gemini_media_use",
-        frontmatter_name="wrong_name",
-    )
-
-    with pytest.raises(SystemExit, match="does not match directory name"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_name_missing_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skill_dir = skills_dir / "gemini_media_use"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\ndescription: desc\n---\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="Missing required 'name'"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_description_missing_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skill_dir = skills_dir / "gemini_media_use"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\nname: gemini_media_use\n---\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="Missing required 'description'"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_skills_dir_is_file(tmp_path: Path) -> None:
-    skills_file = tmp_path / "skills"
-    skills_file.write_text("not a directory\n", encoding="utf-8")
-
-    assert (
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_file
-        )
-        == []
-    )
-
-
-def test_distribute_skills_symlink_target_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-    real_target = tmp_path / "real-target"
-    real_target.mkdir()
-    symlink_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
-    symlink_target.parent.mkdir(parents=True)
-    symlink_target.symlink_to(real_target, target_is_directory=True)
-
-    with pytest.raises(SystemExit, match="symlinked skill target"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="codex", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_source_symlink_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-    real_file = tmp_path / "real_file.txt"
-    real_file.write_text("content\n", encoding="utf-8")
-    (skills_dir / "gemini_media_use" / "scripts" / "linked.py").symlink_to(real_file)
-
-    with pytest.raises(SystemExit, match="contains symlink"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="claude", skills_dir=skills_dir
-        )
-
-
-def test_distribute_skills_none_creates_no_directories(tmp_path: Path) -> None:
-    distribute_skills(project_root=tmp_path, agent_type="claude", skills_dir=None)
-    assert not (tmp_path / ".claude").exists()
-
-
-def test_distribute_skills_missing_dir_creates_no_directories(tmp_path: Path) -> None:
-    distribute_skills(
+    report = install_bundled_skills(
         project_root=tmp_path,
-        agent_type="claude",
-        skills_dir=tmp_path / "missing-skills",
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
     )
-    assert not (tmp_path / ".claude").exists()
+
+    assert report.failed == []
+    assert report.installed == [f"gemini_media_use -> {target_dir}"]
+    assert not (target_dir / "stale.txt").exists()
+    assert f"Overwriting existing: {target_dir}" in capsys.readouterr().out
 
 
-def test_parse_frontmatter_empty_file(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text("", encoding="utf-8")
+def test_install_bundled_skills_requires_force_for_non_owned_directory_and_continues(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    claude_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    claude_target.mkdir(parents=True)
+    (claude_target / "custom.txt").write_text("keep\n", encoding="utf-8")
 
-    with pytest.raises(SystemExit, match="must start with '---'"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude", "codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    failure_output = capsys.readouterr().out
+
+    assert report.installed == [f"gemini_media_use -> {codex_target}"]
+    assert len(report.failed) == 1
+    assert "target exists and was not installed by eval-banana" in report.failed[0]
+    assert (claude_target / "custom.txt").read_text(encoding="utf-8") == "keep\n"
+    assert codex_target.is_dir()
+    assert "Failed:" in failure_output
 
 
-def test_distribute_skills_broken_symlink_target_raises(tmp_path: Path) -> None:
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir()
-    _write_skill(skills_dir=skills_dir)
-    symlink_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+def test_install_bundled_skills_force_overwrites_non_owned_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target_dir = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    target_dir.mkdir(parents=True)
+    (target_dir / "custom.txt").write_text("old\n", encoding="utf-8")
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=True,
+        dry_run=False,
+    )
+
+    assert report.failed == []
+    assert report.installed == [f"gemini_media_use -> {target_dir}"]
+    assert not (target_dir / "custom.txt").exists()
+    assert f"Overwriting existing: {target_dir}" in capsys.readouterr().out
+
+
+def test_install_bundled_skills_rejects_file_target_and_continues(tmp_path: Path) -> None:
+    file_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
+    file_target.parent.mkdir(parents=True)
+    file_target.write_text("not a directory\n", encoding="utf-8")
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude", "codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    assert report.installed == [f"gemini_media_use -> {codex_target}"]
+    assert len(report.failed) == 1
+    assert "Skill target exists and is not a directory" in report.failed[0]
+    assert codex_target.is_dir()
+
+
+def test_install_bundled_skills_rejects_symlink_target_and_continues(
+    tmp_path: Path,
+) -> None:
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    symlink_target = tmp_path / ".claude" / "skills" / "gemini_media_use"
     symlink_target.parent.mkdir(parents=True)
-    symlink_target.symlink_to(tmp_path / "nonexistent", target_is_directory=True)
+    symlink_target.symlink_to(real_dir, target_is_directory=True)
 
-    with pytest.raises(SystemExit, match="symlinked skill target"):
-        distribute_skills(
-            project_root=tmp_path, agent_type="codex", skills_dir=skills_dir
-        )
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude", "codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    assert report.installed == [f"gemini_media_use -> {codex_target}"]
+    assert len(report.failed) == 1
+    assert "Refusing to replace symlinked skill target" in report.failed[0]
+    assert codex_target.is_dir()
 
 
-def test_parse_frontmatter_no_opening_delimiter(tmp_path: Path) -> None:
+def test_install_bundled_skills_leaves_existing_target_untouched_when_staging_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+    target_dir = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    sentinel_path = target_dir / "sentinel.txt"
+    sentinel_path.write_text("keep\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "eval_banana.harness.skills._ensure_codex_metadata",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("metadata failed")),
+    )
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    assert report.installed == []
+    assert len(report.failed) == 1
+    assert sentinel_path.read_text(encoding="utf-8") == "keep\n"
+    assert list((tmp_path / ".codex" / "skills").glob(".eval-banana-staging-*")) == []
+
+
+def test_install_bundled_skills_reports_parent_permission_error_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_ensure_target_root = (
+        __import__("eval_banana.harness.skills", fromlist=["_ensure_target_root"])
+        ._ensure_target_root
+    )
+
+    def fake_ensure_target_root(*, target_root: Path) -> None:
+        if target_root == tmp_path / ".claude" / "skills":
+            raise PermissionError("Permission denied")
+        original_ensure_target_root(target_root=target_root)
+
+    monkeypatch.setattr(
+        "eval_banana.harness.skills._ensure_target_root", fake_ensure_target_root
+    )
+
+    report = install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude", "codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    codex_target = tmp_path / ".codex" / "skills" / "gemini_media_use"
+    assert report.installed == [f"gemini_media_use -> {codex_target}"]
+    assert len(report.failed) == 1
+    assert "Permission denied" in report.failed[0]
+
+
+def test_install_bundled_skills_preserves_packaged_openai_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "sources"
+    skill_dir = _write_skill_source(
+        root_dir=source_root,
+        include_openai_yaml=True,
+    )
+    _patch_bundled_sources(
+        monkeypatch=monkeypatch,
+        skill_sources={"gemini_media_use": skill_dir},
+    )
+
+    report = install_bundled_skills(
+        project_root=tmp_path / "project",
+        agent_types=["codex"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    openai_yaml_path = (
+        tmp_path
+        / "project"
+        / AGENT_SKILL_TARGETS["codex"]
+        / "gemini_media_use"
+        / "agents"
+        / "openai.yaml"
+    )
+
+    assert report.failed == []
+    assert openai_yaml_path.read_text(encoding="utf-8") == (
+        "interface:\n  display_name: packaged\n"
+    )
+
+
+def test_install_bundled_skills_invalid_packaged_skill_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_root = tmp_path / "sources"
+    invalid_skill_dir = source_root / "gemini_media_use"
+    invalid_skill_dir.mkdir(parents=True)
+    _patch_bundled_sources(
+        monkeypatch=monkeypatch,
+        skill_sources={"gemini_media_use": invalid_skill_dir},
+    )
+
+    report = install_bundled_skills(
+        project_root=tmp_path / "project",
+        agent_types=["claude"],
+        skill_names=["gemini_media_use"],
+        force=False,
+        dry_run=False,
+    )
+
+    assert report.installed == []
+    assert len(report.failed) == 1
+    assert "Missing SKILL.md" in report.failed[0]
+
+
+def test_parse_skill_frontmatter_requires_frontmatter_delimiters(tmp_path: Path) -> None:
     skill_md_path = tmp_path / "SKILL.md"
     skill_md_path.write_text("name: gemini_media_use\n", encoding="utf-8")
 
-    with pytest.raises(SystemExit, match="must start with '---'"):
+    with pytest.raises(SystemExit, match="must start with '---' frontmatter delimiter"):
         _parse_skill_frontmatter(skill_md_path=skill_md_path)
 
 
-def test_parse_frontmatter_no_closing_delimiter(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text(
-        "---\nname: gemini_media_use\ndescription: desc\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="No closing '---'"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
-
-
-def test_parse_frontmatter_empty_block(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text("---\n---\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit, match="Frontmatter is not a YAML mapping"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
-
-
-def test_parse_frontmatter_non_mapping(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text("---\n- one\n- two\n---\n", encoding="utf-8")
-
-    with pytest.raises(SystemExit, match="Frontmatter is not a YAML mapping"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
-
-
-def test_parse_frontmatter_non_string_name(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text(
-        "---\nname: 123\ndescription: desc\n---\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="'name' must be a string"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
-
-
-def test_parse_frontmatter_non_string_description(tmp_path: Path) -> None:
-    skill_md_path = tmp_path / "SKILL.md"
-    skill_md_path.write_text(
-        "---\nname: gemini_media_use\ndescription: 123\n---\n", encoding="utf-8"
-    )
-
-    with pytest.raises(SystemExit, match="'description' must be a string"):
-        _parse_skill_frontmatter(skill_md_path=skill_md_path)
-
-
-def test_parse_frontmatter_windows_newlines(tmp_path: Path) -> None:
+def test_parse_skill_frontmatter_allows_bom_and_crlf(tmp_path: Path) -> None:
     skill_md_path = tmp_path / "SKILL.md"
     skill_md_path.write_bytes(
         b"\xef\xbb\xbf---\r\nname: gemini_media_use\r\ndescription: desc\r\n---\r\n"
@@ -419,16 +392,12 @@ def test_parse_frontmatter_windows_newlines(tmp_path: Path) -> None:
     )
 
 
-def test_codex_openai_yaml_round_trips(tmp_path: Path) -> None:
-    yaml_path = tmp_path / "openai.yaml"
-    yaml_path.write_text(
+def test_build_codex_openai_yaml() -> None:
+    payload = yaml.safe_load(
         _build_codex_openai_yaml(
             name="gemini_media_use", description="Use Gemini media APIs."
-        ),
-        encoding="utf-8",
+        )
     )
-
-    payload = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
 
     assert payload == {
         "interface": {
@@ -439,3 +408,22 @@ def test_codex_openai_yaml_round_trips(tmp_path: Path) -> None:
             ),
         }
     }
+
+
+def test_install_bundled_skills_marker_contains_package_version(tmp_path: Path) -> None:
+    install_bundled_skills(
+        project_root=tmp_path,
+        agent_types=["claude"],
+        skill_names=["eval-banana"],
+        force=False,
+        dry_run=False,
+    )
+
+    marker_path = (
+        tmp_path / ".claude" / "skills" / "eval-banana" / OWNERSHIP_MARKER
+    )
+    expected_version = importlib.metadata.version("eval-banana")
+
+    assert marker_path.read_text(encoding="utf-8") == (
+        f"skill=eval-banana eval_banana_version={expected_version}\n"
+    )

@@ -6,8 +6,11 @@ from pathlib import Path
 from click.testing import CliRunner
 import pytest
 
+from eval_banana.cli import _BUNDLED_SKILL_CHOICES
 from eval_banana.cli import main
 from eval_banana.config import Config
+from eval_banana.harness.skills import AGENT_SKILL_TARGETS
+from eval_banana.harness.skills import InstallReport
 from eval_banana.models import EvalReport
 
 
@@ -232,119 +235,145 @@ def test_validate_exit_code_zero_and_one(
     assert failure.exit_code == 1
 
 
-def test_distribute_skills_default_agents(
+def test_install_default_agents_and_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     runner = CliRunner()
-    skills_dir = tmp_path / "skills"
-    (skills_dir / "gemini_media_use").mkdir(parents=True)
-    captured: list[str] = []
+    captured: dict[str, object] = {}
     monkeypatch.setattr(
         "eval_banana.cli.load_config",
-        lambda **kwargs: make_config(
-            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
-        ),
+        lambda **kwargs: make_config(project_root=tmp_path),
     )
 
-    def fake_distribute_skills(**kwargs: object) -> list[str]:
-        agent_type = kwargs["agent_type"]
-        assert isinstance(agent_type, str)
-        captured.append(agent_type)
-        return ["gemini_media_use"]
+    def fake_install_bundled_skills(**kwargs: object) -> InstallReport:
+        captured.update(kwargs)
+        return InstallReport(installed=["one"], skipped=[], failed=[])
 
-    monkeypatch.setattr("eval_banana.cli.distribute_skills", fake_distribute_skills)
+    monkeypatch.setattr(
+        "eval_banana.cli.install_bundled_skills", fake_install_bundled_skills
+    )
 
-    result = runner.invoke(main, ["distribute-skills"])
+    result = runner.invoke(main, ["install"])
 
     assert result.exit_code == 0
-    assert captured == ["claude", "codex", "gemini", "opencode", "openhands"]
-    assert "claude: distributed 1 skill" in result.output
-    assert "codex: distributed 1 skill" in result.output
-    assert "gemini: distributed 1 skill" in result.output
-    assert "opencode: distributed 1 skill" in result.output
-    assert "openhands: distributed 1 skill" in result.output
+    assert captured["project_root"] == tmp_path
+    assert captured["agent_types"] == sorted(AGENT_SKILL_TARGETS)
+    assert captured["skill_names"] == _BUNDLED_SKILL_CHOICES
+    assert captured["force"] is False
+    assert captured["dry_run"] is False
+    assert "Summary: installed=1 skipped=0 failed=0" in result.output
 
 
-def test_distribute_skills_target_agents(
+def test_install_target_agents_filter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     runner = CliRunner()
-    skills_dir = tmp_path / "skills"
-    (skills_dir / "gemini_media_use").mkdir(parents=True)
-    captured: list[str] = []
+    captured: dict[str, object] = {}
     monkeypatch.setattr(
         "eval_banana.cli.load_config",
-        lambda **kwargs: make_config(
-            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
-        ),
+        lambda **kwargs: make_config(project_root=tmp_path),
+    )
+
+    monkeypatch.setattr(
+        "eval_banana.cli.install_bundled_skills",
+        lambda **kwargs: (captured.update(kwargs) or InstallReport()),
+    )
+
+    result = runner.invoke(main, ["install", "--target-agents", "codex"])
+
+    assert result.exit_code == 0
+    assert captured["agent_types"] == ["codex"]
+
+
+def test_install_skills_filter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path),
     )
     monkeypatch.setattr(
-        "eval_banana.cli.distribute_skills",
-        lambda **kwargs: (
-            captured.append(str(kwargs["agent_type"])) or ["gemini_media_use"]
-        ),
+        "eval_banana.cli.install_bundled_skills",
+        lambda **kwargs: (captured.update(kwargs) or InstallReport()),
+    )
+
+    result = runner.invoke(main, ["install", "--skills", "gemini_media_use"])
+
+    assert result.exit_code == 0
+    assert captured["skill_names"] == ["gemini_media_use"]
+
+
+def test_install_dry_run_is_forwarded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.install_bundled_skills",
+        lambda **kwargs: (captured.update(kwargs) or InstallReport(skipped=["one"])),
+    )
+
+    result = runner.invoke(main, ["install", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert captured["dry_run"] is True
+    assert "Summary: installed=0 skipped=1 failed=0" in result.output
+
+
+def test_install_force_is_forwarded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.install_bundled_skills",
+        lambda **kwargs: (captured.update(kwargs) or InstallReport(installed=["one"])),
+    )
+
+    result = runner.invoke(main, ["install", "--force"])
+
+    assert result.exit_code == 0
+    assert captured["force"] is True
+
+
+def test_distribute_skills_alias_emits_warning_and_delegates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.install_bundled_skills",
+        lambda **kwargs: (captured.update(kwargs) or InstallReport(installed=["one"])),
     )
 
     result = runner.invoke(main, ["distribute-skills", "--target-agents", "codex"])
 
     assert result.exit_code == 0
-    assert captured == ["codex"]
-    assert "codex: distributed 1 skill" in result.output
-
-
-def test_distribute_skills_missing_skills_dir_exits_zero(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
-) -> None:
-    runner = CliRunner()
-    monkeypatch.setattr(
-        "eval_banana.cli.load_config",
-        lambda **kwargs: make_config(
-            project_root=tmp_path,
-            skills_dir=str((tmp_path / "missing-skills").resolve()),
-        ),
+    assert captured["agent_types"] == ["codex"]
+    assert (
+        "DeprecationWarning: 'distribute-skills' is deprecated; use 'eb install'"
+        in result.output
     )
 
-    result = runner.invoke(main, ["distribute-skills"])
 
-    assert result.exit_code == 0
-    assert "No skills directory found at" in result.output
-
-
-def test_distribute_skills_dry_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
-) -> None:
-    runner = CliRunner()
-    skills_dir = tmp_path / "skills"
-    (skills_dir / "gemini_media_use").mkdir(parents=True)
-    monkeypatch.setattr(
-        "eval_banana.cli.load_config",
-        lambda **kwargs: make_config(
-            project_root=tmp_path, skills_dir=str(skills_dir.resolve())
-        ),
-    )
-    monkeypatch.setattr(
-        "eval_banana.cli.distribute_skills",
-        lambda **kwargs: (_ for _ in ()).throw(
-            AssertionError("distribute_skills must not be called during dry-run")
-        ),
-    )
-
-    result = runner.invoke(main, ["distribute-skills", "--dry-run"])
-
-    assert result.exit_code == 0
-    assert "claude: would distribute 1 skill" in result.output
-    assert "codex: would distribute 1 skill" in result.output
-    assert "gemini: would distribute 1 skill" in result.output
-    assert "opencode: would distribute 1 skill" in result.output
-    assert "openhands: would distribute 1 skill" in result.output
-
-
-def test_distribute_skills_invalid_target_agent(tmp_path: Path) -> None:
+def test_install_invalid_target_agent(tmp_path: Path) -> None:
     runner = CliRunner()
 
-    result = runner.invoke(
-        main, ["distribute-skills", "--target-agents", "invalid-agent"]
-    )
+    result = runner.invoke(main, ["install", "--target-agents", "invalid-agent"])
 
     assert result.exit_code == 2
     assert "Invalid value for '--target-agents'" in result.output
