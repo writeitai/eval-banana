@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-04-16
+
 ### Removed
 
 - `task_based` check type and its runner. The harness covers arbitrary-command
@@ -14,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   run subprocesses. Existing YAML files with `type: task_based` will now fail
   validation — convert them to a `deterministic` check (invoking the same
   command from a short Python script) or run the command as part of a harness.
+
+### Changed
+
+- README: credit Hamel Husain's LLM-as-judge post and RAGAS's Aspect Critic
+  as the inspirations for the binary 0/1 scoring model.
+- README: reframe the harness → judge relationship so it no longer reads as
+  a standalone optional extra (it is the typical end-to-end flow for
+  `llm_judge` evaluations).
 
 ## [0.0.1] - 2026-04-16
 
@@ -33,5 +43,6 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/writeitai/eval-banana/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/writeitai/eval-banana/releases/tag/v0.0.1
