@@ -197,7 +197,7 @@ def run_codex_judge_request(
         "model": model,
         "instructions": system_prompt,
         "input": [
-            {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
+            {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]}
         ],
         "store": False,
         "stream": True,

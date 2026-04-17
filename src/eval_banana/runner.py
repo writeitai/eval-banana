@@ -19,7 +19,6 @@ from eval_banana.loader import load_check_definition
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
-from eval_banana.models import CheckType
 from eval_banana.models import EvalReport
 from eval_banana.models import HarnessResult
 from eval_banana.models import HarnessStatus
