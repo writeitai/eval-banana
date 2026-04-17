@@ -665,6 +665,40 @@ def test_failed_harness_aborts_checks(
     assert report.checks == []
 
 
+def test_llm_judge_without_harness_aborts_before_runner_is_invoked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    judge_path = checks_dir / "judge.yaml"
+    judge_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
+
+    message = str(excinfo.value)
+    assert "llm_judge check requires a harness" in message
+    assert str(judge_path) in message
+    assert "[harness] agent" in message
+    assert "--harness-agent" in message
+
+
 def test_llm_judge_with_harness_configured_proceeds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -904,3 +938,44 @@ def test_check_id_targeting_deterministic_ignores_unrelated_llm_judge(
 
     assert report.run_passed is True
     assert report.checks[0].check_id == "a"
+
+
+def test_check_id_targeting_llm_judge_without_harness_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "a.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: a",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (checks_dir / "b.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: b",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit, match="llm_judge check requires a harness"):
+        run_checks(
+            config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="b"
+        )
