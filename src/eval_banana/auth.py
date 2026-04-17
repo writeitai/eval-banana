@@ -182,6 +182,17 @@ def _parse_sse_text(lines_iter: Any) -> str:
     return "".join(text_chunks)
 
 
+def _parse_output_text_response(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except json.JSONDecodeError:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    output_text = payload.get("output_text")
+    return output_text if isinstance(output_text, str) else ""
+
+
 def run_codex_judge_request(
     *, model: str, auth: CodexAuth, system_prompt: str, user_prompt: str
 ) -> str:
@@ -206,6 +217,8 @@ def run_codex_judge_request(
         with client.stream("POST", url, headers=headers, json=payload) as response:
             response.raise_for_status()
             text = _parse_sse_text(response.iter_lines())
+            if not text:
+                text = _parse_output_text_response(response)
 
     if not text:
         msg = "Codex response did not contain output text"

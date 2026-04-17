@@ -354,8 +354,9 @@ def test_validate_hard_fails_when_llm_judge_has_no_harness(
 
     result = runner.invoke(main, ["validate", "--cwd", str(tmp_path)])
 
-    # llm_judge checks no longer require a harness — validate should succeed.
-    assert result.exit_code == 0
+    assert result.exit_code == 1
+    assert "llm_judge check requires a harness" in result.output
+    assert str(judge_path) in result.output
 
 
 def test_validate_succeeds_when_harness_configured_for_llm_judge(
