@@ -61,20 +61,6 @@ model = "openai/gpt-5.4"
 api_base = "https://openrouter.ai/api/v1"
 """
 
-_LLM_SECRETS_GLOBAL = """\
-
-# API key for the openai_compat provider. Prefer environment variables:
-#   OPENROUTER_API_KEY - automatically used when api_base contains "openrouter.ai"
-#   OPENAI_API_KEY     - automatically used when api_base contains "api.openai.com"
-#   EVAL_BANANA_API_KEY - overrides both above
-# Leave empty to force env-var lookup.
-api_key = ""
-
-# Override path to the Codex auth file (JSON written by `codex login`). Leave
-# empty to use $CODEX_HOME/auth.json or ~/.codex/auth.json.
-# Env: EVAL_BANANA_CODEX_AUTH_PATH
-codex_auth_path = ""
-"""
 
 _HARNESS_TEMPLATE = """\
 # [harness]
@@ -111,24 +97,9 @@ _DISCOVERY_SECTION = """\
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
 """
 
-_GLOBAL_CONFIG_TEXT = f"""\
-# Global eval-banana configuration.
-# Project-level .eval-banana/config.toml overrides these values.
-# All keys support environment-variable overrides (noted inline).
-
-{_CORE_SECTION}
-
-{_LLM_SECTION_COMMON}
-{_LLM_SECRETS_GLOBAL}
-
-{_HARNESS_TEMPLATE}
-
-{_DISCOVERY_SECTION}"""
-
 _LOCAL_CONFIG_TEXT = f"""\
 # Project-level eval-banana configuration.
-# Values here override ~/.eval-banana/config.toml.
-# Do not commit API keys -- use environment variables instead.
+# API keys should be set via environment variables, not in this file.
 
 {_CORE_SECTION}
 
@@ -164,7 +135,6 @@ class Config:
     )
     cwd: str = "."
     project_root: Path | None = None
-    global_config_path: Path | None = None
     local_config_path: Path | None = None
     harness_agent: str | None = None
     harness_prompt: str | None = None
@@ -173,10 +143,6 @@ class Config:
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
-
-
-def get_global_config_template() -> str:
-    return _GLOBAL_CONFIG_TEXT
 
 
 def get_local_config_template() -> str:
@@ -514,17 +480,12 @@ def load_config(
     harness_reasoning_effort: str | None = None,
 ) -> Config:
     cwd_path = Path(cwd or ".").resolve()
-    global_config_path = Path.home() / ".eval-banana" / "config.toml"
     local_config_path = find_local_config(start=cwd_path)
     project_root = _resolve_project_root(
         cwd=cwd_path, local_config_path=local_config_path
     )
 
     merged: dict[str, object] = {}
-    if global_config_path.is_file():
-        merged = _deep_merge(
-            base=merged, override=_load_toml_file(path=global_config_path)
-        )
     if local_config_path is not None:
         merged = _deep_merge(
             base=merged, override=_load_toml_file(path=local_config_path)
@@ -649,7 +610,6 @@ def load_config(
         ),
         cwd=str(cwd_path),
         project_root=project_root,
-        global_config_path=global_config_path,
         local_config_path=local_config_path,
         harness_agent=_normalize_optional_string(
             value=_get_nested_value(merged, section="harness", key="agent")

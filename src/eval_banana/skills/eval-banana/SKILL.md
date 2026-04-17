@@ -173,7 +173,7 @@ eval-banana run --pass-threshold 0.8   # Override pass ratio
 eval-banana run --provider codex       # Force provider for LLM checks
 eval-banana list                       # Discover + print checks without running
 eval-banana validate                   # Validate YAML without executing anything
-eval-banana init [--global] [--force]  # Create config (+ example check locally)
+eval-banana init [--force]  # Create config + example check
 ```
 
 **`--check-id` is the debug escape hatch.** It uses relaxed validation — broken YAML in other files does NOT block a single targeted check. Use it when iterating on one check in a repo with incomplete checks elsewhere.

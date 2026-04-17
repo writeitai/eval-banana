@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -182,6 +183,15 @@ def test_missing_credentials_returns_error(
     assert "missing key" in (result.error_detail or "")
 
 
+def _make_sse_body(text: str) -> str:
+    """Build a minimal SSE response body that _parse_sse_text can consume."""
+    escaped = json.dumps(text)  # produces a quoted string with escapes
+    return (
+        f'data: {{"type": "response.output_text.delta", "delta": {escaped}}}\n\n'
+        'data: {"type": "response.completed"}\n\n'
+    )
+
+
 def test_codex_request_path_with_mock_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -191,7 +201,9 @@ def test_codex_request_path_with_mock_transport(
     def handler(request: httpx.Request) -> httpx.Response:
         captured["headers"] = dict(request.headers)
         return httpx.Response(
-            status_code=200, json={"output_text": '{"score": 1, "reason": "fine"}'}
+            status_code=200,
+            text=_make_sse_body('{"score": 1, "reason": "fine"}'),
+            headers={"content-type": "text/event-stream"},
         )
 
     transport = httpx.MockTransport(handler)
@@ -247,7 +259,9 @@ def test_codex_uses_httpx_client_with_timeout_none(
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            status_code=200, json={"output_text": '{"score": 1, "reason": "ok"}'}
+            status_code=200,
+            text=_make_sse_body('{"score": 1, "reason": "ok"}'),
+            headers={"content-type": "text/event-stream"},
         )
 
     def fake_client(*args: object, **kwargs: object) -> httpx.Client:
@@ -266,26 +280,28 @@ def test_codex_uses_httpx_client_with_timeout_none(
     assert captured["timeout"] is None
 
 
-def test_codex_post_does_not_pass_timeout_override(
+def test_codex_stream_does_not_pass_timeout_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    post_kwargs: dict[str, object] = {}
+    stream_kwargs: dict[str, object] = {}
     real_client_cls = httpx.Client
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            status_code=200, json={"output_text": '{"score": 1, "reason": "ok"}'}
+            status_code=200,
+            text=_make_sse_body('{"score": 1, "reason": "ok"}'),
+            headers={"content-type": "text/event-stream"},
         )
 
     def fake_client(*args: object, **kwargs: object) -> httpx.Client:
         client = real_client_cls(transport=httpx.MockTransport(handler))
-        real_post = client.post
+        real_stream = client.stream
 
-        def spying_post(url: str, **post_call_kwargs: object) -> httpx.Response:
-            post_kwargs.update(post_call_kwargs)
-            return real_post(url, **post_call_kwargs)  # type: ignore[arg-type]
+        def spying_stream(method: str, url: str, **call_kwargs: object) -> object:
+            stream_kwargs.update(call_kwargs)
+            return real_stream(method, url, **call_kwargs)  # type: ignore[arg-type]
 
-        client.post = spying_post  # type: ignore[method-assign]
+        client.stream = spying_stream  # type: ignore[method-assign]
         return client
 
     monkeypatch.setattr(httpx, "Client", fake_client)
@@ -297,7 +313,7 @@ def test_codex_post_does_not_pass_timeout_override(
         user_prompt="user",
     )
 
-    assert "timeout" not in post_kwargs
+    assert "timeout" not in stream_kwargs
 
 
 def test_openai_compat_client_has_timeout_none(

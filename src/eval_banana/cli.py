@@ -5,7 +5,6 @@ from pathlib import Path
 
 import click
 
-from eval_banana.config import get_global_config_template
 from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
 from eval_banana.discovery import discover_check_files
@@ -51,15 +50,10 @@ def main() -> None:
 
 
 @main.command()
-@click.option("--global", "use_global", is_flag=True)
 @click.option("--force", is_flag=True)
-def init(use_global: bool, force: bool) -> None:
-    if use_global:
-        config_path = Path.home() / ".eval-banana" / "config.toml"
-        config_text = get_global_config_template()
-    else:
-        config_path = Path.cwd() / ".eval-banana" / "config.toml"
-        config_text = get_local_config_template()
+def init(force: bool) -> None:
+    config_path = Path.cwd() / ".eval-banana" / "config.toml"
+    config_text = get_local_config_template()
 
     if config_path.exists() and not force:
         raise click.ClickException(
@@ -69,9 +63,6 @@ def init(use_global: bool, force: bool) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(config_text, encoding="utf-8")
     click.echo(f"Wrote {config_path}")
-
-    if use_global:
-        return
 
     checks_dir = Path.cwd() / "eval_checks"
     checks_dir.mkdir(parents=True, exist_ok=True)

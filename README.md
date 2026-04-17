@@ -203,21 +203,17 @@ model_flag = "--model"
 
 ## Configuration
 
-eval-banana uses TOML config with two tiers:
+eval-banana uses a single project-level TOML config at `.eval-banana/config.toml`.
 
-1. **Global**: `~/.eval-banana/config.toml` (user-wide defaults)
-2. **Local**: `.eval-banana/config.toml` (project-level, overrides global)
-
-Create config with `eval-banana init` (local) or `eval-banana init --global`.
+Create it with `eval-banana init`.
 
 ### Config precedence (highest to lowest)
 
 1. CLI arguments (`--model`, `--provider`, etc.)
 2. Environment variables (`EVAL_BANANA_*`)
 3. `OPENROUTER_API_KEY` / `OPENAI_API_KEY` (provider-aware)
-4. Local project config
-5. Global config
-6. Built-in defaults
+4. Project config (`.eval-banana/config.toml`)
+5. Built-in defaults
 
 ### Key settings
 
@@ -251,7 +247,7 @@ eval-banana run --provider codex
 ## CLI reference
 
 ```
-eval-banana init [--global] [--force]     Create config files
+eval-banana init [--force]                Create config + example check
 eval-banana run [OPTIONS]                  Run all discovered checks
 eval-banana list [OPTIONS]                 List discovered checks
 eval-banana validate [OPTIONS]             Validate YAML without running
