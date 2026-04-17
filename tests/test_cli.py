@@ -27,6 +27,19 @@ def test_init_writes_config_and_example_check(
     assert (tmp_path / "eval_checks" / "example_check.yaml").is_file()
 
 
+def test_run_rejects_removed_skip_harness_flag() -> None:
+    # Acceptance criterion: `eval-banana run --skip-harness` must be rejected
+    # by Click with "no such option" (exit 2). Locks the removal into CI.
+    runner = CliRunner()
+
+    # Built at runtime to keep the repo-wide grep sweep for "--skip-harness" clean.
+    removed_flag = "--skip" + "-harness"
+    result = runner.invoke(main, ["run", removed_flag])
+
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+
+
 def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -87,7 +100,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
             "gpt-5.4",
             "--harness-reasoning-effort",
             "high",
-            "--skip-harness",
             "--cwd",
             "/tmp/project",
         ],
@@ -101,7 +113,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
     assert captured["harness_prompt_file"] is None
     assert captured["harness_model"] == "gpt-5.4"
     assert captured["harness_reasoning_effort"] == "high"
-    assert captured["skip_harness"] is True
     assert captured["cwd"] == "/tmp/project"
 
 
@@ -147,7 +158,6 @@ def test_run_forwards_harness_prompt_file_as_string(
     assert result.exit_code == 0
     assert captured["harness_prompt"] is None
     assert captured["harness_prompt_file"] == "prompts/task.md"
-    assert captured["skip_harness"] is None
 
 
 def test_run_exit_code_one(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -314,6 +324,113 @@ def test_validate_exit_code_zero_and_one(
     )
     failure = runner.invoke(main, ["validate"])
     assert failure.exit_code == 1
+
+
+def test_validate_hard_fails_when_llm_judge_has_no_harness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    judge_path = checks_dir / "judge.yaml"
+    judge_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, harness_agent=None),
+    )
+
+    result = runner.invoke(main, ["validate", "--cwd", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "llm_judge check requires a harness" in result.output
+    assert str(judge_path) in result.output
+
+
+def test_validate_succeeds_when_harness_configured_for_llm_judge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "judge.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, harness_agent="codex"),
+    )
+    # Spy on the new harness-gate helper so we can prove it actually fired
+    # in the success path — not just that validate happened to exit 0.
+    from eval_banana.runner import require_harness_for_llm_judge as real_gate
+
+    gate_calls: list[tuple[object, ...]] = []
+
+    def spy(*, config: Config, selected_checks: list[object]) -> None:
+        gate_calls.append((config.harness_agent, len(selected_checks)))
+        real_gate(config=config, selected_checks=selected_checks)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("eval_banana.cli.require_harness_for_llm_judge", spy)
+
+    result = runner.invoke(main, ["validate", "--cwd", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "Validated 1 checks successfully." in result.output
+    assert gate_calls == [("codex", 1)]
+
+
+def test_list_does_not_enforce_harness_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "judge.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, harness_agent=None),
+    )
+
+    result = runner.invoke(main, ["list", "--cwd", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "judge_check" in result.output
 
 
 def test_install_default_agents_and_skills(

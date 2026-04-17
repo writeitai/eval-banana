@@ -33,7 +33,6 @@ class HarnessStatus(StrEnum):
     succeeded = "succeeded"
     failed = "failed"
     error = "error"
-    skipped = "skipped"
 
 
 class BaseCheckDefinition(BaseModel):

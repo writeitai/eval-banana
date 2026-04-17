@@ -14,7 +14,7 @@ Aspect-based evaluation framework - deterministic checks + LLM judges. Score any
 
 Eval Banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow. You can skip the harness (`--skip-harness`) when scoring a workspace that was produced some other way (your own script, an existing CI artifact).
+Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow.
 
 Two check types:
 
@@ -144,7 +144,7 @@ model = "gpt-5.4"
 - The harness runs once before any checks execute.
 - Install bundled skills explicitly with `eb install` before harness-driven work in a target project.
 - If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
-- Use `--skip-harness` to suppress a configured harness and score the current workspace state.
+- If any `llm_judge` check is present, a harness must be configured. eval-banana aborts early with a configuration error otherwise.
 - Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
 
 ### Skills
@@ -274,7 +274,6 @@ Harness options (run only):
   --harness-prompt-file PATH    File containing the task prompt
   --harness-model TEXT          Model override for the agent
   --harness-reasoning-effort TEXT  Reasoning effort level
-  --skip-harness                Suppress configured harness
 ```
 
 ## Output

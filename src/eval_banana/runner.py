@@ -14,12 +14,12 @@ import yaml
 from eval_banana.config import Config
 from eval_banana.discovery import discover_check_files
 from eval_banana.harness.registry import resolve_template
-from eval_banana.harness.runner import build_harness_result
 from eval_banana.harness.runner import run_harness
 from eval_banana.loader import load_check_definition
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
+from eval_banana.models import CheckType
 from eval_banana.models import EvalReport
 from eval_banana.models import HarnessResult
 from eval_banana.models import HarnessStatus
@@ -73,25 +73,6 @@ def _resolve_harness_prompt(
     return (prompt_path.read_text(encoding="utf-8"), "file", str(prompt_path))
 
 
-def _build_skipped_harness_result(*, config: Config, started_at: str) -> HarnessResult:
-    if config.project_root is None or config.harness_agent is None:
-        msg = "Cannot build skipped harness result without project_root and agent"
-        raise SystemExit(msg)
-    return build_harness_result(
-        agent_type=config.harness_agent,
-        command=[],
-        working_directory=config.project_root,
-        status=HarnessStatus.skipped,
-        started_at=started_at,
-        completed_at=started_at,
-        duration_ms=0,
-        model=config.harness_model,
-        reasoning_effort=config.harness_reasoning_effort,
-        prompt_source=None,
-        prompt_file=None,
-    )
-
-
 def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
     if check.type == "deterministic":
         return run_deterministic_check
@@ -128,6 +109,30 @@ def _filter_checks_by_tags(
         for source_path, definition in checks
         if requested_tags.intersection(definition.tags)
     ]
+
+
+def require_harness_for_llm_judge(
+    *, config: Config, selected_checks: list[tuple[Path, CheckDefinition]]
+) -> None:
+    if config.harness_agent is not None:
+        return
+
+    ordered_checks = sorted(selected_checks, key=lambda item: str(item[0]))
+    llm_judge_paths = [
+        str(path)
+        for path, definition in ordered_checks
+        if definition.type == CheckType.llm_judge
+    ]
+    if not llm_judge_paths:
+        return
+
+    msg = (
+        "llm_judge check requires a harness but none is configured "
+        f"(first offender: {llm_judge_paths[0]}). "
+        "Fix: set [harness] agent in .eval-banana/config.toml or pass "
+        "--harness-agent on the command line."
+    )
+    raise SystemExit(msg)
 
 
 def run_checks(
@@ -172,6 +177,8 @@ def run_checks(
         msg = "No checks found"
         raise SystemExit(msg)
 
+    require_harness_for_llm_judge(config=config, selected_checks=selected_checks)
+
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
     run_id = _make_run_id()
@@ -180,48 +187,41 @@ def run_checks(
     harness_result: HarnessResult | None = None
 
     if config.harness_agent is not None:
-        if config.skip_harness:
-            harness_result = _build_skipped_harness_result(
-                config=config, started_at=started_at
+        prompt_text, prompt_source, prompt_file = _resolve_harness_prompt(config=config)
+        template = resolve_template(
+            agent_type=config.harness_agent, user_templates=config.agent_templates
+        )
+        if config.harness_reasoning_effort is not None:
+            template = replace(
+                template, reasoning_effort=config.harness_reasoning_effort
             )
-        else:
-            prompt_text, prompt_source, prompt_file = _resolve_harness_prompt(
-                config=config
-            )
-            template = resolve_template(
-                agent_type=config.harness_agent, user_templates=config.agent_templates
-            )
-            if config.harness_reasoning_effort is not None:
-                template = replace(
-                    template, reasoning_effort=config.harness_reasoning_effort
-                )
-            harness_result = run_harness(
-                agent_type=config.harness_agent,
-                template=template,
-                prompt=prompt_text,
-                prompt_source=prompt_source,
-                prompt_file=prompt_file,
-                project_root=config.project_root,
+        harness_result = run_harness(
+            agent_type=config.harness_agent,
+            template=template,
+            prompt=prompt_text,
+            prompt_source=prompt_source,
+            prompt_file=prompt_file,
+            project_root=config.project_root,
+            run_id=run_id,
+            run_output_dir=run_output_dir,
+            model=config.harness_model,
+            harness_env=config.harness_env,
+        )
+        if harness_result.status in _HARNESS_ABORT_STATUSES:
+            completed = datetime.now(timezone.utc)
+            report = score_results(
                 run_id=run_id,
-                run_output_dir=run_output_dir,
-                model=config.harness_model,
-                harness_env=config.harness_env,
+                project_root=config.project_root,
+                output_dir=run_output_dir,
+                started_at=started_at,
+                completed_at=completed.isoformat(),
+                pass_threshold=config.pass_threshold,
+                results=[],
+                harness=harness_result,
             )
-            if harness_result.status in _HARNESS_ABORT_STATUSES:
-                completed = datetime.now(timezone.utc)
-                report = score_results(
-                    run_id=run_id,
-                    project_root=config.project_root,
-                    output_dir=run_output_dir,
-                    started_at=started_at,
-                    completed_at=completed.isoformat(),
-                    pass_threshold=config.pass_threshold,
-                    results=[],
-                    harness=harness_result,
-                )
-                emit_console_report(report=report)
-                write_report_files(report=report, output_dir=run_output_dir)
-                return report
+            emit_console_report(report=report)
+            write_report_files(report=report, output_dir=run_output_dir)
+            return report
 
     results: list[CheckResult] = []
     for source_path, definition in sorted(

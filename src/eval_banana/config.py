@@ -171,7 +171,6 @@ class Config:
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
-    skip_harness: bool = False
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
 
@@ -230,16 +229,6 @@ def _resolve_project_root(cwd: Path, local_config_path: Path | None) -> Path:
     if local_config_path is not None:
         return local_config_path.parent.parent.resolve()
     return cwd.resolve()
-
-
-def _coerce_bool(value: str) -> bool:
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    msg = f"Invalid boolean value: {value}"
-    raise ValueError(msg)
 
 
 def _set_nested_value(
@@ -477,6 +466,13 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
         msg = "[harness] must be a TOML table"
         raise SystemExit(msg)
 
+    if "skip" in raw_harness:
+        msg = (
+            "[harness] skip was removed; delete the key from your config. "
+            "harness is skipped automatically when [harness] agent is unset."
+        )
+        raise SystemExit(msg)
+
     allowed_keys = {
         "agent",
         "prompt",
@@ -484,7 +480,6 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
         "model",
         "reasoning_effort",
         "env",
-        "skip",
         "skills_dir",
     }
     unknown_keys = set(raw_harness) - allowed_keys
@@ -516,7 +511,6 @@ def load_config(
     harness_prompt_file: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
-    skip_harness: bool | None = None,
 ) -> Config:
     cwd_path = Path(cwd or ".").resolve()
     global_config_path = Path.home() / ".eval-banana" / "config.toml"
@@ -555,11 +549,6 @@ def load_config(
         if raw is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=caster(raw))
-    raw_skip_harness = os.getenv("EVAL_BANANA_SKIP_HARNESS")
-    if raw_skip_harness is not None:
-        _set_nested_value(
-            merged, section="harness", key="skip", value=_coerce_bool(raw_skip_harness)
-        )
 
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
@@ -579,8 +568,6 @@ def load_config(
         if value is None:
             continue
         _set_nested_value(merged, section=section, key=key, value=value)
-    if skip_harness is not None:
-        _set_nested_value(merged, section="harness", key="skip", value=skip_harness)
 
     _sanitize_harness_section(merged)
 
@@ -626,15 +613,6 @@ def load_config(
             _set_nested_value(
                 merged, section="llm", key="api_key", value=provider_fallback_key
             )
-
-    raw_harness_skip = _get_nested_value(merged, section="harness", key="skip")
-    if raw_harness_skip is None:
-        resolved_skip_harness = False
-    elif isinstance(raw_harness_skip, bool):
-        resolved_skip_harness = raw_harness_skip
-    else:
-        msg = "[harness] skip must be a boolean"
-        raise SystemExit(msg)
 
     agent_templates = _parse_agent_templates(merged)
 
@@ -690,7 +668,6 @@ def load_config(
             value=_get_nested_value(merged, section="harness", key="reasoning_effort")
         ),
         harness_env=_get_string_dict(merged, section="harness", key="env"),
-        skip_harness=resolved_skip_harness,
         agent_templates=agent_templates,
     )
 

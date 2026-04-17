@@ -210,7 +210,11 @@ ANTHROPIC_API_KEY = ""
 
 ### Harness failure behavior
 
-If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. Use `--skip-harness` to suppress a configured harness and score the current workspace state.
+If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. There is no opt-out — `llm_judge` checks require a harness, and a misconfigured harness is always treated as a failure.
+
+### `llm_judge` requires a harness
+
+If any loaded `llm_judge` check is discovered, eval-banana aborts before running any check when no harness is configured. Fix by setting `[harness] agent` in config or passing `--harness-agent` on the command line.
 
 ### Missing credentials
 

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `--skip-harness` CLI flag, `EVAL_BANANA_SKIP_HARNESS` environment variable,
+  `[harness] skip` TOML key, `Config.skip_harness` field, and
+  `HarnessStatus.skipped` enum value. The escape-hatch mode for scoring a
+  workspace with a configured-but-not-executed harness is gone — unset
+  `[harness] agent` if you want to run checks without a harness.
+- `_build_skipped_harness_result` helper (internal; referenced only by the
+  removed `--skip-harness` code path).
+
+### Added
+
+- Pre-flight validation: if any selected check has `type: llm_judge` and no
+  `[harness] agent` is configured, `eval-banana run` and `eval-banana validate`
+  abort with a `SystemExit` that names the offending YAML file and points at
+  both the `[harness]` TOML section and the `--harness-agent` flag.
+  `eval-banana list` is unchanged (stays read-only).
+
+### Changed
+
+- Legacy `[harness] skip = true` in TOML now raises a dedicated, actionable
+  error pointing users at `[harness] agent`. The legacy env var
+  `EVAL_BANANA_SKIP_HARNESS` is silently unread (shell/CI-friendly).
+- Scorer: `harness_allows_pass` now accepts only `HarnessStatus.succeeded`
+  (previously also accepted `HarnessStatus.skipped`).
+
+### Migration
+
+- Remove `--skip-harness` from any scripts or CI jobs. To score a workspace
+  without running a harness, simply don't configure one (`[harness] agent`
+  unset).
+- Delete `[harness] skip` from `.eval-banana/config.toml`.
+- Old `report.json` artifacts containing `"status": "skipped"` can no longer
+  be parsed back into `EvalReport`. Reports are per-run artifacts; no
+  migration tooling is provided.
+
 ## [0.0.3] - 2026-04-16
 
 ### Added

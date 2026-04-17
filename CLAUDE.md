@@ -70,7 +70,8 @@ eval-banana can optionally drive an AI coding agent (harness) before running che
 - Built-in templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
 - Harness runs synchronously via `subprocess.run()` before the check loop
 - Bundled skills are installed explicitly with `eb install` before harness-driven work
-- Harness failure aborts checks (use `--skip-harness` to override)
+- Harness failure aborts checks.
+- `llm_judge` checks require a configured harness; `run` and `validate` fail fast otherwise.
 - Harness metadata stored on `EvalReport.harness` (separate from check scoring)
 - AgentTemplate is a frozen dataclass (internal, not serialized)
 - `HarnessResult` is a Pydantic model with `extra="forbid"`

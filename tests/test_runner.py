@@ -665,40 +665,82 @@ def test_failed_harness_aborts_checks(
     assert report.checks == []
 
 
-def test_skipped_harness_still_runs_checks_and_does_not_resolve_or_spawn_binary(
+def test_llm_judge_without_harness_aborts_before_runner_is_invoked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
     checks_dir.mkdir()
-    check_path = checks_dir / "one.yaml"
-    check_path.write_text(
+    judge_path = checks_dir / "judge.yaml"
+    judge_path.write_text(
         "\n".join(
             [
                 "schema_version: 1",
-                "id: one",
-                "type: deterministic",
+                "id: judge_check",
+                "type: llm_judge",
                 "description: desc",
-                "script: print('ok')",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
             ]
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
+
+    # Pin the full actionable contract: classifying message + first-offender
+    # file path + the "Fix:" hint that points at both config and CLI paths.
+    message = str(excinfo.value)
+    assert "llm_judge check requires a harness" in message
+    assert str(judge_path) in message
+    assert "[harness] agent" in message
+    assert "--harness-agent" in message
+
+
+def test_llm_judge_with_harness_configured_proceeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_config: Callable[..., Config],
+    make_harness_result: Callable[..., HarnessResult],
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    judge_path = checks_dir / "judge.yaml"
+    judge_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    called = {"runner": False}
     monkeypatch.setattr(
         "eval_banana.runner.resolve_template",
-        lambda **kwargs: (_ for _ in ()).throw(AssertionError("must not resolve")),
+        lambda **kwargs: AgentTemplate(command=("codex", "exec")),
     )
     monkeypatch.setattr(
         "eval_banana.runner.run_harness",
-        lambda **kwargs: (_ for _ in ()).throw(AssertionError("must not spawn")),
+        lambda **kwargs: make_harness_result(status="succeeded"),
     )
 
     def fake_runner(**kwargs: object) -> CheckResult:
+        called["runner"] = True
         return CheckResult(
-            check_id="one",
-            check_type=CheckType.deterministic,
+            check_id="judge_check",
+            check_type=CheckType.llm_judge,
             description="desc",
-            source_path=str(check_path),
+            source_path=str(judge_path),
             status=CheckStatus.passed,
             score=1,
             started_at="2026-04-09T12:00:00+00:00",
@@ -707,19 +749,22 @@ def test_skipped_harness_still_runs_checks_and_does_not_resolve_or_spawn_binary(
         )
 
     monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+    monkeypatch.setattr(
+        "eval_banana.runner.write_report_files", lambda report, output_dir: None
+    )
 
     report = run_checks(
         config=make_config(
             project_root=tmp_path,
             cwd=str(tmp_path),
-            harness_agent="missing-binary",
-            skip_harness=True,
+            harness_agent="codex",
+            harness_prompt="Fix it",
         )
     )
 
     assert report.harness is not None
-    assert report.harness.status == HarnessStatus.skipped
-    assert report.total_checks == 1
+    assert called["runner"] is True
 
 
 def test_no_harness_run_does_not_touch_agent_resolution(
@@ -830,3 +875,109 @@ def test_check_id_targeted_runs_still_perform_harness_first(
 
     assert report.run_passed is True
     assert events == ["harness", "check"]
+
+
+def test_check_id_targeting_deterministic_ignores_unrelated_llm_judge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    deterministic_path = checks_dir / "a.yaml"
+    deterministic_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: a",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (checks_dir / "b.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: b",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_runner(**kwargs: object) -> CheckResult:
+        return CheckResult(
+            check_id="a",
+            check_type=CheckType.deterministic,
+            description="desc",
+            source_path=str(deterministic_path),
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
+
+    monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+    monkeypatch.setattr(
+        "eval_banana.runner.resolve_template",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("must not resolve")),
+    )
+    monkeypatch.setattr(
+        "eval_banana.runner.run_harness",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("must not spawn")),
+    )
+
+    report = run_checks(
+        config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="a"
+    )
+
+    assert report.run_passed is True
+    assert report.checks[0].check_id == "a"
+
+
+def test_check_id_targeting_llm_judge_without_harness_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "a.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: a",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (checks_dir / "b.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: b",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit, match="llm_judge check requires a harness"):
+        run_checks(
+            config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="b"
+        )
