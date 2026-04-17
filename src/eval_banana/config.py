@@ -28,10 +28,11 @@ output_dir = ".eval-banana/results"
 pass_threshold = 1.0
 
 # Maximum characters of each target file sent to llm_judge checks. Content
-# beyond this is truncated with a [TRUNCATED] marker. Prevents huge prompts,
-# runaway costs, and context-window overflow on large files.
+# beyond this limit is truncated with a [TRUNCATED] marker.
+# Set to 0 (the default) to disable truncation entirely — the full file
+# content is sent to the LLM regardless of size.
 # Env: EVAL_BANANA_LLM_MAX_INPUT_CHARS
-llm_max_input_chars = 12000
+llm_max_input_chars = 0
 """
 
 _LLM_SECTION_COMMON = """\
@@ -45,11 +46,11 @@ _LLM_SECTION_COMMON = """\
 provider = "openai_compat"
 
 # Model identifier. Format is provider-specific:
-#   OpenRouter: "<vendor>/<model>" (e.g. "openai/gpt-4.1-mini", "anthropic/claude-3.5-sonnet")
-#   OpenAI:     "<model>"          (e.g. "gpt-4.1-mini")
-#   Codex:      "<model>"          (e.g. "gpt-4.1-mini")
+#   OpenRouter: "<vendor>/<model>" (e.g. "openai/gpt-5.4", "anthropic/claude-sonnet-4-6")
+#   OpenAI:     "<model>"          (e.g. "gpt-5.4")
+#   Codex:      "<model>"          (e.g. "gpt-5.4")
 # Env: EVAL_BANANA_MODEL
-model = "openai/gpt-4.1-mini"
+model = "openai/gpt-5.4"
 
 # Base URL for the openai_compat provider. Common values:
 #   https://openrouter.ai/api/v1  (default)
@@ -143,11 +144,11 @@ class Config:
     output_dir: str = ".eval-banana/results"
     pass_threshold: float = 1.0
     provider: str = "openai_compat"
-    model: str = "openai/gpt-4.1-mini"
+    model: str = "openai/gpt-5.4"
     api_base: str = "https://openrouter.ai/api/v1"
     api_key: str = ""
     codex_auth_path: str = ""
-    llm_max_input_chars: int = 12000
+    llm_max_input_chars: int = 0
     discovery_exclude_dirs: list[str] = field(
         default_factory=lambda: [
             ".git",
@@ -584,13 +585,13 @@ def load_config(
 
     if provider_value == "codex":
         if not model_explicit:
-            _set_nested_value(merged, section="llm", key="model", value="gpt-4.1-mini")
+            _set_nested_value(merged, section="llm", key="model", value="gpt-5.4")
         if not api_base_explicit:
             _set_nested_value(merged, section="llm", key="api_base", value="")
     elif provider_value == "openai_compat":
         if not model_explicit:
             _set_nested_value(
-                merged, section="llm", key="model", value="openai/gpt-4.1-mini"
+                merged, section="llm", key="model", value="openai/gpt-5.4"
             )
         if not api_base_explicit:
             _set_nested_value(
@@ -624,9 +625,7 @@ def load_config(
             merged, section="core", key="pass_threshold", default=1.0
         ),
         provider=provider_value,
-        model=_get_string(
-            merged, section="llm", key="model", default="openai/gpt-4.1-mini"
-        ),
+        model=_get_string(merged, section="llm", key="model", default="openai/gpt-5.4"),
         api_base=_get_string(
             merged,
             section="llm",
@@ -640,7 +639,7 @@ def load_config(
             merged, section="llm", key="codex_auth_path", default=""
         ),
         llm_max_input_chars=_get_int(
-            merged, section="core", key="llm_max_input_chars", default=12000
+            merged, section="core", key="llm_max_input_chars", default=0
         ),
         discovery_exclude_dirs=_get_string_list(
             merged,

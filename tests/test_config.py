@@ -138,7 +138,7 @@ def test_provider_defaults_normalization_for_codex(
     config = load_config(cwd=str(project))
 
     assert config.provider == "codex"
-    assert config.model == "gpt-4.1-mini"
+    assert config.model == "gpt-5.4"
     assert config.api_base == ""
 
 
