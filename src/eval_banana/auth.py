@@ -139,50 +139,75 @@ def create_openai_compat_client(config: Config) -> OpenAI:
 CODEX_BACKEND_BASE_URL = "https://chatgpt.com/backend-api"
 
 
+def _codex_endpoint(base_url: str) -> str:
+    raw = base_url.rstrip("/")
+    if raw.endswith("/codex/responses"):
+        return raw
+    if raw.endswith("/codex"):
+        return f"{raw}/responses"
+    return f"{raw}/codex/responses"
+
+
+def _parse_sse_text(lines_iter: Any) -> str:
+    """Consume an SSE stream and return the accumulated output text."""
+    text_chunks: list[str] = []
+    data_lines: list[str] = []
+
+    for line in lines_iter:
+        if line == "":
+            if data_lines:
+                payload = "\n".join(data_lines).strip()
+                data_lines = []
+                if not payload or payload == "[DONE]":
+                    continue
+                try:
+                    event = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                event_type = event.get("type", "")
+                if event_type == "response.output_text.delta":
+                    delta = event.get("delta")
+                    if isinstance(delta, str):
+                        text_chunks.append(delta)
+                elif event_type == "response.completed":
+                    break
+            continue
+        if line.startswith("event:"):
+            continue
+        if line.startswith("data:"):
+            data_lines.append(line[5:].strip())
+
+    return "".join(text_chunks)
+
+
 def run_codex_judge_request(
     *, model: str, auth: CodexAuth, system_prompt: str, user_prompt: str
 ) -> str:
-    base_url = CODEX_BACKEND_BASE_URL
+    url = _codex_endpoint(CODEX_BACKEND_BASE_URL)
     headers = {
         "Authorization": f"Bearer {auth.token}",
         "chatgpt-account-id": auth.account_id,
         "OpenAI-Beta": "responses=experimental",
+        "accept": "text/event-stream",
+        "content-type": "application/json",
     }
     payload = {
         "model": model,
+        "instructions": system_prompt,
         "input": [
-            {
-                "role": "system",
-                "content": [{"type": "input_text", "text": system_prompt}],
-            },
             {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
         ],
+        "store": False,
+        "stream": True,
     }
     with httpx.Client(timeout=None) as client:
-        response = client.post(f"{base_url}/responses", headers=headers, json=payload)
-        response.raise_for_status()
-        raw = response.json()
+        with client.stream("POST", url, headers=headers, json=payload) as response:
+            response.raise_for_status()
+            text = _parse_sse_text(response.iter_lines())
 
-    if isinstance(raw.get("output_text"), str):
-        return raw["output_text"]
-
-    output = raw.get("output", [])
-    if not isinstance(output, list):
+    if not text:
         msg = "Codex response did not contain output text"
         raise CodexAuthError(msg)
-
-    for item in output:
-        if not isinstance(item, dict):
-            continue
-        content = item.get("content", [])
-        if not isinstance(content, list):
-            continue
-        for content_item in content:
-            if not isinstance(content_item, dict):
-                continue
-            text = content_item.get("text")
-            if isinstance(text, str):
-                return text
-
-    msg = "Codex response did not contain output text"
-    raise CodexAuthError(msg)
+    return text
