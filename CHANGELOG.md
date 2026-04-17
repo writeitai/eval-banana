@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-17
+
+### Added
+
+- Repeatable `--tag` filtering for `eb run` and `eb list` with OR semantics,
+  plus `CheckResult.tags` in emitted reports so selected check metadata is
+  preserved end-to-end.
+- Pre-flight validation: if any selected check has `type: llm_judge` and no
+  `[harness] agent` is configured, `eval-banana run` and `eval-banana validate`
+  abort with a `SystemExit` that names the offending YAML file and points at
+  both the `[harness]` TOML section and the `--harness-agent` flag.
+  `eval-banana list` is unchanged (stays read-only).
+
 ### Removed
 
 - `--skip-harness` CLI flag, `EVAL_BANANA_SKIP_HARNESS` environment variable,
@@ -14,16 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HarnessStatus.skipped` enum value. The escape-hatch mode for scoring a
   workspace with a configured-but-not-executed harness is gone — unset
   `[harness] agent` if you want to run checks without a harness.
-- `_build_skipped_harness_result` helper (internal; referenced only by the
-  removed `--skip-harness` code path).
-
-### Added
-
-- Pre-flight validation: if any selected check has `type: llm_judge` and no
-  `[harness] agent` is configured, `eval-banana run` and `eval-banana validate`
-  abort with a `SystemExit` that names the offending YAML file and points at
-  both the `[harness]` TOML section and the `--harness-agent` flag.
-  `eval-banana list` is unchanged (stays read-only).
 
 ### Changed
 
@@ -42,14 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old `report.json` artifacts containing `"status": "skipped"` can no longer
   be parsed back into `EvalReport`. Reports are per-run artifacts; no
   migration tooling is provided.
-
-## [0.0.3] - 2026-04-16
-
-### Added
-
-- Repeatable `--tag` filtering for `eb run` and `eb list` with OR semantics,
-  plus `CheckResult.tags` in emitted reports so selected check metadata is
-  preserved end-to-end.
 
 ## [0.0.2] - 2026-04-16
 
