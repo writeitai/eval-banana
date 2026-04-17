@@ -114,25 +114,10 @@ def _filter_checks_by_tags(
 def require_harness_for_llm_judge(
     *, config: Config, selected_checks: list[tuple[Path, CheckDefinition]]
 ) -> None:
-    if config.harness_agent is not None:
-        return
-
-    ordered_checks = sorted(selected_checks, key=lambda item: str(item[0]))
-    llm_judge_paths = [
-        str(path)
-        for path, definition in ordered_checks
-        if definition.type == CheckType.llm_judge
-    ]
-    if not llm_judge_paths:
-        return
-
-    msg = (
-        "llm_judge check requires a harness but none is configured "
-        f"(first offender: {llm_judge_paths[0]}). "
-        "Fix: set [harness] agent in .eval-banana/config.toml or pass "
-        "--harness-agent on the command line."
-    )
-    raise SystemExit(msg)
+    # llm_judge checks work with or without a harness: they evaluate
+    # existing artifacts via direct LLM API calls regardless of whether
+    # an agent ran first.
+    pass
 
 
 def run_checks(
