@@ -20,7 +20,7 @@ make run               # Run eval-banana against this project
 ```
 src/eval_banana/
   models.py          # Pydantic models (check definitions, results, reports)
-  config.py          # Two-tier TOML config loading
+  config.py          # Project-level TOML config loading
   auth.py            # OpenRouter + Codex authentication
   discovery.py       # Auto-discover eval_checks/ directories
   loader.py          # YAML loading + validation

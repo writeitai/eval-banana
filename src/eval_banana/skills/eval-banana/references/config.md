@@ -14,22 +14,16 @@ Complete reference for eval-banana configuration: TOML layout, precedence rules,
 - Provider normalization
 - Common config mistakes
 
-## File locations
+## File location
 
-| Tier | Path | Purpose |
-|---|---|---|
-| Global | `~/.eval-banana/config.toml` | User-wide defaults across all projects |
-| Local | `.eval-banana/config.toml` | Project-specific settings |
-
-Local config is found by walking upward from the current directory. Running `eval-banana` from any subdirectory finds the nearest project config.
-
-Create config files with:
+Config lives at `.eval-banana/config.toml` in the project directory. It is found by walking upward from the current directory, so `eval-banana` works from any subdirectory.
 
 ```bash
-eval-banana init          # Local (also creates eval_checks/example_check.yaml)
-eval-banana init --global # Global
+eval-banana init          # Create config + eval_checks/example_check.yaml
 eval-banana init --force  # Overwrite existing
 ```
+
+API keys should be set via environment variables, not in the config file.
 
 ## Config sections
 
@@ -57,7 +51,7 @@ eval-banana init --force  # Overwrite existing
 |---|---|---|
 | `exclude_dirs` | `[".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]` | Directories to skip when walking for `eval_checks/` |
 
-Lists replace entirely — a local `exclude_dirs` replaces the global list, it does not append.
+Setting `exclude_dirs` replaces the built-in default list entirely, it does not append.
 
 ## Precedence rules
 
@@ -66,11 +60,8 @@ Config values are resolved in this order (highest priority first):
 1. **CLI arguments** (`--model`, `--provider`, `--api-base`, etc.)
 2. **`EVAL_BANANA_*` environment variables**
 3. **Provider-aware API key fallback** (`OPENROUTER_API_KEY` / `OPENAI_API_KEY` based on `api_base`)
-4. **Local project config** (`.eval-banana/config.toml`)
-5. **Global config** (`~/.eval-banana/config.toml`)
-6. **Built-in defaults**
-
-Dict sections merge recursively. A local `[core]` override changes only the keys it sets; other `[core]` keys inherit from global.
+4. **Project config** (`.eval-banana/config.toml`)
+5. **Built-in defaults**
 
 ## Environment variables
 
@@ -168,36 +159,27 @@ When `provider = "codex"` is set and `model` / `api_base` aren't explicitly set,
 
 If your local config was created by `eval-banana init` (which writes explicit `model` and `api_base` values), those take priority over the codex defaults. Delete them from your local config if you want codex normalization to kick in, or set them to codex-appropriate values manually.
 
-## Generated config templates
+## Generated config template
 
-### Global (`~/.eval-banana/config.toml`) template
+Created by `eval-banana init` at `.eval-banana/config.toml`:
 
 ```toml
-# Global eval-banana configuration.
-# Project-level .eval-banana/config.toml overrides these values.
-
+# Project-level eval-banana configuration.
+# API keys should be set via environment variables, not in this file.
 
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
 llm_max_input_chars = 0
 
-
 [llm]
 provider = "openai_compat"
 model = "openai/gpt-5.4"
 api_base = "https://openrouter.ai/api/v1"
-api_key = ""
-codex_auth_path = ""
-
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]
 ```
-
-### Local (`.eval-banana/config.toml`) template
-
-Same as global, minus `api_key` and `codex_auth_path` (committed configs should never contain keys).
 
 ## Common config mistakes
 

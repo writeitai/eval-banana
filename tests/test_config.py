@@ -6,7 +6,6 @@ import pytest
 
 from eval_banana.config import _deep_merge
 from eval_banana.config import find_local_config
-from eval_banana.config import get_global_config_template
 from eval_banana.config import get_local_config_template
 from eval_banana.config import load_config
 from eval_banana.harness.template import DEFAULT_AGENT_TEMPLATES
@@ -43,13 +42,8 @@ def test_deep_merge_replaces_lists_and_merges_dicts() -> None:
 def test_env_var_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     home = tmp_path / "home"
     project = tmp_path / "project"
-    (home / ".eval-banana").mkdir(parents=True)
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
-    (home / ".eval-banana" / "config.toml").write_text(
-        '[core]\noutput_dir = "global-results"\n[llm]\nprovider = "openai_compat"\n',
-        encoding="utf-8",
-    )
     (project / ".eval-banana" / "config.toml").write_text(
         '[core]\noutput_dir = "local-results"\n[llm]\nprovider = "codex"\n',
         encoding="utf-8",
@@ -211,12 +205,12 @@ def test_stale_timeout_toml_is_silently_ignored(
     assert not hasattr(config, "task_timeout_seconds")
 
 
-def test_config_templates_do_not_contain_legacy_timeout_keys() -> None:
-    for template in (get_global_config_template(), get_local_config_template()):
-        assert "deterministic_timeout_seconds" not in template
-        assert "llm_timeout_seconds" not in template
-        assert "task_timeout_seconds" not in template
-        assert "timeout" not in template
+def test_config_template_does_not_contain_legacy_timeout_keys() -> None:
+    template = get_local_config_template()
+    assert "deterministic_timeout_seconds" not in template
+    assert "llm_timeout_seconds" not in template
+    assert "task_timeout_seconds" not in template
+    assert "timeout" not in template
 
 
 def test_parse_minimal_harness_config(
@@ -361,13 +355,8 @@ def test_cli_and_env_precedence_for_harness_fields(
 ) -> None:
     home = tmp_path / "home"
     project = tmp_path / "project"
-    (home / ".eval-banana").mkdir(parents=True)
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
-    (home / ".eval-banana" / "config.toml").write_text(
-        "\n".join(["[harness]", 'agent = "codex"', 'prompt = "from-global"']),
-        encoding="utf-8",
-    )
     (project / ".eval-banana" / "config.toml").write_text(
         "\n".join(["[harness]", 'agent = "claude"', 'prompt = "from-local"']),
         encoding="utf-8",

@@ -1,25 +1,19 @@
 # Configuration
 
-eval-banana uses TOML configuration with two tiers: global (user-wide) and local (project-level).
+eval-banana uses a single project-level TOML config at `.eval-banana/config.toml`.
 
-## Config file locations
+## Config file location
 
-| Tier | Path | Purpose |
-|---|---|---|
-| Global | `~/.eval-banana/config.toml` | User-wide defaults |
-| Local | `.eval-banana/config.toml` | Project-specific settings |
-
-Local config is found by walking upward from the current directory. This means you can run `eval-banana` from any subdirectory and it will find the project config.
+The config file is discovered by walking upward from the current directory. This means you can run `eval-banana` from any subdirectory and it will find the project config.
 
 ## Creating config
 
 ```bash
-eval-banana init          # Create local project config
-eval-banana init --global  # Create global config
+eval-banana init          # Create project config + example check
 eval-banana init --force   # Overwrite existing config
 ```
 
-Local init also creates an example check in `eval_checks/`.
+API keys should be set via environment variables (see Authentication below), not in the config file.
 
 ## Config sections
 
@@ -56,14 +50,11 @@ Config values are resolved in this order (highest priority first):
 1. **CLI arguments** (`--model`, `--provider`, etc.)
 2. **Environment variables** (`EVAL_BANANA_*`)
 3. **Provider-aware API key fallback** (see below)
-4. **Local project config** (`.eval-banana/config.toml`)
-5. **Global config** (`~/.eval-banana/config.toml`)
-6. **Built-in defaults**
+4. **Project config** (`.eval-banana/config.toml`)
+5. **Built-in defaults**
 
-### Merge behavior
+### Notes
 
-- Dict sections merge recursively (local overrides only the keys it sets)
-- Lists replace entirely (local `exclude_dirs` replaces global)
 - Relative `output_dir` resolves from the project root
 
 ## Authentication
