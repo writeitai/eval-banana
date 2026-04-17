@@ -34,7 +34,7 @@ def _read_target_text(*, path: Path, max_chars: int) -> str:
         logger.warning("Non-UTF-8 target encountered at %s", path)
         text = path.read_text(encoding="utf-8", errors="replace")
 
-    if len(text) <= max_chars:
+    if max_chars <= 0 or len(text) <= max_chars:
         return text
 
     logger.warning("Truncating target text for %s", path)

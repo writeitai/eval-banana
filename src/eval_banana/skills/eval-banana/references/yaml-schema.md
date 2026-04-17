@@ -92,7 +92,7 @@ The runner builds a prompt with:
 2. The `description` as context
 3. The `instructions` as the evaluation criterion
 4. Each target file's content, separated by `--- BEGIN FILE: <path> ---` / `--- END FILE: <path> ---`
-5. Truncation marker `[TRUNCATED]` if a file exceeds `llm_max_input_chars` (default 12000)
+5. Truncation marker `[TRUNCATED]` if `llm_max_input_chars` is set to a positive value and the file exceeds it (default: 0 = no truncation)
 
 ### Required LLM response format
 

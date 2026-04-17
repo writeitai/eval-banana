@@ -39,14 +39,14 @@ eval-banana init --force  # Overwrite existing
 |---|---|---|
 | `output_dir` | `.eval-banana/results` | Where run artifacts are written (relative to project root) |
 | `pass_threshold` | `1.0` | Minimum `points/total` ratio for the run to pass (0.0-1.0) |
-| `llm_max_input_chars` | `12000` | Max characters sent to LLM **per target file** (not cumulative) |
+| `llm_max_input_chars` | `0` (disabled) | Max characters sent to LLM per target file; 0 = no limit |
 
 ### `[llm]` section
 
 | Key | Default | Description |
 |---|---|---|
 | `provider` | `openai_compat` | Either `openai_compat` or `codex` |
-| `model` | `openai/gpt-4.1-mini` | Model name (OpenRouter-style for default) |
+| `model` | `openai/gpt-5.4` | Model name (OpenRouter-style for default) |
 | `api_base` | `https://openrouter.ai/api/v1` | API base URL |
 | `api_key` | `""` | Explicit API key (prefer env vars instead) |
 | `codex_auth_path` | `""` | Path to Codex auth JSON (empty = use defaults) |
@@ -96,7 +96,7 @@ export OPENROUTER_API_KEY=sk-or-v1-...
 eval-banana run
 ```
 
-That's all. Defaults already point at `https://openrouter.ai/api/v1` with model `openai/gpt-4.1-mini`.
+That's all. Defaults already point at `https://openrouter.ai/api/v1` with model `openai/gpt-5.4`.
 
 To use a different OpenRouter model:
 
@@ -120,7 +120,7 @@ Use OpenAI directly instead of through OpenRouter:
 # .eval-banana/config.toml
 [llm]
 provider = "openai_compat"
-model = "gpt-4.1-mini"
+model = "gpt-5.4"
 api_base = "https://api.openai.com/v1"
 ```
 
@@ -146,7 +146,7 @@ Or pin the provider in config:
 # .eval-banana/config.toml
 [llm]
 provider = "codex"
-model = "gpt-4.1-mini"
+model = "gpt-5.4"
 ```
 
 Auth file resolution order:
@@ -163,7 +163,7 @@ When `provider = "codex"` is set and `model` / `api_base` aren't explicitly set,
 
 | Setting | `openai_compat` default | `codex` default |
 |---|---|---|
-| `model` | `openai/gpt-4.1-mini` | `gpt-4.1-mini` (no namespace prefix) |
+| `model` | `openai/gpt-5.4` | `gpt-5.4` (no namespace prefix) |
 | `api_base` | `https://openrouter.ai/api/v1` | (unused — Codex has a hardcoded backend) |
 
 If your local config was created by `eval-banana init` (which writes explicit `model` and `api_base` values), those take priority over the codex defaults. Delete them from your local config if you want codex normalization to kick in, or set them to codex-appropriate values manually.
@@ -180,12 +180,12 @@ If your local config was created by `eval-banana init` (which writes explicit `m
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
-llm_max_input_chars = 12000
+llm_max_input_chars = 0
 
 
 [llm]
 provider = "openai_compat"
-model = "openai/gpt-4.1-mini"
+model = "openai/gpt-5.4"
 api_base = "https://openrouter.ai/api/v1"
 api_key = ""
 codex_auth_path = ""

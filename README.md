@@ -226,7 +226,7 @@ Create config with `eval-banana init` (local) or `eval-banana init --global`.
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` |
 | `provider` | `openai_compat` | `EVAL_BANANA_PROVIDER` |
-| `model` | `openai/gpt-4.1-mini` | `EVAL_BANANA_MODEL` |
+| `model` | `openai/gpt-5.4` | `EVAL_BANANA_MODEL` |
 | `api_base` | `https://openrouter.ai/api/v1` | `EVAL_BANANA_API_BASE` |
 
 ### LLM provider setup

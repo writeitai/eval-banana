@@ -202,7 +202,7 @@ def test_codex_request_path_with_mock_transport(
     monkeypatch.setattr("eval_banana.auth.httpx.Client", fake_client)
 
     text = run_codex_judge_request(
-        model="gpt-4.1-mini",
+        model="gpt-5.4",
         auth=CodexAuth(token="token", account_id="acct"),
         system_prompt="sys",
         user_prompt="user",
@@ -257,7 +257,7 @@ def test_codex_uses_httpx_client_with_timeout_none(
     monkeypatch.setattr(httpx, "Client", fake_client)
 
     run_codex_judge_request(
-        model="gpt-4.1-mini",
+        model="gpt-5.4",
         auth=CodexAuth(token="token", account_id="acct"),
         system_prompt="sys",
         user_prompt="user",
@@ -291,7 +291,7 @@ def test_codex_post_does_not_pass_timeout_override(
     monkeypatch.setattr(httpx, "Client", fake_client)
 
     run_codex_judge_request(
-        model="gpt-4.1-mini",
+        model="gpt-5.4",
         auth=CodexAuth(token="token", account_id="acct"),
         system_prompt="sys",
         user_prompt="user",

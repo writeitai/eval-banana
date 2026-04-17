@@ -29,14 +29,14 @@ Local init also creates an example check in `eval_checks/`.
 |---|---|---|---|
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where output files go |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0-1.0) |
-| `llm_max_input_chars` | `12000` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to LLM per target file |
+| `llm_max_input_chars` | `0` (disabled) | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to LLM per target file; 0 = no limit |
 
 ### `[llm]` section
 
 | Key | Default | Env var | Description |
 |---|---|---|---|
 | `provider` | `openai_compat` | `EVAL_BANANA_PROVIDER` | LLM provider (`openai_compat` or `codex`) |
-| `model` | `openai/gpt-4.1-mini` | `EVAL_BANANA_MODEL` | Model name |
+| `model` | `openai/gpt-5.4` | `EVAL_BANANA_MODEL` | Model name |
 | `api_base` | `https://openrouter.ai/api/v1` | `EVAL_BANANA_API_BASE` | API base URL |
 | `api_key` | (empty) | `EVAL_BANANA_API_KEY` | API key (prefer env vars) |
 | `codex_auth_path` | (empty) | `EVAL_BANANA_CODEX_AUTH_PATH` | Path to Codex auth file |
@@ -226,7 +226,7 @@ When `provider = "codex"` is set, defaults change automatically:
 
 | Setting | `openai_compat` default | `codex` default |
 |---|---|---|
-| `model` | `openai/gpt-4.1-mini` | `gpt-4.1-mini` |
+| `model` | `openai/gpt-5.4` | `gpt-5.4` |
 | `api_base` | `https://openrouter.ai/api/v1` | (not used) |
 
 Codex always uses the hardcoded ChatGPT backend URL. The `api_base` config has no effect for Codex.
