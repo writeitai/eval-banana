@@ -979,3 +979,75 @@ def test_check_id_targeting_llm_judge_without_harness_fails(
         run_checks(
             config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="b"
         )
+
+
+def test_mixed_checks_without_harness_aborts_on_llm_judge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "a_deterministic.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: a_det",
+                "type: deterministic",
+                "description: desc",
+                "script: print(ok)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (checks_dir / "b_judge.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: b_judge",
+                "type: llm_judge",
+                "description: desc",
+                "target_paths:",
+                "  - README.md",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
+
+    assert "llm_judge check requires a harness" in str(excinfo.value)
+    assert str(checks_dir / "b_judge.yaml") in str(excinfo.value)
+
+
+def test_multiple_llm_judge_without_harness_reports_sorted_first(
+    tmp_path: Path, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    for name, check_id in (("z_last.yaml", "z_last"), ("a_first.yaml", "a_first")):
+        (checks_dir / name).write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    f"id: {check_id}",
+                    "type: llm_judge",
+                    "description: desc",
+                    "target_paths:",
+                    "  - README.md",
+                    "instructions: Judge the output.",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+    with pytest.raises(SystemExit) as excinfo:
+        run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
+
+    message = str(excinfo.value)
+    assert "llm_judge check requires a harness" in message
+    assert str(checks_dir / "a_first.yaml") in message
+    assert str(checks_dir / "z_last.yaml") not in message
