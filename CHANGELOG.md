@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-04-19
+
+### Changed
+
+- Default LLM model: `openai/gpt-4.1-mini` → `openai/gpt-5.4`
+  (codex provider: `gpt-5.4`).
+- `llm_max_input_chars` default: `12000` → `0` (disabled). Set to a
+  positive value to re-enable per-file truncation.
+- Codex backend: switched to `/codex/responses` endpoint with SSE
+  streaming and aligned payload shape.
+
+### Removed
+
+- Global config tier (`~/.eval-banana/config.toml`). Only
+  project-level `.eval-banana/config.toml` is loaded now. API keys
+  should be set via environment variables.
+- `--global` flag on `eval-banana init`.
+- `Config.global_config_path` field and `get_global_config_template()`.
+
+### Fixed
+
+- `require_harness_for_llm_judge` enforcement restored after a brief
+  regression where it was relaxed to a no-op. `llm_judge` checks once
+  again require a configured harness; `eval-banana run` and
+  `eval-banana validate` abort with an actionable error otherwise.
+
 ## [0.0.3] - 2026-04-17
 
 ### Added
@@ -82,7 +108,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/writeitai/eval-banana/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/writeitai/eval-banana/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/writeitai/eval-banana/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/writeitai/eval-banana/releases/tag/v0.0.1
