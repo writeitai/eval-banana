@@ -3,14 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-import pytest
-
 from eval_banana.models import CheckResult
 from eval_banana.models import EvalReport
-from eval_banana.models import HarnessResult
 from eval_banana.reporter import _build_markdown_report
 from eval_banana.reporter import _safe_file_stem
-from eval_banana.reporter import emit_console_report
 from eval_banana.reporter import write_report_files
 
 
@@ -35,7 +31,6 @@ def test_json_and_markdown_file_creation(
         meets_threshold=True,
         run_passed=True,
         checks=[make_check_result(stdout="hello", stderr="bad")],
-        harness=None,
     )
 
     write_report_files(report=report, output_dir=tmp_path / "report")
@@ -72,7 +67,6 @@ def test_markdown_contains_tables(
         meets_threshold=False,
         run_passed=False,
         checks=[make_check_result(status="failed", score=0, reason="bad")],
-        harness=None,
     )
 
     markdown = _build_markdown_report(report=report)
@@ -80,101 +74,3 @@ def test_markdown_contains_tables(
     assert "| Field | Value |" in markdown
     assert "| Check ID | Type | Status | Score | Duration (ms) |" in markdown
     assert "Reason: bad" in markdown
-
-
-def test_markdown_includes_harness_section_when_present(
-    tmp_path: Path, make_harness_result: Callable[..., HarnessResult]
-) -> None:
-    report = EvalReport(
-        run_id="run1",
-        project_root=str(tmp_path),
-        output_dir=str(tmp_path / "out"),
-        started_at="2026-04-09T12:00:00+00:00",
-        completed_at="2026-04-09T12:00:01+00:00",
-        duration_ms=1000,
-        total_checks=0,
-        passed_checks=0,
-        failed_checks=0,
-        errored_checks=0,
-        points_earned=0,
-        total_points=0,
-        percentage=0.0,
-        pass_threshold=1.0,
-        meets_threshold=False,
-        run_passed=False,
-        checks=[],
-        harness=make_harness_result(status="failed", exit_code=2),
-    )
-
-    markdown = _build_markdown_report(report=report)
-
-    assert "## Harness" in markdown
-    assert (
-        "Checks not run because the harness failed before check execution." in markdown
-    )
-
-
-def test_console_output_includes_harness_summary_line(
-    tmp_path: Path,
-    make_harness_result: Callable[..., HarnessResult],
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    report = EvalReport(
-        run_id="run1",
-        project_root=str(tmp_path),
-        output_dir=str(tmp_path / "out"),
-        started_at="2026-04-09T12:00:00+00:00",
-        completed_at="2026-04-09T12:00:01+00:00",
-        duration_ms=1000,
-        total_checks=0,
-        passed_checks=0,
-        failed_checks=0,
-        errored_checks=0,
-        points_earned=0,
-        total_points=0,
-        percentage=0.0,
-        pass_threshold=1.0,
-        meets_threshold=False,
-        run_passed=False,
-        checks=[],
-        harness=make_harness_result(status="error", error_detail="missing binary"),
-    )
-
-    emit_console_report(report=report)
-    captured = capsys.readouterr()
-
-    assert "Harness: error (codex) - missing binary" in captured.out
-    assert "Checks not run: harness failed before check execution." in captured.out
-
-
-def test_console_output_uses_exit_code_when_error_detail_is_absent(
-    tmp_path: Path,
-    make_harness_result: Callable[..., HarnessResult],
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    report = EvalReport(
-        run_id="run1",
-        project_root=str(tmp_path),
-        output_dir=str(tmp_path / "out"),
-        started_at="2026-04-09T12:00:00+00:00",
-        completed_at="2026-04-09T12:00:01+00:00",
-        duration_ms=1000,
-        total_checks=0,
-        passed_checks=0,
-        failed_checks=0,
-        errored_checks=0,
-        points_earned=0,
-        total_points=0,
-        percentage=0.0,
-        pass_threshold=1.0,
-        meets_threshold=False,
-        run_passed=False,
-        checks=[],
-        harness=make_harness_result(status="failed", exit_code=7, error_detail=None),
-    )
-
-    emit_console_report(report=report)
-    captured = capsys.readouterr()
-
-    assert "Harness: failed (codex) - exit_code=7" in captured.out
-    assert "Checks not run: harness failed before check execution." in captured.out

@@ -1,6 +1,6 @@
 # Configuration reference
 
-Complete reference for eval-banana configuration: TOML layout, precedence rules, environment variables, and harness setup.
+Complete reference for eval-banana configuration: TOML layout, precedence rules, environment variables, and harness_judge setup.
 
 ## Table of contents
 
@@ -35,8 +35,6 @@ eval-banana init --force  # Overwrite existing
 | Key | Default | Description |
 |---|---|---|
 | `agent` | unset | Built-in agent name such as `codex`, `claude`, or `gemini` |
-| `prompt` | unset | Inline task prompt |
-| `prompt_file` | unset | Prompt file path relative to the project root |
 | `model` | unset | Override the template default model |
 | `reasoning_effort` | unset | Override the template reasoning effort |
 
@@ -65,27 +63,18 @@ Config values are resolved in this order (highest priority first):
 | `EVAL_BANANA_PASS_THRESHOLD` | `core.pass_threshold` |
 | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | `core.llm_max_input_chars` |
 | `EVAL_BANANA_HARNESS_AGENT` | `harness.agent` |
-| `EVAL_BANANA_HARNESS_PROMPT` | `harness.prompt` |
-| `EVAL_BANANA_HARNESS_PROMPT_FILE` | `harness.prompt_file` |
 | `EVAL_BANANA_HARNESS_MODEL` | `harness.model` |
 | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | `harness.reasoning_effort` |
 
 ## Harness setup
 
-Configure a harness agent when you want to run a coding agent before checks or when your project uses `harness_judge` checks.
+Configure a harness agent when your project uses `harness_judge` checks.
 
 ```toml
 [harness]
 agent = "codex"
-prompt_file = "prompts/task.md"
 model = "gpt-5.4"
 reasoning_effort = "high"
-```
-
-Or with CLI flags:
-
-```bash
-eval-banana run --harness-agent codex --harness-prompt "Fix the failing tests"
 ```
 
 If a project still contains a legacy `[llm]` section, eval-banana exits with a migration error instructing you to delete it and use `[harness]` / `[agents.*]`.
@@ -103,7 +92,7 @@ pass_threshold = 1.0
 llm_max_input_chars = 0
 
 [harness]
-prompt_file = "prompts/task.md"
+agent = "codex"
 
 [discovery]
 exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", "dist", "build"]

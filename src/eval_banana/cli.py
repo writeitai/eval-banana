@@ -81,8 +81,6 @@ def init(force: bool) -> None:
 @click.option("--output-dir")
 @click.option("--pass-threshold", type=float)
 @click.option("--harness-agent")
-@click.option("--harness-prompt")
-@click.option("--harness-prompt-file", type=click.Path(path_type=Path))
 @click.option("--harness-model")
 @click.option("--harness-reasoning-effort")
 @click.option("--cwd", default=".")
@@ -94,8 +92,6 @@ def run_cli(
     output_dir: str | None,
     pass_threshold: float | None,
     harness_agent: str | None,
-    harness_prompt: str | None,
-    harness_prompt_file: Path | None,
     harness_model: str | None,
     harness_reasoning_effort: str | None,
     cwd: str,
@@ -106,10 +102,6 @@ def run_cli(
         output_dir=output_dir,
         pass_threshold=pass_threshold,
         harness_agent=harness_agent,
-        harness_prompt=harness_prompt,
-        harness_prompt_file=(
-            str(harness_prompt_file) if harness_prompt_file is not None else None
-        ),
         harness_model=harness_model,
         harness_reasoning_effort=harness_reasoning_effort,
         cwd=cwd,

@@ -9,8 +9,6 @@ from eval_banana.config import Config
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
-from eval_banana.models import HarnessResult
-from eval_banana.models import HarnessStatus
 
 
 @pytest.fixture
@@ -45,30 +43,3 @@ def make_check_result() -> Callable[..., CheckResult]:
         return CheckResult(**defaults)
 
     return _make_check_result
-
-
-@pytest.fixture
-def make_harness_result() -> Callable[..., HarnessResult]:
-    def _make_harness_result(**overrides: object) -> HarnessResult:
-        defaults = {
-            "agent_type": "codex",
-            "command": ["codex", "exec", "prompt"],
-            "working_directory": "/tmp/project",
-            "status": HarnessStatus.succeeded,
-            "started_at": "2026-04-09T12:00:00+00:00",
-            "completed_at": "2026-04-09T12:00:05+00:00",
-            "duration_ms": 5000,
-            "model": "gpt-5.4",
-            "reasoning_effort": "high",
-            "prompt_source": "inline",
-            "prompt_artifact_path": "harness/prompt.txt",
-            "stdout_path": "harness/stdout.txt",
-            "stderr_path": "harness/stderr.txt",
-            "result_path": "harness/result.json",
-            "stdout_bytes": 12,
-            "stderr_bytes": 0,
-        }
-        defaults.update(overrides)
-        return HarnessResult(**defaults)
-
-    return _make_harness_result

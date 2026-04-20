@@ -85,21 +85,13 @@ def test_legacy_harness_skills_dir_is_ignored(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        "\n".join(
-            [
-                "[harness]",
-                'agent = "codex"',
-                'prompt = "Fix it"',
-                'skills_dir = "custom-skills"',
-            ]
-        ),
+        "\n".join(["[harness]", 'agent = "codex"', 'skills_dir = "custom-skills"']),
         encoding="utf-8",
     )
 
     config = load_config(cwd=str(nested))
 
     assert config.harness_agent == "codex"
-    assert config.harness_prompt == "Fix it"
     assert not hasattr(config, "skills_dir")
 
 
@@ -135,7 +127,6 @@ def test_toml_mapping_table_is_applied(
                 "",
                 "[harness]",
                 'agent = "codex"',
-                'prompt = "Fix the failing tests"',
                 'model = "gpt-5.4"',
                 'reasoning_effort = "medium"',
                 "",
@@ -152,7 +143,6 @@ def test_toml_mapping_table_is_applied(
     assert config.pass_threshold == 0.7
     assert config.llm_max_input_chars == 44
     assert config.harness_agent == "codex"
-    assert config.harness_prompt == "Fix the failing tests"
     assert config.harness_model == "gpt-5.4"
     assert config.harness_reasoning_effort == "medium"
     assert config.discovery_exclude_dirs == ["one", "two"]
@@ -215,21 +205,13 @@ def test_parse_minimal_harness_config(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        "\n".join(
-            [
-                "[harness]",
-                'agent = "codex"',
-                'prompt = "Fix the failing tests"',
-                'reasoning_effort = "high"',
-            ]
-        ),
+        "\n".join(["[harness]", 'agent = "codex"', 'reasoning_effort = "high"']),
         encoding="utf-8",
     )
 
     config = load_config(cwd=str(project))
 
     assert config.harness_agent == "codex"
-    assert config.harness_prompt == "Fix the failing tests"
     assert config.harness_reasoning_effort == "high"
 
 
@@ -243,7 +225,6 @@ def test_parse_harness_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
             [
                 "[harness]",
                 'agent = "codex"',
-                'prompt = "Fix the failing tests"',
                 "",
                 "[harness.env]",
                 'CI = "1"',
@@ -352,20 +333,15 @@ def test_cli_and_env_precedence_for_harness_fields(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        "\n".join(["[harness]", 'agent = "claude"', 'prompt = "from-local"']),
-        encoding="utf-8",
+        "\n".join(["[harness]", 'agent = "claude"']), encoding="utf-8"
     )
     monkeypatch.setenv("EVAL_BANANA_HARNESS_AGENT", "gemini")
 
     config = load_config(
-        cwd=str(project),
-        harness_agent="opencode",
-        harness_prompt="from-cli",
-        harness_reasoning_effort="high",
+        cwd=str(project), harness_agent="opencode", harness_reasoning_effort="high"
     )
 
     assert config.harness_agent == "opencode"
-    assert config.harness_prompt == "from-cli"
     assert config.harness_reasoning_effort == "high"
 
 
@@ -376,9 +352,7 @@ def test_reject_legacy_harness_skip_key(
     project = tmp_path / "project"
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
-    config_text = "\n".join(
-        ["[harness]", 'agent = "codex"', 'prompt = "Fix it"', "skip = true"]
-    )
+    config_text = "\n".join(["[harness]", 'agent = "codex"', "skip = true"])
     (project / ".eval-banana" / "config.toml").write_text(config_text, encoding="utf-8")
 
     with pytest.raises(SystemExit, match=r"\[harness\] skip was removed"):

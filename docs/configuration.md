@@ -46,21 +46,15 @@ Config values are resolved in this order (highest priority first):
 
 ## Harness configuration
 
-The harness drives an AI coding agent before checks run. Configure it in TOML or via CLI flags.
+The harness config selects the agent used by `harness_judge` checks.
 
 ### `[harness]` section
 
 | Key | Default | Env var | Description |
 |---|---|---|---|
 | `agent` | (none) | `EVAL_BANANA_HARNESS_AGENT` | Agent template name (e.g. `codex`, `claude`, `gemini`) |
-| `prompt` | (none) | `EVAL_BANANA_HARNESS_PROMPT` | Inline task prompt |
-| `prompt_file` | (none) | `EVAL_BANANA_HARNESS_PROMPT_FILE` | Path to prompt file (relative to project root) |
 | `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
 | `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
-
-Either `prompt` or `prompt_file` must be set when a harness agent is configured. They are mutually exclusive.
-
-Relative `prompt_file` paths resolve from the project root.
 
 ### `[harness.env]` section
 
@@ -140,10 +134,6 @@ ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
 ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
 ANTHROPIC_API_KEY = ""
 ```
-
-### Harness failure behavior
-
-If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. There is no opt-out — `harness_judge` checks require a harness, and a misconfigured harness is always treated as a failure.
 
 ### `harness_judge` requires a harness
 

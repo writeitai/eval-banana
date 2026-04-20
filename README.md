@@ -99,14 +99,7 @@ After installation, two CLI commands are available: `eval-banana` and `eb` (shor
 
 ## Harness configuration
 
-The harness drives an AI agent before checks run. Configure it via CLI flags or TOML.
-
-### CLI
-
-```bash
-eval-banana run --harness-agent codex --harness-prompt "Fix all failing tests"
-eval-banana run --harness-agent claude --harness-prompt-file prompts/task.md --harness-model claude-sonnet-4-6
-```
+`harness_judge` checks require a configured harness agent. Configure it via TOML or CLI flags.
 
 ### TOML
 
@@ -114,7 +107,6 @@ eval-banana run --harness-agent claude --harness-prompt-file prompts/task.md --h
 # .eval-banana/config.toml
 [harness]
 agent = "codex"
-prompt_file = "prompts/task.md"
 model = "gpt-5.4"
 # reasoning_effort = "high"
 ```
@@ -192,9 +184,7 @@ Options for run/list/validate:
   --cwd TEXT                    Working directory
 
 Harness options (run only):
-  --harness-agent TEXT          Agent CLI to run before checks
-  --harness-prompt TEXT         Task prompt for the agent
-  --harness-prompt-file PATH    File containing the task prompt
+  --harness-agent TEXT          Agent CLI used by harness_judge checks
   --harness-model TEXT          Model override for the agent
   --harness-reasoning-effort TEXT  Reasoning effort level
 ```
@@ -207,11 +197,6 @@ Each run creates a timestamped directory under the configured `output_dir`:
 .eval-banana/results/<run_id>/
   report.json       # Machine-readable full report
   report.md         # Human-readable Markdown report
-  harness/          # Harness worker artifacts (when configured)
-    prompt.txt      # Resolved prompt sent to the agent
-    stdout.txt      # Agent stdout
-    stderr.txt      # Agent stderr
-    result.json     # Harness result metadata
   checks/
     <check_id>.json       # Per-check result
     <check_id>.stdout.txt # Captured stdout (if any)
