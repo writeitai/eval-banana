@@ -63,6 +63,15 @@ instructions: |
 
 Requires a configured harness agent. Set `[harness] agent` in config or pass `--harness-agent`.
 
+## Inspiration
+
+Eval Banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
+
+- **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
+- **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
+
+The `harness_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
+
 ## Quick start
 
 ```bash
@@ -241,15 +250,6 @@ make fix          # Auto-fix lint + format
 make pyright      # Type check
 make all-check    # Lint + format + types + tests (matches CI)
 ```
-
-## Inspiration
-
-Eval Banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
-
-- **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
-- **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
-
-The `harness_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
 
 ## Contributing
 
