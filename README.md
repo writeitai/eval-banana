@@ -14,14 +14,12 @@ Aspect-based evaluation framework - deterministic checks + harness judges. Score
 
 Eval Banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `harness_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow.
-
 Two check types:
 
 | Type | Purpose | How it works |
 |---|---|---|
-| `deterministic` | File existence, content assertions, data validation | Runs a Python script via subprocess; exit 0 = pass |
-| `harness_judge` | Qualitative evaluation (coherence, accuracy, tone) | Sends target files + instructions to the harness agent; expects `{"score": 0\|1}` |
+| `deterministic` | Objective assertions (file existence, content, structure) | Runs a Python script via subprocess; exit 0 = pass |
+| `harness_judge` | LLM-as-a-judge (coherence, accuracy, tone) | Invokes the configured AI agent to score target files; expects `{"score": 0\|1}` |
 
 ## Quick start
 
