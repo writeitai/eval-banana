@@ -9,7 +9,7 @@ The config file is discovered by walking upward from the current directory. This
 ## Creating config
 
 ```bash
-eval-banana init          # Create project config + example check
+eval-banana init          # Create project config
 eval-banana init --force   # Overwrite existing config
 ```
 

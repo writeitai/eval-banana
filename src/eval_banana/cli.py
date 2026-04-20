@@ -18,26 +18,6 @@ from eval_banana.runner import run_checks
 logger = logging.getLogger(__name__)
 _BUNDLED_SKILL_CHOICES = discover_bundled_skills()
 
-_EXAMPLE_CHECK_TEXT = """schema_version: 1
-id: example_check
-type: deterministic
-description: Example check -- verifies that a README file exists.
-target_paths:
-  - README.md
-script: |
-  import json
-  import sys
-  from pathlib import Path
-
-  context = json.loads(Path(sys.argv[1]).read_text())
-  for item in context["targets"]:
-      p = Path(item["resolved_path"])
-      if not p.exists():
-          print(f"Missing: {item['path']}", file=sys.stderr)
-          sys.exit(1)
-  print("All target files exist.")
-"""
-
 
 def _configure_logging(*, verbose: bool = False) -> None:
     level = logging.DEBUG if verbose else logging.WARNING
@@ -63,13 +43,6 @@ def init(force: bool) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(config_text, encoding="utf-8")
     click.echo(f"Wrote {config_path}")
-
-    checks_dir = Path.cwd() / "eval_checks"
-    checks_dir.mkdir(parents=True, exist_ok=True)
-    example_check_path = checks_dir / "example_check.yaml"
-    if not example_check_path.exists() or force:
-        example_check_path.write_text(_EXAMPLE_CHECK_TEXT, encoding="utf-8")
-        click.echo(f"Wrote {example_check_path}")
 
 
 @main.command(name="run")

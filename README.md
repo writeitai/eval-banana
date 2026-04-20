@@ -67,7 +67,7 @@ Requires a configured harness agent. Set `[harness] agent` in config or pass `--
 # Install
 uv sync
 
-# Initialize project config and example check
+# Initialize project config
 eb init
 
 # Run all discovered checks
@@ -169,7 +169,7 @@ Create it with `eb init`.
 ## CLI reference
 
 ```
-eb init [--force]                Create config + example check
+eb init [--force]                Create project config
 eb run [OPTIONS]                  Run all discovered checks
 eb list [OPTIONS]                 List discovered checks
 eb validate [OPTIONS]             Validate YAML without running

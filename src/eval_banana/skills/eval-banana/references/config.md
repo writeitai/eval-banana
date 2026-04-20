@@ -16,7 +16,7 @@ Complete reference for eval-banana configuration: TOML layout, precedence rules,
 Config lives at `.eval-banana/config.toml` in the project directory. It is found by walking upward from the current directory, so `eval-banana` works from any subdirectory.
 
 ```bash
-eval-banana init          # Create config + eval_checks/example_check.yaml
+eval-banana init          # Create project config
 eval-banana init --force  # Overwrite existing
 ```
 
