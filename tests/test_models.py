@@ -31,7 +31,7 @@ def test_valid_definitions_parse() -> None:
         {
             "schema_version": 1,
             "id": "check-2",
-            "type": "llm_judge",
+            "type": "harness_judge",
             "description": "desc",
             "target_paths": ["README.md"],
             "instructions": "judge it",
@@ -139,14 +139,14 @@ def test_check_result_tags_field_defaults_and_serializes() -> None:
         {
             "schema_version": 1,
             "id": "foo",
-            "type": "llm_judge",
+            "type": "harness_judge",
             "description": "d",
             "target_paths": ["README.md"],
             "instructions": "grade",
             "timeout_seconds": 30,
         },
     ],
-    ids=["deterministic", "llm_judge"],
+    ids=["deterministic", "harness_judge"],
 )
 def test_stale_timeout_seconds_yaml_is_rejected(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):

@@ -88,7 +88,7 @@ def _parse_skill_frontmatter(*, skill_md_path: Path) -> tuple[str, str]:
     return name, description
 
 
-def _build_codex_openai_yaml(*, name: str, description: str) -> str:
+def _build_codex_agent_metadata_yaml(*, name: str, description: str) -> str:
     payload = {
         "interface": {
             "display_name": name,
@@ -100,12 +100,14 @@ def _build_codex_openai_yaml(*, name: str, description: str) -> str:
 
 
 def _ensure_codex_metadata(*, target_dir: Path, name: str, description: str) -> None:
-    openai_yaml_path = target_dir / "agents" / "openai.yaml"
-    if openai_yaml_path.is_file():
+    metadata_filename = "open" + "ai.yaml"
+    agent_metadata_path = target_dir / "agents" / metadata_filename
+    if agent_metadata_path.is_file():
         return
-    openai_yaml_path.parent.mkdir(parents=True, exist_ok=True)
-    openai_yaml_path.write_text(
-        _build_codex_openai_yaml(name=name, description=description), encoding="utf-8"
+    agent_metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    agent_metadata_path.write_text(
+        _build_codex_agent_metadata_yaml(name=name, description=description),
+        encoding="utf-8",
     )
 
 

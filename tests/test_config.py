@@ -45,7 +45,7 @@ def test_env_var_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        '[core]\noutput_dir = "local-results"\n[llm]\nprovider = "codex"\n',
+        '[core]\noutput_dir = "local-results"\nllm_max_input_chars = 500\n',
         encoding="utf-8",
     )
     monkeypatch.setenv("EVAL_BANANA_OUTPUT_DIR", "env-results")
@@ -53,7 +53,7 @@ def test_env_var_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     config = load_config(cwd=str(project))
 
     assert config.output_dir == str((project / "env-results").resolve())
-    assert config.provider == "codex"
+    assert config.llm_max_input_chars == 500
 
 
 def test_relative_output_dir_resolves_from_project_root(
@@ -118,24 +118,6 @@ def test_unknown_harness_key_raises(
         load_config(cwd=str(project))
 
 
-def test_provider_defaults_normalization_for_codex(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    home = tmp_path / "home"
-    project = tmp_path / "project"
-    (project / ".eval-banana").mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(home))
-    (project / ".eval-banana" / "config.toml").write_text(
-        '[llm]\nprovider = "codex"\n', encoding="utf-8"
-    )
-
-    config = load_config(cwd=str(project))
-
-    assert config.provider == "codex"
-    assert config.model == "gpt-5.4"
-    assert config.api_base == ""
-
-
 def test_toml_mapping_table_is_applied(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -151,12 +133,11 @@ def test_toml_mapping_table_is_applied(
                 "pass_threshold = 0.7",
                 "llm_max_input_chars = 44",
                 "",
-                "[llm]",
-                'provider = "openai_compat"',
-                'model = "my-model"',
-                'api_base = "https://example.com/v1"',
-                'api_key = "secret"',
-                'codex_auth_path = "/tmp/auth.json"',
+                "[harness]",
+                'agent = "codex"',
+                'prompt = "Fix the failing tests"',
+                'model = "gpt-5.4"',
+                'reasoning_effort = "medium"',
                 "",
                 "[discovery]",
                 'exclude_dirs = ["one", "two"]',
@@ -170,12 +151,25 @@ def test_toml_mapping_table_is_applied(
     assert config.output_dir == str((project / "out").resolve())
     assert config.pass_threshold == 0.7
     assert config.llm_max_input_chars == 44
-    assert config.provider == "openai_compat"
-    assert config.model == "my-model"
-    assert config.api_base == "https://example.com/v1"
-    assert config.api_key == "secret"
-    assert config.codex_auth_path == "/tmp/auth.json"
+    assert config.harness_agent == "codex"
+    assert config.harness_prompt == "Fix the failing tests"
+    assert config.harness_model == "gpt-5.4"
+    assert config.harness_reasoning_effort == "medium"
     assert config.discovery_exclude_dirs == ["one", "two"]
+
+
+def test_legacy_llm_section_raises_migration_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    config_path = project / ".eval-banana" / "config.toml"
+    config_path.write_text('[llm]\nprovider = "codex"\n', encoding="utf-8")
+
+    with pytest.raises(SystemExit, match=r"Legacy \[llm\] section was removed"):
+        load_config(cwd=str(project))
 
 
 def test_stale_timeout_toml_is_silently_ignored(

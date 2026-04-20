@@ -12,7 +12,7 @@ from eval_banana.harness.skills import AGENT_SKILL_TARGETS
 from eval_banana.harness.skills import discover_bundled_skills
 from eval_banana.harness.skills import install_bundled_skills
 from eval_banana.loader import load_check_definitions
-from eval_banana.runner import require_harness_for_llm_judge
+from eval_banana.runner import require_harness_for_harness_judge
 from eval_banana.runner import run_checks
 
 logger = logging.getLogger(__name__)
@@ -79,11 +79,6 @@ def init(force: bool) -> None:
     "--tag", "tags", multiple=True, help="Filter checks by tag (repeatable, OR logic)"
 )
 @click.option("--output-dir")
-@click.option("--provider")
-@click.option("--model")
-@click.option("--api-base")
-@click.option("--api-key")
-@click.option("--codex-auth-path")
 @click.option("--pass-threshold", type=float)
 @click.option("--harness-agent")
 @click.option("--harness-prompt")
@@ -97,11 +92,6 @@ def run_cli(
     check_id: str | None,
     tags: tuple[str, ...],
     output_dir: str | None,
-    provider: str | None,
-    model: str | None,
-    api_base: str | None,
-    api_key: str | None,
-    codex_auth_path: str | None,
     pass_threshold: float | None,
     harness_agent: str | None,
     harness_prompt: str | None,
@@ -114,11 +104,6 @@ def run_cli(
     _configure_logging(verbose=verbose)
     config = load_config(
         output_dir=output_dir,
-        provider=provider,
-        model=model,
-        api_base=api_base,
-        api_key=api_key,
-        codex_auth_path=codex_auth_path,
         pass_threshold=pass_threshold,
         harness_agent=harness_agent,
         harness_prompt=harness_prompt,
@@ -195,7 +180,7 @@ def validate_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
             exclude_dirs=config.discovery_exclude_dirs,
         )
         loaded = load_check_definitions(paths=paths)
-        require_harness_for_llm_judge(config=config, selected_checks=loaded)
+        require_harness_for_harness_judge(config=config, selected_checks=loaded)
     except (SystemExit, ValueError) as exc:
         click.echo(str(exc), err=True)
         raise SystemExit(1) from exc

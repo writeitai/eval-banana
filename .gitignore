@@ -31,3 +31,5 @@ _claude_prompts
 _feature_planning
 
 .mcp.json
+.eval-banana/config.toml
+eval_checks/

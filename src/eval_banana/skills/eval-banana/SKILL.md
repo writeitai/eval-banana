@@ -1,6 +1,6 @@
 ---
 name: eval-banana
-description: Guide for using eval-banana, a lightweight aspect-based evaluation framework with YAML check definitions. Use when the user is working in a project with `eval_checks/` directories, wants to write or debug YAML eval definitions, needs to score LLM outputs or workflow behavior with pass/fail checks, is running `eval-banana` / `eb` CLI commands, is setting up eval-banana in a new project, or needs to configure OpenRouter/OpenAI/Codex credentials for LLM judge checks. Covers deterministic checks (subprocess scripts), LLM judge checks (model-graded), auto-discovery rules, context.json contract, config precedence, and report interpretation.
+description: Guide for using eval-banana, a lightweight aspect-based evaluation framework with YAML check definitions. Use when the user is working in a project with `eval_checks/` directories, wants to write or debug YAML eval definitions, needs to score LLM outputs or workflow behavior with pass/fail checks, is running `eval-banana` / `eb` CLI commands, or is setting up eval-banana in a new project. Covers deterministic checks, harness_judge checks, auto-discovery rules, context.json contract, config precedence, and report interpretation.
 ---
 
 # eval-banana
@@ -14,7 +14,7 @@ eval-banana is a lightweight evaluation framework. Check definitions live in YAM
 | Type | Use when | Mechanism |
 |---|---|---|
 | `deterministic` | Asserting file content, structure, or values objectively | Python script via subprocess; exit 0 = pass, non-zero = fail |
-| `llm_judge` | Evaluating qualitative properties (coherence, tone, factuality) | LLM returns `{"score": 0\|1, "reason": "..."}` |
+| `harness_judge` | Evaluating qualitative properties (coherence, tone, factuality) | Harness agent returns `{"score": 0\|1, "reason": "..."}` |
 
 **Default to `deterministic`** when the condition can be checked with code — it's the cheapest, most reliable, and requires no credentials.
 
@@ -33,10 +33,10 @@ Every check file starts with these fields regardless of type:
 ```yaml
 schema_version: 1            # Always 1. Required. No default.
 id: my_check_id              # Unique across the project. Pattern: [a-zA-Z0-9_-]+
-type: deterministic          # One of: deterministic, llm_judge
+type: deterministic          # One of: deterministic, harness_judge
 description: Human-readable  # Required. Non-empty.
 target_paths:                # Files/dirs the check operates on. Resolved from project_root.
-  - path/to/file.json        # Optional for deterministic; required (non-empty) for llm_judge.
+  - path/to/file.json        # Optional for deterministic; required (non-empty) for harness_judge.
 tags: [fast, critical]       # Optional list of free-form tags.
 ```
 
@@ -103,14 +103,14 @@ Key points:
 - `AssertionError` or any uncaught exception → failed (non-zero exit)
 - `FileNotFoundError` on the script itself → error
 
-## Writing an `llm_judge` check
+## Writing a `harness_judge` check
 
-Sends target file content + instructions to an LLM. The LLM must respond with JSON: `{"score": 0|1, "reason": "one sentence"}`.
+Sends target file content + instructions to the configured harness agent. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`.
 
 ```yaml
 schema_version: 1
 id: readme_explains_install
-type: llm_judge
+type: harness_judge
 description: README gives a new user enough info to install the package.
 target_paths:
   - README.md
@@ -129,15 +129,8 @@ Guidelines for good instructions:
 - Do not ask for scores outside {0, 1} — the parser rejects anything else as `error`.
 
 Optional fields:
-- `model: openai/gpt-4.1` — override the default LLM model for this one check.
+- `model: gpt-5.4` — override the default harness model for this one check.
 - Multiple `target_paths` — all files are concatenated with separators in the prompt.
-
-### Credentials (provider-aware, safe)
-
-- **OpenRouter (default)**: set `OPENROUTER_API_KEY`. Never sends this key to OpenAI.
-- **OpenAI direct**: set `api_base = "https://api.openai.com/v1"` in config, then `OPENAI_API_KEY`. Never sends this key to OpenRouter.
-- **Codex** (local ChatGPT subscription): run `codex login`, then `eval-banana run --provider codex`. Backend URL is hardcoded; `api_base` has no effect for Codex.
-- **Missing credentials** → per-check `error` result (not silent skip). Other check types continue running.
 
 ## Auto-discovery rules
 
@@ -170,7 +163,6 @@ eval-banana run --check-id my_check    # Run one check; relaxed validation of si
 eval-banana run --check-dir path/      # Only scan this directory
 eval-banana run --verbose              # Debug logging
 eval-banana run --pass-threshold 0.8   # Override pass ratio
-eval-banana run --provider codex       # Force provider for LLM checks
 eval-banana list                       # Discover + print checks without running
 eval-banana validate                   # Validate YAML without executing anything
 eval-banana init [--force]  # Create config + example check
@@ -210,7 +202,7 @@ Exit code: 0 on `run_passed`, 1 otherwise. Usable directly in CI.
   - "no TODO comments in src/"
   - "the CSV has N rows with these columns"
 
-- **`llm_judge`** — the condition is subjective or needs language understanding:
+- **`harness_judge`** — the condition is subjective or needs language understanding:
   - "the error message is helpful to end users"
   - "the generated summary captures the key points"
   - "the tone is professional and friendly"
@@ -224,7 +216,7 @@ Exit code: 0 on `run_passed`, 1 otherwise. Usable directly in CI.
 - **Using `script:` AND `script_path:`** — exactly one must be set, never both.
 - **Putting a shell string in `command:`** — must be a list, e.g. `["pytest", "-q"]`, never `"pytest -q"`.
 - **Duplicate IDs across files** — fatal. Grep for the ID before adding a new check.
-- **Expecting silent skip on missing LLM credentials** — eval-banana always returns an `error` result, never skips.
+- **Expecting judge checks to work without a harness** — configure `[harness] agent` or pass `--harness-agent`.
 - **Assuming `cwd` is where you invoked `eval-banana`** — deterministic scripts run with `cwd = project_root`.
 - **LLM judge returns prose instead of JSON** — the runner requires strict `{"score": 0|1, "reason": "..."}`. Tell the LLM to respond with JSON only.
 
@@ -234,4 +226,4 @@ For deeper detail, read these as needed:
 
 - **`references/yaml-schema.md`** — Every field for every check type, validation rules, and edge cases. Read when writing a check with unusual requirements or debugging a validation error.
 - **`references/examples.md`** — Gallery of real-world check patterns (JSON validation, test runners, linters, LLM tone checks, UI flows). Read when looking for a template matching the current use case.
-- **`references/config.md`** — Full TOML config reference, precedence rules, provider-specific auth setup, and environment variable list. Read when configuring eval-banana for a new project or switching providers.
+- **`references/config.md`** — Full TOML config reference, precedence rules, harness settings, and environment variable list. Read when configuring eval-banana for a new project.

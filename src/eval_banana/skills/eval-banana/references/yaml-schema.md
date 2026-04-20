@@ -6,7 +6,7 @@ Complete field reference for eval-banana check definitions. Each check file defi
 
 - Common fields (all check types)
 - `deterministic` fields
-- `llm_judge` fields
+- `harness_judge` fields
 - Validation rules
 - Error messages and what they mean
 
@@ -16,9 +16,9 @@ Complete field reference for eval-banana check definitions. Each check file defi
 |---|---|---|---|---|
 | `schema_version` | int | **Yes** | Must equal `1` | No default. Omitting → validation error. |
 | `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`, non-empty after stripping | Must be unique across ALL discovered check files |
-| `type` | string | **Yes** | One of `deterministic`, `llm_judge` | Discriminator for the Pydantic union |
+| `type` | string | **Yes** | One of `deterministic`, `harness_judge` | Discriminator for the Pydantic union |
 | `description` | string | **Yes** | Non-empty after stripping | Human-readable, shown in reports |
-| `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Required non-empty for `llm_judge`. |
+| `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Required non-empty for `harness_judge`. |
 | `tags` | list[string] | No | — | Free-form metadata. Not yet used for filtering but allowed. |
 
 `extra="forbid"` is enabled — any unknown field fails validation.
@@ -74,21 +74,21 @@ Passed as `sys.argv[1]`. Always this exact shape:
 
 `stdout` and `stderr` are captured on the `CheckResult` and written to `<output_dir>/checks/<check_id>.stdout.txt` / `.stderr.txt` (only if non-empty).
 
-## `llm_judge` check
+## `harness_judge` check
 
 Type-specific fields:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `instructions` | string | **Yes** | Non-empty. The evaluation prompt sent to the LLM. |
-| `model` | string | No | Override `llm.model` for this check only |
+| `instructions` | string | **Yes** | Non-empty. The evaluation prompt sent to the harness agent. |
+| `model` | string | No | Override `harness.model` for this check only |
 
-**Constraint**: `target_paths` must be non-empty for LLM judge checks (otherwise the LLM has nothing to evaluate).
+**Constraint**: `target_paths` must be non-empty for harness_judge checks.
 
 ### Prompt shape
 
 The runner builds a prompt with:
-1. A fixed system message asking for `{"score": 0|1, "reason": "..."}` JSON output
+1. A fixed instruction asking for `{"score": 0|1, "reason": "..."}` JSON output
 2. The `description` as context
 3. The `instructions` as the evaluation criterion
 4. Each target file's content, separated by `--- BEGIN FILE: <path> ---` / `--- END FILE: <path> ---`
@@ -111,14 +111,8 @@ The runner builds a prompt with:
 | Valid JSON, `score == 1` | `passed` | 1 |
 | Valid JSON, `score == 0` | `failed` | 0 |
 | Malformed JSON or score outside {0,1} | `error` | 0 |
-| Missing credentials | `error` | 0 |
-| API error (any kind) | `error` | 0 |
+| Harness subprocess spawn/timeout error | `error` | 0 |
 | Missing / unreadable target file | `error` | 0 |
-
-### Provider routing
-
-- `provider = "openai_compat"` (default): uses OpenAI SDK with `api_base` URL
-- `provider = "codex"`: uses hardcoded ChatGPT backend URL (`https://chatgpt.com/backend-api`), ignores `api_base`
 
 ## Validation rules summary
 
@@ -132,7 +126,7 @@ The loader raises a `ValueError` naming the file path for any of these:
 - Unknown top-level field (blocked by `extra="forbid"`)
 - `type` not one of the allowed values
 - `script` AND `script_path` both set, or neither set (deterministic)
-- `instructions` empty, or `target_paths` empty (llm_judge)
+- `instructions` empty, or `target_paths` empty (harness_judge)
 
 The runner raises `SystemExit` for:
 - Duplicate check IDs across files (shows both file paths)
@@ -147,8 +141,8 @@ The runner raises `SystemExit` for:
 | `Extra inputs are not permitted` | Unknown field | Remove or check spelling |
 | `script and script_path are mutually exclusive` | Both set | Remove one |
 | `deterministic check must have script or script_path` | Neither set | Add one |
-| `instructions must be non-empty` | Empty or missing on llm_judge | Add instructions |
-| `target_paths must be non-empty` | Empty list on llm_judge | Add at least one target |
+| `instructions must be non-empty` | Empty or missing on harness_judge | Add instructions |
+| `target_paths must be non-empty` | Empty list on harness_judge | Add at least one target |
 | `command must be a non-empty list` | Empty list or not a list | Use list syntax, non-empty |
 | `id does not match pattern` | Invalid chars (dots, spaces, etc.) | Use only `[a-zA-Z0-9_-]` |
 | `Duplicate check id 'X' found in: ...` | Same id in 2+ files | Rename one |

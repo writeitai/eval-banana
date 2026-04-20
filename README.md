@@ -4,7 +4,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-Aspect-based evaluation framework - deterministic checks + LLM judges. Score anything (agentic outputs, workflows, banana!) with simple YAML check definitions.
+Aspect-based evaluation framework - deterministic checks + harness judges. Score anything (agentic outputs, workflows, banana!) with simple YAML check definitions.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/writeitai/eval-banana/main/docs/images/logo.png" alt="Eval Banana logo" width="400">
@@ -14,14 +14,14 @@ Aspect-based evaluation framework - deterministic checks + LLM judges. Score any
 
 Eval Banana discovers YAML check definitions from `eval_checks/` directories, runs them, and produces a report. Every check scores 0 or 1 with equal weight.
 
-Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `llm_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow.
+Eval Banana can also drive an AI coding agent (Claude Code, Codex CLI, Gemini CLI, etc.) as a **harness** before running checks. The harness executes a task prompt, then eval-banana scores the resulting workspace. For `harness_judge` checks — which evaluate qualitative aspects of generated outputs — this harness → judge pairing is the typical end-to-end flow.
 
 Two check types:
 
 | Type | Purpose | How it works |
 |---|---|---|
 | `deterministic` | File existence, content assertions, data validation | Runs a Python script via subprocess; exit 0 = pass |
-| `llm_judge` | Qualitative evaluation (coherence, accuracy, tone) | Sends target files + instructions to an LLM; expects `{"score": 0\|1}` |
+| `harness_judge` | Qualitative evaluation (coherence, accuracy, tone) | Sends target files + instructions to the harness agent; expects `{"score": 0\|1}` |
 
 ## Quick start
 
@@ -93,12 +93,12 @@ The script receives a `context.json` path as `sys.argv[1]` with this shape:
 }
 ```
 
-### LLM judge check
+### Harness judge check
 
 ```yaml
 schema_version: 1
 id: summary_is_accurate
-type: llm_judge
+type: harness_judge
 description: The generated summary accurately reflects source data.
 target_paths:
   - summary.txt
@@ -108,7 +108,7 @@ instructions: |
   Score 1 if accurate, 0 if it contains fabricated claims.
 ```
 
-Requires an API key. Set `OPENROUTER_API_KEY` or configure in `.eval-banana/config.toml`.
+Requires a configured harness agent. Set `[harness] agent` in config or pass `--harness-agent`.
 
 ## Harness support
 
@@ -144,7 +144,7 @@ model = "gpt-5.4"
 - The harness runs once before any checks execute.
 - Install bundled skills explicitly with `eb install` before harness-driven work in a target project.
 - If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
-- If any `llm_judge` check is present, a harness must be configured. eval-banana aborts early with a configuration error otherwise.
+- If any `harness_judge` check is present, a harness must be configured. eval-banana aborts early with a configuration error otherwise.
 - Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
 
 ### Skills
@@ -209,11 +209,10 @@ Create it with `eval-banana init`.
 
 ### Config precedence (highest to lowest)
 
-1. CLI arguments (`--model`, `--provider`, etc.)
+1. CLI arguments (`--output-dir`, `--harness-model`, etc.)
 2. Environment variables (`EVAL_BANANA_*`)
-3. `OPENROUTER_API_KEY` / `OPENAI_API_KEY` (provider-aware)
-4. Project config (`.eval-banana/config.toml`)
-5. Built-in defaults
+3. Project config (`.eval-banana/config.toml`)
+4. Built-in defaults
 
 ### Key settings
 
@@ -221,28 +220,9 @@ Create it with `eval-banana init`.
 |---|---|---|
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` |
-| `provider` | `openai_compat` | `EVAL_BANANA_PROVIDER` |
-| `model` | `openai/gpt-5.4` | `EVAL_BANANA_MODEL` |
-| `api_base` | `https://openrouter.ai/api/v1` | `EVAL_BANANA_API_BASE` |
-
-### LLM provider setup
-
-**OpenRouter** (default):
-```bash
-export OPENROUTER_API_KEY=your-key
-```
-
-**OpenAI direct**:
-```bash
-export EVAL_BANANA_API_BASE=https://api.openai.com/v1
-export OPENAI_API_KEY=your-key
-```
-
-**Codex** (local ChatGPT subscription):
-```bash
-# Run `codex login` first, then:
-eval-banana run --provider codex
-```
+| `llm_max_input_chars` | `0` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` |
+| `harness.agent` | unset | `EVAL_BANANA_HARNESS_AGENT` |
+| `harness.model` | unset | `EVAL_BANANA_HARNESS_MODEL` |
 
 ## CLI reference
 
@@ -258,8 +238,6 @@ Options for run/list/validate:
   --check-dir PATH              Scan only this directory
   --check-id TEXT               Run only this check ID
   --output-dir TEXT             Override output directory
-  --provider TEXT               LLM provider (openai_compat or codex)
-  --model TEXT                  LLM model name
   --pass-threshold FLOAT        Minimum pass ratio (0.0-1.0)
   --verbose                     Enable debug logging
   --cwd TEXT                    Working directory
@@ -309,7 +287,7 @@ eval-banana's binary 0/1 scoring philosophy draws directly on two earlier bodies
 - **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
 - **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
 
-The `llm_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
+The `harness_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
 
 ## Contributing
 
