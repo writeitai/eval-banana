@@ -665,7 +665,7 @@ def test_failed_harness_aborts_checks(
     assert report.checks == []
 
 
-def test_llm_judge_without_harness_aborts_before_runner_is_invoked(
+def test_harness_judge_without_harness_aborts_before_runner_is_invoked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -676,7 +676,7 @@ def test_llm_judge_without_harness_aborts_before_runner_is_invoked(
             [
                 "schema_version: 1",
                 "id: judge_check",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -693,13 +693,13 @@ def test_llm_judge_without_harness_aborts_before_runner_is_invoked(
         run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
 
     message = str(excinfo.value)
-    assert "llm_judge check requires a harness" in message
+    assert "harness_judge check requires a harness" in message
     assert str(judge_path) in message
     assert "[harness] agent" in message
     assert "--harness-agent" in message
 
 
-def test_llm_judge_with_harness_configured_proceeds(
+def test_harness_judge_with_harness_configured_proceeds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     make_config: Callable[..., Config],
@@ -713,7 +713,7 @@ def test_llm_judge_with_harness_configured_proceeds(
             [
                 "schema_version: 1",
                 "id: judge_check",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -736,7 +736,7 @@ def test_llm_judge_with_harness_configured_proceeds(
         called["runner"] = True
         return CheckResult(
             check_id="judge_check",
-            check_type=CheckType.llm_judge,
+            check_type=CheckType.harness_judge,
             description="desc",
             source_path=str(judge_path),
             status=CheckStatus.passed,
@@ -875,7 +875,7 @@ def test_check_id_targeted_runs_still_perform_harness_first(
     assert events == ["harness", "check"]
 
 
-def test_check_id_targeting_deterministic_ignores_unrelated_llm_judge(
+def test_check_id_targeting_deterministic_ignores_unrelated_harness_judge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -898,7 +898,7 @@ def test_check_id_targeting_deterministic_ignores_unrelated_llm_judge(
             [
                 "schema_version: 1",
                 "id: b",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -940,7 +940,7 @@ def test_check_id_targeting_deterministic_ignores_unrelated_llm_judge(
     assert report.checks[0].check_id == "a"
 
 
-def test_check_id_targeting_llm_judge_without_harness_fails(
+def test_check_id_targeting_harness_judge_without_harness_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -962,7 +962,7 @@ def test_check_id_targeting_llm_judge_without_harness_fails(
             [
                 "schema_version: 1",
                 "id: b",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -975,13 +975,13 @@ def test_check_id_targeting_llm_judge_without_harness_fails(
         "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
     )
 
-    with pytest.raises(SystemExit, match="llm_judge check requires a harness"):
+    with pytest.raises(SystemExit, match="harness_judge check requires a harness"):
         run_checks(
             config=make_config(project_root=tmp_path, cwd=str(tmp_path)), check_id="b"
         )
 
 
-def test_mixed_checks_without_harness_aborts_on_llm_judge(
+def test_mixed_checks_without_harness_aborts_on_harness_judge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -1003,7 +1003,7 @@ def test_mixed_checks_without_harness_aborts_on_llm_judge(
             [
                 "schema_version: 1",
                 "id: b_judge",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -1019,11 +1019,11 @@ def test_mixed_checks_without_harness_aborts_on_llm_judge(
     with pytest.raises(SystemExit) as excinfo:
         run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
 
-    assert "llm_judge check requires a harness" in str(excinfo.value)
+    assert "harness_judge check requires a harness" in str(excinfo.value)
     assert str(checks_dir / "b_judge.yaml") in str(excinfo.value)
 
 
-def test_multiple_llm_judge_without_harness_reports_sorted_first(
+def test_multiple_harness_judge_without_harness_reports_sorted_first(
     tmp_path: Path, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -1034,7 +1034,7 @@ def test_multiple_llm_judge_without_harness_reports_sorted_first(
                 [
                     "schema_version: 1",
                     f"id: {check_id}",
-                    "type: llm_judge",
+                    "type: harness_judge",
                     "description: desc",
                     "target_paths:",
                     "  - README.md",
@@ -1048,6 +1048,6 @@ def test_multiple_llm_judge_without_harness_reports_sorted_first(
         run_checks(config=make_config(project_root=tmp_path, harness_agent=None))
 
     message = str(excinfo.value)
-    assert "llm_judge check requires a harness" in message
+    assert "harness_judge check requires a harness" in message
     assert str(checks_dir / "a_first.yaml") in message
     assert str(checks_dir / "z_last.yaml") not in message

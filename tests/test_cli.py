@@ -80,16 +80,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
             "run",
             "--output-dir",
             "out",
-            "--provider",
-            "codex",
-            "--model",
-            "m",
-            "--api-base",
-            "https://example.com",
-            "--api-key",
-            "k",
-            "--codex-auth-path",
-            "/tmp/auth.json",
             "--pass-threshold",
             "0.5",
             "--harness-agent",
@@ -107,7 +97,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
 
     assert result.exit_code == 0
     assert captured["output_dir"] == "out"
-    assert captured["provider"] == "codex"
     assert captured["harness_agent"] == "codex"
     assert captured["harness_prompt"] == "Fix it"
     assert captured["harness_prompt_file"] is None
@@ -326,7 +315,7 @@ def test_validate_exit_code_zero_and_one(
     assert failure.exit_code == 1
 
 
-def test_validate_hard_fails_when_llm_judge_has_no_harness(
+def test_validate_hard_fails_when_harness_judge_has_no_harness(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -337,7 +326,7 @@ def test_validate_hard_fails_when_llm_judge_has_no_harness(
             [
                 "schema_version: 1",
                 "id: judge_check",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -355,11 +344,11 @@ def test_validate_hard_fails_when_llm_judge_has_no_harness(
     result = runner.invoke(main, ["validate", "--cwd", str(tmp_path)])
 
     assert result.exit_code == 1
-    assert "llm_judge check requires a harness" in result.output
+    assert "harness_judge check requires a harness" in result.output
     assert str(judge_path) in result.output
 
 
-def test_validate_succeeds_when_harness_configured_for_llm_judge(
+def test_validate_succeeds_when_harness_configured_for_harness_judge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     checks_dir = tmp_path / "eval_checks"
@@ -369,7 +358,7 @@ def test_validate_succeeds_when_harness_configured_for_llm_judge(
             [
                 "schema_version: 1",
                 "id: judge_check",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",
@@ -383,9 +372,7 @@ def test_validate_succeeds_when_harness_configured_for_llm_judge(
         "eval_banana.cli.load_config",
         lambda **kwargs: make_config(project_root=tmp_path, harness_agent="codex"),
     )
-    # Spy on the new harness-gate helper so we can prove it actually fired
-    # in the success path — not just that validate happened to exit 0.
-    from eval_banana.runner import require_harness_for_llm_judge as real_gate
+    from eval_banana.runner import require_harness_for_harness_judge as real_gate
 
     gate_calls: list[tuple[object, ...]] = []
 
@@ -393,7 +380,7 @@ def test_validate_succeeds_when_harness_configured_for_llm_judge(
         gate_calls.append((config.harness_agent, len(selected_checks)))
         real_gate(config=config, selected_checks=selected_checks)  # type: ignore[arg-type]
 
-    monkeypatch.setattr("eval_banana.cli.require_harness_for_llm_judge", spy)
+    monkeypatch.setattr("eval_banana.cli.require_harness_for_harness_judge", spy)
 
     result = runner.invoke(main, ["validate", "--cwd", str(tmp_path)])
 
@@ -412,7 +399,7 @@ def test_list_does_not_enforce_harness_rule(
             [
                 "schema_version: 1",
                 "id: judge_check",
-                "type: llm_judge",
+                "type: harness_judge",
                 "description: desc",
                 "target_paths:",
                 "  - README.md",

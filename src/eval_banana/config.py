@@ -27,38 +27,12 @@ output_dir = ".eval-banana/results"
 # Env: EVAL_BANANA_PASS_THRESHOLD
 pass_threshold = 1.0
 
-# Maximum characters of each target file sent to llm_judge checks. Content
+# Maximum characters of each target file sent to harness_judge checks. Content
 # beyond this limit is truncated with a [TRUNCATED] marker.
 # Set to 0 (the default) to disable truncation entirely — the full file
-# content is sent to the LLM regardless of size.
+# content is sent to the harness agent regardless of size.
 # Env: EVAL_BANANA_LLM_MAX_INPUT_CHARS
 llm_max_input_chars = 0
-"""
-
-_LLM_SECTION_COMMON = """\
-[llm]
-# LLM provider used by llm_judge checks.
-#   "openai_compat" - OpenAI-compatible HTTP API (OpenRouter, OpenAI direct,
-#                     local Ollama, vLLM, etc.). Uses `api_base` + `api_key`.
-#   "codex"         - Local ChatGPT subscription via `codex login`. Hardcoded
-#                     backend; `api_base` is ignored in this mode.
-# Env: EVAL_BANANA_PROVIDER
-provider = "openai_compat"
-
-# Model identifier. Format is provider-specific:
-#   OpenRouter: "<vendor>/<model>" (e.g. "openai/gpt-5.4", "anthropic/claude-sonnet-4-6")
-#   OpenAI:     "<model>"          (e.g. "gpt-5.4")
-#   Codex:      "<model>"          (e.g. "gpt-5.4")
-# Env: EVAL_BANANA_MODEL
-model = "openai/gpt-5.4"
-
-# Base URL for the openai_compat provider. Common values:
-#   https://openrouter.ai/api/v1  (default)
-#   https://api.openai.com/v1     (OpenAI direct)
-#   http://localhost:11434/v1     (local Ollama)
-# Ignored when provider = "codex".
-# Env: EVAL_BANANA_API_BASE
-api_base = "https://openrouter.ai/api/v1"
 """
 
 
@@ -99,11 +73,8 @@ exclude_dirs = [".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycac
 
 _LOCAL_CONFIG_TEXT = f"""\
 # Project-level eval-banana configuration.
-# API keys should be set via environment variables, not in this file.
 
 {_CORE_SECTION}
-
-{_LLM_SECTION_COMMON}
 
 {_HARNESS_TEMPLATE}
 
@@ -114,11 +85,6 @@ _LOCAL_CONFIG_TEXT = f"""\
 class Config:
     output_dir: str = ".eval-banana/results"
     pass_threshold: float = 1.0
-    provider: str = "openai_compat"
-    model: str = "openai/gpt-5.4"
-    api_base: str = "https://openrouter.ai/api/v1"
-    api_key: str = ""
-    codex_auth_path: str = ""
     llm_max_input_chars: int = 0
     discovery_exclude_dirs: list[str] = field(
         default_factory=lambda: [
@@ -146,10 +112,12 @@ class Config:
 
 
 def get_local_config_template() -> str:
+    """Return the TOML template text written by ``eval-banana init``."""
     return _LOCAL_CONFIG_TEXT
 
 
 def find_local_config(start: Path | None = None) -> Path | None:
+    """Walk upward from *start* to find ``.eval-banana/config.toml``."""
     current = (start or Path.cwd()).resolve()
     for candidate in [current, *current.parents]:
         config_path = candidate / ".eval-banana" / "config.toml"
@@ -168,6 +136,17 @@ def _load_toml_file(path: Path) -> dict[str, object]:
         raise SystemExit(msg) from exc
     logger.debug("Loaded TOML config from %s", path)
     return dict(data)
+
+
+def _reject_legacy_llm_section(*, data: dict[str, object], path: Path) -> None:
+    if "llm" not in data:
+        return
+    msg = (
+        f"Legacy [llm] section was removed from {path}. "
+        "Delete the [llm] section and configure harness agents under [harness] "
+        "and [agents.*] instead."
+    )
+    raise SystemExit(msg)
 
 
 def _deep_merge(
@@ -466,11 +445,6 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
 def load_config(
     *,
     output_dir: str | None = None,
-    provider: str | None = None,
-    model: str | None = None,
-    api_base: str | None = None,
-    api_key: str | None = None,
-    codex_auth_path: str | None = None,
     pass_threshold: float | None = None,
     cwd: str | None = None,
     harness_agent: str | None = None,
@@ -479,6 +453,17 @@ def load_config(
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
 ) -> Config:
+    """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
+
+    Resolution order (highest priority first):
+    1. Keyword arguments (from CLI flags).
+    2. ``EVAL_BANANA_*`` environment variables.
+    3. Project-level ``.eval-banana/config.toml`` (walked upward from *cwd*).
+    4. Built-in defaults on :class:`Config`.
+
+    Raises :class:`SystemExit` on invalid TOML, legacy ``[llm]`` sections,
+    or conflicting harness prompt options.
+    """
     cwd_path = Path(cwd or ".").resolve()
     local_config_path = find_local_config(start=cwd_path)
     project_root = _resolve_project_root(
@@ -487,19 +472,14 @@ def load_config(
 
     merged: dict[str, object] = {}
     if local_config_path is not None:
-        merged = _deep_merge(
-            base=merged, override=_load_toml_file(path=local_config_path)
-        )
+        local_config = _load_toml_file(path=local_config_path)
+        _reject_legacy_llm_section(data=local_config, path=local_config_path)
+        merged = _deep_merge(base=merged, override=local_config)
 
     env_specs: list[tuple[str, str, str, type[Any]]] = [
         ("EVAL_BANANA_OUTPUT_DIR", "core", "output_dir", str),
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
         ("EVAL_BANANA_LLM_MAX_INPUT_CHARS", "core", "llm_max_input_chars", int),
-        ("EVAL_BANANA_PROVIDER", "llm", "provider", str),
-        ("EVAL_BANANA_MODEL", "llm", "model", str),
-        ("EVAL_BANANA_API_BASE", "llm", "api_base", str),
-        ("EVAL_BANANA_API_KEY", "llm", "api_key", str),
-        ("EVAL_BANANA_CODEX_AUTH_PATH", "llm", "codex_auth_path", str),
         ("EVAL_BANANA_HARNESS_AGENT", "harness", "agent", str),
         ("EVAL_BANANA_HARNESS_PROMPT", "harness", "prompt", str),
         ("EVAL_BANANA_HARNESS_PROMPT_FILE", "harness", "prompt_file", str),
@@ -515,11 +495,6 @@ def load_config(
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
         (pass_threshold, "core", "pass_threshold"),
-        (provider, "llm", "provider"),
-        (model, "llm", "model"),
-        (api_base, "llm", "api_base"),
-        (api_key, "llm", "api_key"),
-        (codex_auth_path, "llm", "codex_auth_path"),
         (harness_agent, "harness", "agent"),
         (harness_prompt, "harness", "prompt"),
         (harness_prompt_file, "harness", "prompt_file"),
@@ -533,49 +508,6 @@ def load_config(
 
     _sanitize_harness_section(merged)
 
-    provider_value = str(
-        _get_nested_value(merged, section="llm", key="provider") or "openai_compat"
-    )
-    model_explicit = _get_nested_value(merged, section="llm", key="model") is not None
-    api_base_explicit = (
-        _get_nested_value(merged, section="llm", key="api_base") is not None
-    )
-    api_key_explicit = (
-        _get_nested_value(merged, section="llm", key="api_key") is not None
-    )
-
-    if provider_value == "codex":
-        if not model_explicit:
-            _set_nested_value(merged, section="llm", key="model", value="gpt-5.4")
-        if not api_base_explicit:
-            _set_nested_value(merged, section="llm", key="api_base", value="")
-    elif provider_value == "openai_compat":
-        if not model_explicit:
-            _set_nested_value(
-                merged, section="llm", key="model", value="openai/gpt-5.4"
-            )
-        if not api_base_explicit:
-            _set_nested_value(
-                merged,
-                section="llm",
-                key="api_base",
-                value="https://openrouter.ai/api/v1",
-            )
-
-    resolved_api_base = str(
-        _get_nested_value(merged, section="llm", key="api_base") or ""
-    )
-    if not api_key_explicit:
-        provider_fallback_key = ""
-        if "openrouter.ai" in resolved_api_base:
-            provider_fallback_key = os.getenv("OPENROUTER_API_KEY", "")
-        elif "api.openai.com" in resolved_api_base:
-            provider_fallback_key = os.getenv("OPENAI_API_KEY", "")
-        if provider_fallback_key:
-            _set_nested_value(
-                merged, section="llm", key="api_key", value=provider_fallback_key
-            )
-
     agent_templates = _parse_agent_templates(merged)
 
     config = Config(
@@ -584,20 +516,6 @@ def load_config(
         ),
         pass_threshold=_get_float(
             merged, section="core", key="pass_threshold", default=1.0
-        ),
-        provider=provider_value,
-        model=_get_string(merged, section="llm", key="model", default="openai/gpt-5.4"),
-        api_base=_get_string(
-            merged,
-            section="llm",
-            key="api_base",
-            default="https://openrouter.ai/api/v1"
-            if provider_value == "openai_compat"
-            else "",
-        ),
-        api_key=_get_string(merged, section="llm", key="api_key", default=""),
-        codex_auth_path=_get_string(
-            merged, section="llm", key="codex_auth_path", default=""
         ),
         llm_max_input_chars=_get_int(
             merged, section="core", key="llm_max_input_chars", default=0

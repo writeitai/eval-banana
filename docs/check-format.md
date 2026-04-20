@@ -12,7 +12,7 @@ All check types share these fields:
 |---|---|---|---|
 | `schema_version` | `1` | Yes | Schema version (must be `1`) |
 | `id` | string | Yes | Unique identifier (`[a-zA-Z0-9_-]` only) |
-| `type` | string | Yes | One of: `deterministic`, `llm_judge` |
+| `type` | string | Yes | One of: `deterministic`, `harness_judge` |
 | `description` | string | Yes | Human-readable description |
 | `target_paths` | list[string] | No | Files/directories the check operates on |
 | `tags` | list[string] | No | Tags for filtering (future use) |
@@ -78,30 +78,30 @@ script: |
                   sys.exit(1)
 ```
 
-## LLM judge checks
+## Harness judge checks
 
-Send target file content to an LLM with evaluation instructions.
+Send target file content to the configured harness agent with evaluation instructions.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `instructions` | string | Yes | Evaluation criteria for the LLM |
-| `model` | string | No | Override the default LLM model for this check |
+| `instructions` | string | Yes | Evaluation criteria for the judge |
+| `model` | string | No | Override the harness model for this check |
 | `target_paths` | list[string] | Yes | Must be non-empty |
 
 ### How it works
 
-1. Target files are read and included in the prompt
-2. The LLM receives instructions + file content
-3. It must respond with `{"score": 0|1, "reason": "..."}`
+1. Target files are read and included in a judging prompt
+2. The configured harness agent subprocess receives that prompt
+3. The final verdict must include `{"score": 0|1, "reason": "..."}`
 4. Score 1 = passed, 0 = failed, parse error = error
-5. Missing credentials = error (not skipped)
+5. Harness spawn failures, timeouts, or unreadable targets = error
 
 ### Example
 
 ```yaml
 schema_version: 1
 id: readme_has_install_steps
-type: llm_judge
+type: harness_judge
 description: README clearly explains how to install the package.
 target_paths:
   - README.md

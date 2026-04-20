@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import base64
 from collections.abc import Callable
-import json
 from pathlib import Path
-import time
 
 import pytest
 
@@ -14,28 +11,6 @@ from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.models import HarnessResult
 from eval_banana.models import HarnessStatus
-
-
-def _encode_segment(payload: dict[str, object]) -> str:
-    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
-
-
-@pytest.fixture
-def make_jwt() -> Callable[..., str]:
-    def _make_jwt(*, account_id: str = "acct_123", exp: int | None = None) -> str:
-        if exp is None:
-            exp = int(time.time()) + 3600
-        header = _encode_segment({"alg": "none", "typ": "JWT"})
-        payload = _encode_segment(
-            {
-                "exp": exp,
-                "https://api.openai.com/auth": {"chatgpt_account_id": account_id},
-            }
-        )
-        return f"{header}.{payload}.signature"
-
-    return _make_jwt
 
 
 @pytest.fixture

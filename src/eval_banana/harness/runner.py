@@ -72,6 +72,35 @@ def build_harness_result(
     )
 
 
+def build_harness_env(
+    *,
+    template: AgentTemplate,
+    model: str | None,
+    harness_env: dict[str, str] | None,
+    project_root: Path,
+    run_id: str | None = None,
+    run_output_dir: Path | None = None,
+    harness_output_dir: Path | None = None,
+    agent_type: str | None = None,
+) -> dict[str, str]:
+    """Assemble the full subprocess environment for a harness invocation."""
+    effective_model = model if model is not None else template.default_model
+    env = dict(os.environ)
+    env.update(build_provider_env(template=template))
+    env.update(harness_env or {})
+    env.update(build_template_env(template=template, effective_model=effective_model))
+    env["EVAL_BANANA_PROJECT_ROOT"] = str(project_root)
+    if run_id is not None:
+        env["EVAL_BANANA_RUN_ID"] = run_id
+    if run_output_dir is not None:
+        env["EVAL_BANANA_RUN_OUTPUT_DIR"] = str(run_output_dir)
+    if harness_output_dir is not None:
+        env["EVAL_BANANA_OUTPUT_DIR"] = str(harness_output_dir)
+    if agent_type is not None:
+        env["EVAL_BANANA_HARNESS_AGENT"] = agent_type
+    return env
+
+
 def run_harness(
     *,
     agent_type: str,
@@ -106,15 +135,16 @@ def run_harness(
 
     command = build_command_from_template(template=template, prompt=prompt, model=model)
     effective_model = model if model is not None else template.default_model
-    env = dict(os.environ)
-    env.update(build_provider_env(template=template))
-    env.update(harness_env or {})
-    env.update(build_template_env(template=template, effective_model=effective_model))
-    env["EVAL_BANANA_PROJECT_ROOT"] = str(project_root)
-    env["EVAL_BANANA_RUN_ID"] = run_id
-    env["EVAL_BANANA_RUN_OUTPUT_DIR"] = str(run_output_dir)
-    env["EVAL_BANANA_OUTPUT_DIR"] = str(harness_output_dir)
-    env["EVAL_BANANA_HARNESS_AGENT"] = agent_type
+    env = build_harness_env(
+        template=template,
+        model=model,
+        harness_env=harness_env,
+        project_root=project_root,
+        run_id=run_id,
+        run_output_dir=run_output_dir,
+        harness_output_dir=harness_output_dir,
+        agent_type=agent_type,
+    )
 
     stdout_text = ""
     stderr_text = ""

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from eval_banana.harness.skills import _build_codex_openai_yaml
+from eval_banana.harness.skills import _build_codex_agent_metadata_yaml
 from eval_banana.harness.skills import _parse_skill_frontmatter
 from eval_banana.harness.skills import AGENT_SKILL_TARGETS
 from eval_banana.harness.skills import discover_bundled_skills
@@ -480,9 +480,9 @@ def test_parse_skill_frontmatter_allows_bom_and_crlf(tmp_path: Path) -> None:
     )
 
 
-def test_build_codex_openai_yaml() -> None:
+def test_build_codex_agent_metadata_yaml() -> None:
     payload = yaml.safe_load(
-        _build_codex_openai_yaml(
+        _build_codex_agent_metadata_yaml(
             name="gemini_media_use", description="Use Gemini media APIs."
         )
     )

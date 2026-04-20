@@ -18,7 +18,7 @@ keywords = [
     "eval-framework",
     "yaml",
     "testing",
-    "llm-judge",
+    "harness-judge",
     "ai-agents",
 ]
 classifiers = [
@@ -35,8 +35,6 @@ classifiers = [
 ]
 dependencies = [
     "click>=8.1",
-    "httpx>=0.28",
-    "openai>=1.78",
     "pydantic>=2.11",
     "PyYAML>=6.0.2",
 ]

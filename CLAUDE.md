@@ -21,7 +21,6 @@ make run               # Run eval-banana against this project
 src/eval_banana/
   models.py          # Pydantic models (check definitions, results, reports)
   config.py          # Project-level TOML config loading
-  auth.py            # OpenRouter + Codex authentication
   discovery.py       # Auto-discover eval_checks/ directories
   loader.py          # YAML loading + validation
   runner.py          # Top-level orchestration (harness + checks)
@@ -37,7 +36,7 @@ src/eval_banana/
   skills/            # Bundled agent skills shipped inside the wheel
   runners/
     deterministic.py # Script-based checks
-    llm_judge.py     # LLM-as-judge checks
+    harness_judge.py # Harness-subprocess judge checks
 tests/               # One test file per source module
 ```
 
@@ -53,14 +52,14 @@ tests/               # One test file per source module
 - Runners never raise on expected errors -- always return `CheckResult`
 - Fail fast on setup errors (bad YAML, duplicate IDs), continue on execution errors
 - No async -- all execution is synchronous
-- Tests use `tmp_path`, mock `subprocess.run` and OpenAI SDK, run offline
+- Tests use `tmp_path`, mock `subprocess.run`, run offline
 
 ## Check types
 
 | Type | Score | Mechanism |
 |---|---|---|
 | `deterministic` | Exit code 0 = 1, non-zero = 0 | Python script via subprocess |
-| `llm_judge` | LLM returns `{"score": 0\|1}` | OpenAI-compatible API call |
+| `harness_judge` | Harness returns `{"score": 0\|1}` | Harness agent subprocess |
 
 ## Harness support
 
@@ -71,7 +70,7 @@ eval-banana can optionally drive an AI coding agent (harness) before running che
 - Harness runs synchronously via `subprocess.run()` before the check loop
 - Bundled skills are installed explicitly with `eb install` before harness-driven work
 - Harness failure aborts checks.
-- `llm_judge` checks require a configured harness; `run` and `validate` fail fast otherwise.
+- `harness_judge` checks require a configured harness; `run` and `validate` fail fast otherwise.
 - Harness metadata stored on `EvalReport.harness` (separate from check scoring)
 - AgentTemplate is a frozen dataclass (internal, not serialized)
 - `HarnessResult` is a Pydantic model with `extra="forbid"`
@@ -81,8 +80,7 @@ eval-banana can optionally drive an AI coding agent (harness) before running che
 - One YAML file per check (not per suite)
 - Auto-discovery from `eval_checks/` directories
 - Equal weight for all checks (no weighting system)
-- Provider-aware credential isolation (OpenRouter keys never sent to OpenAI, vice versa)
-- Codex backend URL is hardcoded -- `api_base` config does not affect Codex
+- All LLM calls go through the harness subprocess -- eval-banana does not talk to model APIs directly
 - `--check-id` uses relaxed validation (broken YAML in other files does not block)
 - Harness is a run-level phase, not a check type -- no `type: harness` in YAML
 - Single harness per run -- no multi-agent orchestration

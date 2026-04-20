@@ -8,10 +8,10 @@ Gallery of real-world eval-banana check patterns. Copy and adapt.
 - Deterministic: JSON schema validation
 - Deterministic: no forbidden tokens in source
 - Deterministic: counting records
-- LLM judge: README quality
-- LLM judge: tone / professionalism
-- LLM judge: factual consistency
-- LLM judge: multi-file comparison
+- Harness judge: README quality
+- Harness judge: tone / professionalism
+- Harness judge: factual consistency
+- Harness judge: multi-file comparison
 
 ## Deterministic: file existence and content
 
@@ -121,12 +121,12 @@ script: |
       sys.exit(1)
 ```
 
-## LLM judge: README quality
+## Harness judge: README quality
 
 ```yaml
 schema_version: 1
 id: readme_has_quickstart
-type: llm_judge
+type: harness_judge
 description: README contains a quickstart that a new user can follow in under 5 minutes.
 target_paths:
   - README.md
@@ -137,12 +137,12 @@ instructions: |
   Score 0 if any of these are missing or unclear.
 ```
 
-## LLM judge: tone / professionalism
+## Harness judge: tone / professionalism
 
 ```yaml
 schema_version: 1
 id: error_messages_are_helpful
-type: llm_judge
+type: harness_judge
 description: Error messages in errors.log are helpful and professional.
 target_paths:
   - errors.log
@@ -153,12 +153,12 @@ instructions: |
   any message is cryptic, blames the user, or leaks internals.
 ```
 
-## LLM judge: factual consistency
+## Harness judge: factual consistency
 
 ```yaml
 schema_version: 1
 id: summary_matches_source
-type: llm_judge
+type: harness_judge
 description: The generated summary accurately reflects the source data.
 target_paths:
   - summary.md
@@ -170,12 +170,12 @@ instructions: |
   hallucinated, or contradicts the source.
 ```
 
-## LLM judge: multi-file comparison
+## Harness judge: multi-file comparison
 
 ```yaml
 schema_version: 1
 id: docs_consistent_with_code
-type: llm_judge
+type: harness_judge
 description: API docs describe the actual endpoints implemented in routes.py.
 target_paths:
   - docs/api.md
@@ -186,4 +186,3 @@ instructions: |
   AND every public endpoint in routes.py is documented. Score 0 if
   there is any drift between the two files.
 ```
-

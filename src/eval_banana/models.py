@@ -8,6 +8,7 @@ from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic import BeforeValidator
 from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import field_validator
@@ -16,6 +17,7 @@ from pydantic import model_validator
 logger = logging.getLogger(__name__)
 
 _CHECK_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+_LEGACY_JUDGE_TYPE = "llm" + "_judge"
 
 
 class CheckStatus(StrEnum):
@@ -26,7 +28,7 @@ class CheckStatus(StrEnum):
 
 class CheckType(StrEnum):
     deterministic = "deterministic"
-    llm_judge = "llm_judge"
+    harness_judge = "harness_judge"
 
 
 class HarnessStatus(StrEnum):
@@ -91,8 +93,8 @@ class DeterministicCheckDefinition(BaseCheckDefinition):
         return self
 
 
-class LlmJudgeCheckDefinition(BaseCheckDefinition):
-    type: Literal["llm_judge"]
+class HarnessJudgeCheckDefinition(BaseCheckDefinition):
+    type: Literal["harness_judge"]
     instructions: str
     model: str | None = None
 
@@ -106,15 +108,29 @@ class LlmJudgeCheckDefinition(BaseCheckDefinition):
         return stripped
 
     @model_validator(mode="after")
-    def validate_targets(self) -> LlmJudgeCheckDefinition:
+    def validate_targets(self) -> HarnessJudgeCheckDefinition:
         if not self.target_paths:
-            msg = "target_paths must be non-empty for llm_judge checks"
+            msg = "target_paths must be non-empty for harness_judge checks"
             raise ValueError(msg)
         return self
 
 
+def _reject_legacy_check_type(value: object) -> object:
+    if isinstance(value, dict) and value.get("type") == _LEGACY_JUDGE_TYPE:
+        msg = (
+            "Check type 'llm_judge' was renamed to 'harness_judge'. "
+            "Update the 'type' field to 'harness_judge'."
+        )
+        raise ValueError(msg)
+    return value
+
+
 CheckDefinition = Annotated[
-    DeterministicCheckDefinition | LlmJudgeCheckDefinition, Field(discriminator="type")
+    Annotated[
+        DeterministicCheckDefinition | HarnessJudgeCheckDefinition,
+        Field(discriminator="type"),
+    ],
+    BeforeValidator(_reject_legacy_check_type),
 ]
 
 

@@ -13,8 +13,6 @@ eval-banana init          # Create project config + example check
 eval-banana init --force   # Overwrite existing config
 ```
 
-API keys should be set via environment variables (see Authentication below), not in the config file.
-
 ## Config sections
 
 ### `[core]` section
@@ -23,17 +21,7 @@ API keys should be set via environment variables (see Authentication below), not
 |---|---|---|---|
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where output files go |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0-1.0) |
-| `llm_max_input_chars` | `0` (disabled) | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to LLM per target file; 0 = no limit |
-
-### `[llm]` section
-
-| Key | Default | Env var | Description |
-|---|---|---|---|
-| `provider` | `openai_compat` | `EVAL_BANANA_PROVIDER` | LLM provider (`openai_compat` or `codex`) |
-| `model` | `openai/gpt-5.4` | `EVAL_BANANA_MODEL` | Model name |
-| `api_base` | `https://openrouter.ai/api/v1` | `EVAL_BANANA_API_BASE` | API base URL |
-| `api_key` | (empty) | `EVAL_BANANA_API_KEY` | API key (prefer env vars) |
-| `codex_auth_path` | (empty) | `EVAL_BANANA_CODEX_AUTH_PATH` | Path to Codex auth file |
+| `llm_max_input_chars` | `0` (disabled) | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to `harness_judge` per target file; 0 = no limit |
 
 ### `[discovery]` section
 
@@ -47,60 +35,14 @@ Default excluded directories: `.git`, `.hg`, `.svn`, `.venv`, `venv`, `node_modu
 
 Config values are resolved in this order (highest priority first):
 
-1. **CLI arguments** (`--model`, `--provider`, etc.)
+1. **CLI arguments** (`--output-dir`, `--harness-model`, etc.)
 2. **Environment variables** (`EVAL_BANANA_*`)
-3. **Provider-aware API key fallback** (see below)
-4. **Project config** (`.eval-banana/config.toml`)
-5. **Built-in defaults**
+3. **Project config** (`.eval-banana/config.toml`)
+4. **Built-in defaults**
 
 ### Notes
 
 - Relative `output_dir` resolves from the project root
-
-## Authentication
-
-### Provider-aware API key resolution
-
-eval-banana is careful never to send credentials to the wrong endpoint:
-
-| API base contains | Keys checked (in order) |
-|---|---|
-| `openrouter.ai` | `OPENROUTER_API_KEY`, `EVAL_BANANA_API_KEY`, config `api_key` |
-| `api.openai.com` | `OPENAI_API_KEY`, `EVAL_BANANA_API_KEY`, config `api_key` |
-| Other | `EVAL_BANANA_API_KEY`, config `api_key` |
-
-### OpenRouter setup
-
-```bash
-export OPENROUTER_API_KEY=your-key
-eval-banana run
-```
-
-### OpenAI direct setup
-
-```toml
-# .eval-banana/config.toml
-[llm]
-api_base = "https://api.openai.com/v1"
-```
-
-```bash
-export OPENAI_API_KEY=your-key
-eval-banana run
-```
-
-### Codex setup
-
-Codex uses local ChatGPT credentials. The auth file is found in this order:
-
-1. Config `codex_auth_path` or `EVAL_BANANA_CODEX_AUTH_PATH`
-2. `$CODEX_HOME/auth.json`
-3. `~/.codex/auth.json`
-
-```bash
-codex login  # Create auth credentials
-eval-banana run --provider codex
-```
 
 ## Harness configuration
 
@@ -201,23 +143,12 @@ ANTHROPIC_API_KEY = ""
 
 ### Harness failure behavior
 
-If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. There is no opt-out — `llm_judge` checks require a harness, and a misconfigured harness is always treated as a failure.
+If the harness fails (non-zero exit code or spawn error), checks are **not** run and the eval run is marked as failed. There is no opt-out — `harness_judge` checks require a harness, and a misconfigured harness is always treated as a failure.
 
-### `llm_judge` requires a harness
+### `harness_judge` requires a harness
 
-If any loaded `llm_judge` check is discovered, eval-banana aborts before running any check when no harness is configured. Fix by setting `[harness] agent` in config or passing `--harness-agent` on the command line.
+If any loaded `harness_judge` check is discovered, eval-banana aborts before running any check when no harness is configured. Fix by setting `[harness] agent` in config or passing `--harness-agent` on the command line.
 
-### Missing credentials
+## Migration note
 
-If an `llm_judge` check runs but credentials are missing, it returns an `error` result with a remediation message. It does **not** skip silently. Other check types continue running normally.
-
-## Provider normalization
-
-When `provider = "codex"` is set, defaults change automatically:
-
-| Setting | `openai_compat` default | `codex` default |
-|---|---|---|
-| `model` | `openai/gpt-5.4` | `gpt-5.4` |
-| `api_base` | `https://openrouter.ai/api/v1` | (not used) |
-
-Codex always uses the hardcoded ChatGPT backend URL. The `api_base` config has no effect for Codex.
+The legacy `[llm]` section was removed. If it is present in `.eval-banana/config.toml`, eval-banana exits with a migration error telling you to delete that section and use `[harness]` / `[agents.*]` instead.
