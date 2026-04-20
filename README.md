@@ -68,16 +68,16 @@ Requires a configured harness agent. Set `[harness] agent` in config or pass `--
 uv sync
 
 # Initialize project config and example check
-eval-banana init
+eb init
 
 # Run all discovered checks
-eval-banana run
+eb run
 
 # List discovered checks without running
-eval-banana list
+eb list
 
 # Validate YAML definitions without running
-eval-banana validate
+eb validate
 ```
 
 ## Installation
@@ -95,7 +95,7 @@ cd eval-banana
 uv sync --extra dev
 ```
 
-After installation, two CLI commands are available: `eval-banana` and `eb` (short alias).
+After installation the CLI is available as `eb`.
 
 ## Harness configuration
 
@@ -145,9 +145,9 @@ See [docs/configuration.md](docs/configuration.md) for details on bundled skills
 
 ## Configuration
 
-eval-banana uses a single project-level TOML config at `.eval-banana/config.toml`.
+Eval Banana uses a single project-level TOML config at `.eval-banana/config.toml`.
 
-Create it with `eval-banana init`.
+Create it with `eb init`.
 
 ### Config precedence (highest to lowest)
 
@@ -169,11 +169,11 @@ Create it with `eval-banana init`.
 ## CLI reference
 
 ```
-eval-banana init [--force]                Create config + example check
-eval-banana run [OPTIONS]                  Run all discovered checks
-eval-banana list [OPTIONS]                 List discovered checks
-eval-banana validate [OPTIONS]             Validate YAML without running
-eval-banana install [OPTIONS]              Install bundled skills into agent dirs
+eb init [--force]                Create config + example check
+eb run [OPTIONS]                  Run all discovered checks
+eb list [OPTIONS]                 List discovered checks
+eb validate [OPTIONS]             Validate YAML without running
+eb install [OPTIONS]              Install bundled skills into agent dirs
 
 Options for run/list/validate:
   --check-dir PATH              Scan only this directory
@@ -215,7 +215,7 @@ make all-check    # Lint + format + types + tests (matches CI)
 
 ## Inspiration
 
-eval-banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
+Eval Banana's binary 0/1 scoring philosophy draws directly on two earlier bodies of work:
 
 - **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1-5 scales.
 - **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates outputs against a natural-language aspect definition and returns a binary verdict.
