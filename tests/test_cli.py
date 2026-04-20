@@ -40,7 +40,7 @@ def test_run_rejects_removed_skip_harness_flag() -> None:
     assert "No such option" in result.output
 
 
-def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
+def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runner = CliRunner()
@@ -84,8 +84,6 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
             "0.5",
             "--harness-agent",
             "codex",
-            "--harness-prompt",
-            "Fix it",
             "--harness-model",
             "gpt-5.4",
             "--harness-reasoning-effort",
@@ -98,55 +96,9 @@ def test_run_exit_code_zero_and_prompt_overrides_reach_load_config(
     assert result.exit_code == 0
     assert captured["output_dir"] == "out"
     assert captured["harness_agent"] == "codex"
-    assert captured["harness_prompt"] == "Fix it"
-    assert captured["harness_prompt_file"] is None
     assert captured["harness_model"] == "gpt-5.4"
     assert captured["harness_reasoning_effort"] == "high"
     assert captured["cwd"] == "/tmp/project"
-
-
-def test_run_forwards_harness_prompt_file_as_string(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runner = CliRunner()
-    captured = {}
-
-    def fake_load_config(**kwargs: object) -> object:
-        captured.update(kwargs)
-        return object()
-
-    monkeypatch.setattr("eval_banana.cli.load_config", fake_load_config)
-    monkeypatch.setattr(
-        "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id, tags: EvalReport(
-            run_id="run1",
-            project_root="/tmp",
-            output_dir="/tmp/out",
-            started_at="2026-04-09T12:00:00+00:00",
-            completed_at="2026-04-09T12:00:01+00:00",
-            duration_ms=1000,
-            total_checks=1,
-            passed_checks=1,
-            failed_checks=0,
-            errored_checks=0,
-            points_earned=1,
-            total_points=1,
-            percentage=100.0,
-            pass_threshold=1.0,
-            meets_threshold=True,
-            run_passed=True,
-            checks=[],
-        ),
-    )
-
-    result = runner.invoke(
-        main,
-        ["run", "--harness-agent", "codex", "--harness-prompt-file", "prompts/task.md"],
-    )
-
-    assert result.exit_code == 0
-    assert captured["harness_prompt"] is None
-    assert captured["harness_prompt_file"] == "prompts/task.md"
 
 
 def test_run_exit_code_one(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -38,17 +38,10 @@ llm_max_input_chars = 0
 
 _HARNESS_TEMPLATE = """\
 # [harness]
-# # AI coding agent to run once before the check loop. One of:
+# # AI coding agent used by harness_judge checks. One of:
 # #   claude, codex, gemini, openhands, opencode, pi
 # # Env: EVAL_BANANA_HARNESS_AGENT
 # agent = "codex"
-#
-# # Task prompt for the agent. Use `prompt` for a short inline string, or
-# # `prompt_file` for a path (relative to project root). They are mutually
-# # exclusive.
-# # Env: EVAL_BANANA_HARNESS_PROMPT / EVAL_BANANA_HARNESS_PROMPT_FILE
-# # prompt = "Fix the failing tests"
-# prompt_file = "prompts/task.md"
 #
 # # Override the agent's default model. Format is agent-specific.
 # # Env: EVAL_BANANA_HARNESS_MODEL
@@ -103,8 +96,6 @@ class Config:
     project_root: Path | None = None
     local_config_path: Path | None = None
     harness_agent: str | None = None
-    harness_prompt: str | None = None
-    harness_prompt_file: str | None = None
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
     harness_env: dict[str, str] = field(default_factory=dict)
@@ -419,15 +410,7 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
         )
         raise SystemExit(msg)
 
-    allowed_keys = {
-        "agent",
-        "prompt",
-        "prompt_file",
-        "model",
-        "reasoning_effort",
-        "env",
-        "skills_dir",
-    }
+    allowed_keys = {"agent", "model", "reasoning_effort", "env", "skills_dir"}
     unknown_keys = set(raw_harness) - allowed_keys
     if unknown_keys:
         unknown_keys_text = ", ".join(sorted(unknown_keys))
@@ -448,8 +431,6 @@ def load_config(
     pass_threshold: float | None = None,
     cwd: str | None = None,
     harness_agent: str | None = None,
-    harness_prompt: str | None = None,
-    harness_prompt_file: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
 ) -> Config:
@@ -461,8 +442,7 @@ def load_config(
     3. Project-level ``.eval-banana/config.toml`` (walked upward from *cwd*).
     4. Built-in defaults on :class:`Config`.
 
-    Raises :class:`SystemExit` on invalid TOML, legacy ``[llm]`` sections,
-    or conflicting harness prompt options.
+    Raises :class:`SystemExit` on invalid TOML or legacy ``[llm]`` sections.
     """
     cwd_path = Path(cwd or ".").resolve()
     local_config_path = find_local_config(start=cwd_path)
@@ -481,8 +461,6 @@ def load_config(
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
         ("EVAL_BANANA_LLM_MAX_INPUT_CHARS", "core", "llm_max_input_chars", int),
         ("EVAL_BANANA_HARNESS_AGENT", "harness", "agent", str),
-        ("EVAL_BANANA_HARNESS_PROMPT", "harness", "prompt", str),
-        ("EVAL_BANANA_HARNESS_PROMPT_FILE", "harness", "prompt_file", str),
         ("EVAL_BANANA_HARNESS_MODEL", "harness", "model", str),
         ("EVAL_BANANA_HARNESS_REASONING_EFFORT", "harness", "reasoning_effort", str),
     ]
@@ -496,8 +474,6 @@ def load_config(
         (output_dir, "core", "output_dir"),
         (pass_threshold, "core", "pass_threshold"),
         (harness_agent, "harness", "agent"),
-        (harness_prompt, "harness", "prompt"),
-        (harness_prompt_file, "harness", "prompt_file"),
         (harness_model, "harness", "model"),
         (harness_reasoning_effort, "harness", "reasoning_effort"),
     ]
@@ -531,12 +507,6 @@ def load_config(
         local_config_path=local_config_path,
         harness_agent=_normalize_optional_string(
             value=_get_nested_value(merged, section="harness", key="agent")
-        ),
-        harness_prompt=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="prompt")
-        ),
-        harness_prompt_file=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="prompt_file")
         ),
         harness_model=_normalize_optional_string(
             value=_get_nested_value(merged, section="harness", key="model")
