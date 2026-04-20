@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-04-20
+
+### Fixed
+
+- `eb init` no longer generates `eval_checks/example_check.yaml`. It
+  only creates `.eval-banana/config.toml`. Users write their own checks.
+
 ## [0.0.6] - 2026-04-20
 
 ### Removed
@@ -167,7 +174,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/writeitai/eval-banana/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/writeitai/eval-banana/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/writeitai/eval-banana/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/writeitai/eval-banana/compare/v0.0.3...v0.0.4
