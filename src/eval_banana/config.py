@@ -54,6 +54,19 @@ reasoning_effort = "high"
 # Extra environment variables injected into the harness subprocess.
 # [harness.env]
 # MY_VAR = "value"
+
+# --- Built-in agent flags (applied automatically) ---
+# These flags are passed to the agent subprocess by default.
+# To override, uncomment the relevant [agents.*] section below.
+#
+# [agents.codex]
+# shared_flags = ["--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "--json"]
+#
+# [agents.gemini]
+# shared_flags = ["--approval-mode", "yolo", "--output-format", "stream-json"]
+#
+# [agents.claude]
+# shared_flags = ["-p", "--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
 """
 
 _DISCOVERY_SECTION = """\
