@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-04-20
+
+### Changed
+
+- `eb init` generates an active `[harness]` section (uncommented) so it
+  is applied by default.
+- `CI=1` and `PYTHONUNBUFFERED=1` are now always set in the harness
+  subprocess environment instead of being example config values.
+
 ## [0.0.7] - 2026-04-20
 
 ### Fixed
