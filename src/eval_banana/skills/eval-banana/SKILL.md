@@ -21,7 +21,7 @@ eval-banana is a lightweight evaluation framework. Check definitions live in YAM
 ## Core workflow
 
 1. **Install** (once per machine): `uv tool install git+https://github.com/writeitai/eval-banana.git`
-2. **Initialize in project**: `eval-banana init` — creates `.eval-banana/config.toml` and an example check under `eval_checks/`
+2. **Initialize in project**: `eval-banana init` — creates `.eval-banana/config.toml`
 3. **Write checks**: add `*.yaml` files to any `eval_checks/` directory (they are auto-discovered from the project root)
 4. **Run**: `eval-banana run`
 5. **Read the report**: look under `.eval-banana/results/<run_id>/`
@@ -165,7 +165,7 @@ eval-banana run --verbose              # Debug logging
 eval-banana run --pass-threshold 0.8   # Override pass ratio
 eval-banana list                       # Discover + print checks without running
 eval-banana validate                   # Validate YAML without executing anything
-eval-banana init [--force]  # Create config + example check
+eval-banana init [--force]  # Create project config
 ```
 
 **`--check-id` is the debug escape hatch.** It uses relaxed validation — broken YAML in other files does NOT block a single targeted check. Use it when iterating on one check in a repo with incomplete checks elsewhere.

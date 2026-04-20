@@ -14,9 +14,7 @@ from eval_banana.harness.skills import InstallReport
 from eval_banana.models import EvalReport
 
 
-def test_init_writes_config_and_example_check(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_init_writes_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
 
@@ -24,7 +22,7 @@ def test_init_writes_config_and_example_check(
 
     assert result.exit_code == 0
     assert (tmp_path / ".eval-banana" / "config.toml").is_file()
-    assert (tmp_path / "eval_checks" / "example_check.yaml").is_file()
+    assert not (tmp_path / "eval_checks").exists()
 
 
 def test_run_rejects_removed_skip_harness_flag() -> None:
