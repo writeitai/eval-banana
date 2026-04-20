@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-04-20
+
+### Changed
+
+- Check type `llm_judge` renamed to `harness_judge`. Judge checks now
+  invoke the configured harness agent as a subprocess instead of making
+  direct LLM API calls. One execution model (subprocess) for everything.
+- `LlmJudgeCheckDefinition` renamed to `HarnessJudgeCheckDefinition`.
+- JSON verdict extraction uses last-match brace-depth scanning
+  (handles chatty agents, streaming output, multi-line JSON).
+- `build_harness_env()` extracted as a shared helper — both the worker
+  harness step and the judge runner use the same env-building logic.
+
+### Added
+
+- `src/eval_banana/runners/harness_judge.py` — new runner with 300 s
+  subprocess timeout, per-check model override, and robust stdout parsing.
+- Migration error for `type: llm_judge` in YAML (points to `harness_judge`).
+- Migration error for `[llm]` section in TOML config.
+
+### Removed
+
+- `src/eval_banana/auth.py` — OpenRouter / OpenAI / Codex auth module
+  (226 lines).
+- `src/eval_banana/runners/llm_judge.py` — direct LLM API runner
+  (188 lines).
+- `openai` and `httpx` dependencies from `pyproject.toml`.
+- `[llm]` config section: `provider`, `model`, `api_base`, `api_key`,
+  `codex_auth_path` fields + 5 CLI flags + 5 env vars.
+
+### Migration
+
+- Rename `type: llm_judge` to `type: harness_judge` in YAML check files.
+- Delete the `[llm]` section from `.eval-banana/config.toml`.
+- A configured harness (`[harness] agent`) is required for
+  `harness_judge` checks. LLM credentials (API keys) are no longer
+  needed — the harness agent handles authentication.
+
 ## [0.0.4] - 2026-04-19
 
 ### Changed
@@ -108,7 +146,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/writeitai/eval-banana/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/writeitai/eval-banana/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/writeitai/eval-banana/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/writeitai/eval-banana/compare/v0.0.1...v0.0.2
