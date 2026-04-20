@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-04-20
+
+### Removed
+
+- Worker harness step. eval-banana no longer runs an agent to produce
+  artifacts before scoring. The harness config now only tells
+  `harness_judge` checks which agent to invoke for judging.
+- `HarnessResult` model, `HarnessStatus` enum, `EvalReport.harness` field.
+- `--harness-prompt`, `--harness-prompt-file` CLI flags.
+- `Config.harness_prompt`, `Config.harness_prompt_file` fields.
+- `EVAL_BANANA_HARNESS_PROMPT`, `EVAL_BANANA_HARNESS_PROMPT_FILE` env vars.
+- `run_harness()`, `build_harness_result()` functions.
+- Scorer harness-failure gating logic.
+- Reporter harness output sections.
+- Harness artifact directory in output structure.
+
+### Changed
+
+- README: use `eb` as the canonical CLI name (not `eval-banana`).
+- README: removed redundant sections, tightened structure.
+
 ## [0.0.5] - 2026-04-20
 
 ### Changed
@@ -146,7 +167,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/writeitai/eval-banana/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/writeitai/eval-banana/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/writeitai/eval-banana/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/writeitai/eval-banana/compare/v0.0.2...v0.0.3
