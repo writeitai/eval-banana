@@ -21,6 +21,46 @@ Two check types:
 | `deterministic` | Objective assertions (file existence, content, structure) | Runs a Python script via subprocess; exit 0 = pass |
 | `harness_judge` | LLM-as-a-judge (coherence, accuracy, tone) | Invokes the configured AI agent to score target files; expects `{"score": 0\|1}` |
 
+The harness judge uses one of the following: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
+
+## Writing checks
+
+Create a directory called `eval_checks/` anywhere in your project. Add YAML files -- one per check.
+
+### Deterministic check
+
+```yaml
+schema_version: 1
+id: output_file_exists
+type: deterministic
+description: Verify that output.json was generated.
+target_paths:
+  - output.json
+script: |
+  import json, sys
+  from pathlib import Path
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  target = ctx["targets"][0]
+  assert target["exists"], f"{target['path']} not found"
+```
+
+### Harness judge check
+
+```yaml
+schema_version: 1
+id: summary_is_accurate
+type: harness_judge
+description: The generated summary accurately reflects source data.
+target_paths:
+  - summary.txt
+  - source_data.json
+instructions: |
+  Compare the summary against the source data.
+  Score 1 if accurate, 0 if it contains fabricated claims.
+```
+
+Requires a configured harness agent. Set `[harness] agent` in config or pass `--harness-agent`.
+
 ## Quick start
 
 ```bash
@@ -57,76 +97,18 @@ uv sync --extra dev
 
 After installation, two CLI commands are available: `eval-banana` and `eb` (short alias).
 
-## Writing checks
+## Harness configuration
 
-Create a directory called `eval_checks/` anywhere in your project. Add YAML files -- one per check.
+The harness drives an AI agent before checks run. Configure it via CLI flags or TOML.
 
-### Deterministic check
-
-```yaml
-schema_version: 1
-id: output_file_exists
-type: deterministic
-description: Verify that output.json was generated.
-target_paths:
-  - output.json
-script: |
-  import json, sys
-  from pathlib import Path
-  ctx = json.loads(Path(sys.argv[1]).read_text())
-  target = ctx["targets"][0]
-  assert target["exists"], f"{target['path']} not found"
-```
-
-The script receives a `context.json` path as `sys.argv[1]` with this shape:
-
-```json
-{
-  "check_id": "output_file_exists",
-  "description": "...",
-  "project_root": "/abs/path",
-  "targets": [
-    {"path": "output.json", "resolved_path": "/abs/path/output.json", "exists": true, "is_dir": false}
-  ]
-}
-```
-
-### Harness judge check
-
-```yaml
-schema_version: 1
-id: summary_is_accurate
-type: harness_judge
-description: The generated summary accurately reflects source data.
-target_paths:
-  - summary.txt
-  - source_data.json
-instructions: |
-  Compare the summary against the source data.
-  Score 1 if accurate, 0 if it contains fabricated claims.
-```
-
-Requires a configured harness agent. Set `[harness] agent` in config or pass `--harness-agent`.
-
-## Harness support
-
-eval-banana can drive an AI coding agent before running checks. The agent receives a task prompt, works on the project, and then eval-banana scores the result.
-
-Built-in agent templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`.
-
-### Inline prompt
+### CLI
 
 ```bash
 eval-banana run --harness-agent codex --harness-prompt "Fix all failing tests"
-```
-
-### Prompt from file
-
-```bash
 eval-banana run --harness-agent claude --harness-prompt-file prompts/task.md --harness-model claude-sonnet-4-6
 ```
 
-### TOML configuration
+### TOML
 
 ```toml
 # .eval-banana/config.toml
@@ -136,56 +118,6 @@ prompt_file = "prompts/task.md"
 model = "gpt-5.4"
 # reasoning_effort = "high"
 ```
-
-### Harness behavior
-
-- The harness runs once before any checks execute.
-- Install bundled skills explicitly with `eb install` before harness-driven work in a target project.
-- If the harness fails (non-zero exit, missing binary), checks are **not** run and the eval run is marked as failed.
-- If any `harness_judge` check is present, a harness must be configured. eval-banana aborts early with a configuration error otherwise.
-- Harness artifacts (stdout, stderr, prompt, result) are written to `<run_id>/harness/`.
-
-### Skills
-
-eval-banana ships two bundled skills inside the wheel package:
-
-```text
-src/eval_banana/skills/
-  eval-banana/
-  gemini_media_use/
-```
-
-Install them into a target project's native agent directories with:
-
-```bash
-eb install
-eb install --target-agents codex
-eb install --skills gemini_media_use --dry-run
-```
-
-`eb install` is the only supported way to move bundled skills out of the wheel
-and into a project. `eval-banana run` does not install them automatically.
-
-Supported target agents and their destination directories:
-
-| Agent | Destination |
-|---|---|
-| `claude` | `.claude/skills/` |
-| `codex` | `.codex/skills/` |
-| `openhands` | `.agents/skills/` |
-| `opencode` | `.agents/skills/` |
-| `gemini` | `.gemini/skills/` |
-
-The legacy `eval-banana distribute-skills` command was deprecated in 0.2.x and
-will be removed no earlier than 0.3.0. Use `eb install` instead.
-
-If a project has custom skills, place them directly in the agent-native
-directories above. eval-banana no longer copies custom repo-local `skills/`
-directories at runtime.
-
-The bundled `gemini_media_use` helper scripts depend on the optional `google-genai` package. They authenticate via `GEMINI_API_KEY`, then `GOOGLE_API_KEY`, then Application Default Credentials with `GOOGLE_CLOUD_PROJECT` (Vertex AI mode -- requires `gcloud auth application-default login`, not just `gcloud auth login`). The scripts print targeted setup instructions when auth is misconfigured, distinguishing between missing ADC, missing project, and nothing configured at all.
-
-Generated skill directories such as `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, and `.gemini/skills/` should usually be added to `.gitignore` and treated as install artifacts.
 
 ### Custom agent templates
 
@@ -198,6 +130,26 @@ shared_flags = ["--headless"]
 prompt_flag = "--prompt"
 model_flag = "--model"
 ```
+
+## Skills
+
+Install bundled skills into a target project's native agent directories:
+
+```bash
+eb install
+eb install --target-agents codex
+eb install --skills gemini_media_use --dry-run
+```
+
+| Agent | Destination |
+|---|---|
+| `claude` | `.claude/skills/` |
+| `codex` | `.codex/skills/` |
+| `openhands` | `.agents/skills/` |
+| `opencode` | `.agents/skills/` |
+| `gemini` | `.gemini/skills/` |
+
+See [docs/configuration.md](docs/configuration.md) for details on bundled skills, authentication, and the deprecated `distribute-skills` command.
 
 ## Configuration
 
@@ -230,7 +182,6 @@ eval-banana run [OPTIONS]                  Run all discovered checks
 eval-banana list [OPTIONS]                 List discovered checks
 eval-banana validate [OPTIONS]             Validate YAML without running
 eval-banana install [OPTIONS]              Install bundled skills into agent dirs
-eval-banana distribute-skills [OPTIONS]    Deprecated alias for install
 
 Options for run/list/validate:
   --check-dir PATH              Scan only this directory
@@ -256,7 +207,7 @@ Each run creates a timestamped directory under the configured `output_dir`:
 .eval-banana/results/<run_id>/
   report.json       # Machine-readable full report
   report.md         # Human-readable Markdown report
-  harness/          # Only when a harness was executed
+  harness/          # Harness worker artifacts (when configured)
     prompt.txt      # Resolved prompt sent to the agent
     stdout.txt      # Agent stdout
     stderr.txt      # Agent stderr
@@ -275,7 +226,6 @@ make test         # Run tests
 make fix          # Auto-fix lint + format
 make pyright      # Type check
 make all-check    # Lint + format + types + tests (matches CI)
-make install-skills  # Install bundled skills into the current project
 ```
 
 ## Inspiration
