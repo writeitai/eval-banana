@@ -60,7 +60,7 @@ reasoning_effort = "high"
 # To override, uncomment the relevant [agents.*] section below.
 #
 # [agents.codex]
-# shared_flags = ["--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "--json"]
+# shared_flags = ["--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check"]
 #
 # [agents.gemini]
 # shared_flags = ["--approval-mode", "yolo", "--output-format", "stream-json"]

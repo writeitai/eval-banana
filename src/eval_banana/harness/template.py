@@ -40,7 +40,6 @@ DEFAULT_AGENT_TEMPLATES: dict[str, AgentTemplate] = {
         shared_flags=(
             "--dangerously-bypass-approvals-and-sandbox",
             "--skip-git-repo-check",
-            "--json",
         ),
         model_flag="--model",
         default_model="gpt-5.4",
