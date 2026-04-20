@@ -8,6 +8,8 @@ Aspect-based evaluation framework - deterministic checks + harness judges. Score
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/writeitai/eval-banana/main/docs/images/logo.png" alt="Eval Banana logo" width="400">
+  <br>
+  <sub>The name was inspired by <a href="https://open.spotify.com/track/2DW0Mowto3hrXkFBQt0nye?si=7c608b541ae849ca">this song</a> (my kids love it)</sub>
 </p>
 
 ## What it does
@@ -109,6 +111,33 @@ After installation the CLI is available as `eb`.
 agent = "codex"
 model = "gpt-5.4"
 # reasoning_effort = "high"
+```
+
+### Running in CI / cloud
+
+The harness subprocess inherits the parent shell environment, so provide API keys the same way you would when running the agent locally:
+
+| Agent | Environment variable |
+|---|---|
+| `claude` | `ANTHROPIC_API_KEY` |
+| `codex` | `OPENAI_API_KEY` |
+| `gemini` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` (or Application Default Credentials) |
+| `openhands` | depends on the configured LLM backend |
+
+Example GitHub Actions step:
+
+```yaml
+- name: Run evals
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: eb run
+```
+
+You can also inject extra env vars via `[harness.env]` in your config:
+
+```toml
+[harness.env]
+MY_CUSTOM_VAR = "value"
 ```
 
 ### Custom agent templates
