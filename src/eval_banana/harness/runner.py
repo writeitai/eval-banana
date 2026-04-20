@@ -22,6 +22,8 @@ def build_harness_env(
     """Assemble the full subprocess environment for a harness invocation."""
     effective_model = model if model is not None else template.default_model
     env = dict(os.environ)
+    env["CI"] = "1"
+    env["PYTHONUNBUFFERED"] = "1"
     env.update(build_provider_env(template=template))
     env.update(harness_env or {})
     env.update(build_template_env(template=template, effective_model=effective_model))

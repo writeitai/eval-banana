@@ -37,24 +37,23 @@ llm_max_input_chars = 0
 
 
 _HARNESS_TEMPLATE = """\
-# [harness]
-# # AI coding agent used by harness_judge checks. One of:
-# #   claude, codex, gemini, openhands, opencode, pi
-# # Env: EVAL_BANANA_HARNESS_AGENT
-# agent = "codex"
-#
-# # Override the agent's default model. Format is agent-specific.
-# # Env: EVAL_BANANA_HARNESS_MODEL
-# model = "gpt-5.4"
-#
-# # Agent-specific reasoning-effort level. Common values: "low", "medium", "high".
-# # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
-# reasoning_effort = "high"
-#
-# # Extra environment variables injected into the harness subprocess.
+[harness]
+# AI coding agent used by harness_judge checks. One of:
+#   claude, codex, gemini, openhands, opencode, pi
+# Env: EVAL_BANANA_HARNESS_AGENT
+agent = "codex"
+
+# Override the agent's default model. Format is agent-specific.
+# Env: EVAL_BANANA_HARNESS_MODEL
+model = "gpt-5.4"
+
+# Agent-specific reasoning-effort level. Common values: "low", "medium", "high".
+# Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
+reasoning_effort = "high"
+
+# Extra environment variables injected into the harness subprocess.
 # [harness.env]
-# CI = "1"
-# PYTHONUNBUFFERED = "1"
+# MY_VAR = "value"
 """
 
 _DISCOVERY_SECTION = """\
