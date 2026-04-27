@@ -117,5 +117,4 @@ exclude = ["**/.venv", "**/__pycache__", "tmp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["packaging: build-wheel regression tests (slow)"]
-addopts = "-m 'not packaging'"
+addopts = "-v"
