@@ -1,4 +1,4 @@
-.PHONY: claude claudecontinue test fix format pyright all-check run install-skills test-packaging install_globally
+.PHONY: claude claudecontinue test fix format pyright all-check run install_globally install_skills
 
 ## Start Claude Code with MCP configuration
 claude:
@@ -29,15 +29,11 @@ all-check:
 	uv run pyright src tests
 	uv run pytest tests -v --tb=short
 
-install-skills:
-	uv run eb install
-
-test-packaging:
-	uv run pytest -m packaging
-
 run:
-	# Run `make install-skills` in the target project before harness-driven runs.
 	uv run eval-banana run
 
 install_globally:
 	uv tool install --editable "$(CURDIR)"
+
+install_skills:
+	npx skills add https://github.com/writeitai/eval-banana -a codex -a claude-code -y
