@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-27
+
 ### Removed
 
 - `eb install` command and `eb distribute-skills` deprecated alias.
@@ -212,7 +214,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/writeitai/eval-banana/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/writeitai/eval-banana/compare/v0.0.9...v0.1.0
 [0.0.9]: https://github.com/writeitai/eval-banana/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/writeitai/eval-banana/compare/v0.0.7...v0.0.8
