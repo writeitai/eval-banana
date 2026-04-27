@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.resources
 import importlib.util
 from pathlib import Path
 import sys
@@ -11,19 +10,19 @@ import pytest
 
 
 def _load_script_module(*, script_name: str) -> ModuleType:
-    script_resource = importlib.resources.files("eval_banana").joinpath(
-        "skills", "gemini_media_use", "scripts", f"{script_name}.py"
+    repo_root = Path(__file__).resolve().parents[1]
+    script_path = (
+        repo_root / "skills" / "gemini_media_use" / "scripts" / f"{script_name}.py"
     )
-    with importlib.resources.as_file(script_resource) as script_path:
-        spec = importlib.util.spec_from_file_location(
-            f"_test_skill_{script_name}", script_path
-        )
-        if spec is None or spec.loader is None:
-            msg = f"Could not load script: {script_name}"
-            raise RuntimeError(msg)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
+    spec = importlib.util.spec_from_file_location(
+        f"_test_skill_{script_name}", script_path
+    )
+    if spec is None or spec.loader is None:
+        msg = f"Could not load script: {script_name}"
+        raise RuntimeError(msg)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.fixture

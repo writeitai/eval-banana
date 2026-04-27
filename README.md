@@ -163,23 +163,13 @@ model_flag = "--model"
 
 ## Skills
 
-Install bundled skills into a target project's native agent directories:
+eval-banana ships agent skills in the `skills/` directory of the repository. Install them into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-eb install
-eb install --target-agents codex
-eb install --skills gemini_media_use --dry-run
+npx skills add writeitai/eval-banana
 ```
 
-| Agent | Destination |
-|---|---|
-| `claude` | `.claude/skills/` |
-| `codex` | `.codex/skills/` |
-| `openhands` | `.agents/skills/` |
-| `opencode` | `.agents/skills/` |
-| `gemini` | `.gemini/skills/` |
-
-See [docs/configuration.md](docs/configuration.md) for details on bundled skills, authentication, and the deprecated `distribute-skills` command.
+The CLI auto-detects installed agents and copies skills into their native directories (`.claude/skills/`, `.codex/skills/`, `.agents/skills/`, `.gemini/skills/`, etc.).
 
 ## Configuration
 
@@ -211,7 +201,6 @@ eb init [--force]                Create project config
 eb run [OPTIONS]                  Run all discovered checks
 eb list [OPTIONS]                 List discovered checks
 eb validate [OPTIONS]             Validate YAML without running
-eb install [OPTIONS]              Install bundled skills into agent dirs
 
 Options for run/list/validate:
   --check-dir PATH              Scan only this directory

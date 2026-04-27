@@ -32,11 +32,10 @@ src/eval_banana/
     template.py      # AgentTemplate dataclass + built-in templates
     registry.py      # Template resolution + command building
     runner.py        # Harness subprocess environment assembly
-    skills.py        # Bundled skill installer + agent target mapping
-  skills/            # Bundled agent skills shipped inside the wheel
   runners/
     deterministic.py # Script-based checks
     harness_judge.py # Harness-subprocess judge checks
+skills/              # Agent skills (installed via npx skills add)
 tests/               # One test file per source module
 ```
 
@@ -67,7 +66,7 @@ eval-banana uses harness configuration for `harness_judge` checks only.
 
 - Configured via `[harness]` and `[agents.*]` TOML sections or `--harness-*` CLI flags
 - Built-in templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
-- Bundled skills are installed explicitly with `eb install` before harness-driven work
+- Agent skills are installed via `npx skills add writeitai/eval-banana` (see https://github.com/vercel-labs/skills)
 - `harness_judge` checks require a configured harness; `run` and `validate` fail fast otherwise.
 - Harness environment setup lives in `build_harness_env()`
 - AgentTemplate is a frozen dataclass (internal, not serialized)
