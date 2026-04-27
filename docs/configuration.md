@@ -66,43 +66,24 @@ CI = "1"
 PYTHONUNBUFFERED = "1"
 ```
 
-### Installing bundled skills
+### Installing skills
 
-eval-banana ships bundled skills inside the wheel and installs them into
-agent-native directories with `eb install`.
-
-Supported target agents and destinations:
-
-| Agent | Destination |
-|---|---|
-| `claude` | `.claude/skills/` |
-| `codex` | `.codex/skills/` |
-| `openhands` | `.agents/skills/` |
-| `opencode` | `.agents/skills/` |
-| `gemini` | `.gemini/skills/` |
-
-`openhands` and `opencode` share `.agents/skills/` because both consume that
-convention. Generated directories should usually be gitignored and treated as
-installation artifacts.
+eval-banana publishes agent skills in the `skills/` directory of the
+[repository](https://github.com/writeitai/eval-banana). Install them into your
+project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-eb install
-eb install --target-agents codex
-eb install --skills gemini_media_use --dry-run
+npx skills add https://github.com/writeitai/eval-banana
 ```
 
-`eval-banana distribute-skills` was deprecated in 0.2.x and will be removed no earlier than 0.3.0. Use `eb install` instead.
-
-`eval-banana run` does not perform installation automatically. Run `eb install`
-before harness-driven work in a target project.
+The CLI auto-detects installed agents and copies skills into their native
+directories (`.claude/skills/`, `.codex/skills/`, `.agents/skills/`,
+`.gemini/skills/`, etc.). Installed skill directories should usually be
+gitignored and treated as installation artifacts.
 
 Legacy config files may still contain `[harness].skills_dir`. eval-banana
-ignores that one stale key so old configs keep loading, but the key has no
+ignores that stale key so old configs keep loading, but the key has no
 runtime effect.
-
-If your project has custom skills, place them directly in `.claude/skills/`,
-`.codex/skills/`, `.agents/skills/`, or `.gemini/skills/` as appropriate.
-eval-banana no longer copies custom repo-local `skills/` directories.
 
 ### `[agents.*]` sections
 
