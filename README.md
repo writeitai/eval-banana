@@ -72,16 +72,6 @@ Eval Banana's binary 0/1 scoring philosophy draws directly on two earlier bodies
 
 The `harness_judge` check type is essentially an Aspect Critic: you describe what "good" looks like in plain language, and the judge returns `{"score": 0|1}`.
 
-## Skills
-
-eval-banana ships agent skills in the `skills/` directory of the repository. Install them into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
-
-```bash
-npx skills add https://github.com/writeitai/eval-banana
-```
-
-The CLI auto-detects installed agents and copies skills into their native directories (`.claude/skills/`, `.codex/skills/`, `.agents/skills/`, `.gemini/skills/`, etc.).
-
 ## Quick start
 
 ```bash
@@ -170,6 +160,16 @@ shared_flags = ["--headless"]
 prompt_flag = "--prompt"
 model_flag = "--model"
 ```
+
+## Skills
+
+eval-banana ships agent skills in the `skills/` directory of the repository. Install them into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add https://github.com/writeitai/eval-banana
+```
+
+The CLI auto-detects installed agents and copies skills into their native directories (`.claude/skills/`, `.codex/skills/`, `.agents/skills/`, `.gemini/skills/`, etc.).
 
 ## Configuration
 
