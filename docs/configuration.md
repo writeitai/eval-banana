@@ -73,7 +73,7 @@ eval-banana publishes agent skills in the `skills/` directory of the
 project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-npx skills add writeitai/eval-banana
+npx skills add https://github.com/writeitai/eval-banana
 ```
 
 The CLI auto-detects installed agents and copies skills into their native

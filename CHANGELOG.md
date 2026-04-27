@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `eb install` command and `eb distribute-skills` deprecated alias.
-  Skills are now installed via [`npx skills add writeitai/eval-banana`](https://github.com/vercel-labs/skills).
+  Skills are now installed via [`npx skills add https://github.com/writeitai/eval-banana`](https://github.com/vercel-labs/skills).
 - `src/eval_banana/harness/skills.py` — bundled skill installer module.
 - `src/eval_banana/skills/` — skills are no longer bundled in the wheel.
   The canonical source is now `skills/` at the repository root.
