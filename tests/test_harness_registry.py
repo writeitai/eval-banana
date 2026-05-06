@@ -31,7 +31,7 @@ def test_build_command_codex_uses_tail_prompt_and_default_model() -> None:
     assert command[:2] == ["codex", "exec"]
     assert command[-1] == "Fix the failing tests"
     assert "--model" in command
-    assert "gpt-5.4" in command
+    assert "gpt-5.5" in command
 
 
 def test_build_command_gemini_uses_prompt_flag() -> None:
@@ -79,7 +79,7 @@ def test_build_command_explicit_model_overrides_default_and_keeps_reasoning_flag
 ):
     template = AgentTemplate(
         command=("codex", "exec"),
-        default_model="gpt-5.4",
+        default_model="gpt-5.5",
         reasoning_effort="low",
         reasoning_effort_flag=("-c", "model_reasoning_effort={effort}"),
     )

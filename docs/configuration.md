@@ -91,7 +91,7 @@ Override built-in agent templates or define custom ones. Built-in templates exis
 
 ```toml
 [agents.codex]
-default_model = "gpt-5.4"
+default_model = "gpt-5.5"
 reasoning_effort = "high"
 ```
 
