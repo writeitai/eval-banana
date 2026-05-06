@@ -12,7 +12,7 @@ def test_default_agent_templates_match_expected_values() -> None:
         "codex",
         "exec",
     )
-    assert harness_template.DEFAULT_AGENT_TEMPLATES["codex"].default_model == "gpt-5.4"
+    assert harness_template.DEFAULT_AGENT_TEMPLATES["codex"].default_model == "gpt-5.5"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["gemini"].prompt_flag == "-p"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["claude"].shared_flags[0] == "-p"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["openhands"].model_flag is None

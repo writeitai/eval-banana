@@ -80,7 +80,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
             "--harness-agent",
             "codex",
             "--harness-model",
-            "gpt-5.4",
+            "gpt-5.5",
             "--harness-reasoning-effort",
             "high",
             "--cwd",
@@ -91,7 +91,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
     assert result.exit_code == 0
     assert captured["output_dir"] == "out"
     assert captured["harness_agent"] == "codex"
-    assert captured["harness_model"] == "gpt-5.4"
+    assert captured["harness_model"] == "gpt-5.5"
     assert captured["harness_reasoning_effort"] == "high"
     assert captured["cwd"] == "/tmp/project"
 

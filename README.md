@@ -124,7 +124,7 @@ After installation the CLI is available as `eb`.
 # .eval-banana/config.toml
 [harness]
 agent = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 # reasoning_effort = "high"
 ```
 

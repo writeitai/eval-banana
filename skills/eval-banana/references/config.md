@@ -73,7 +73,7 @@ Configure a harness agent when your project uses `harness_judge` checks.
 ```toml
 [harness]
 agent = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 reasoning_effort = "high"
 ```
 
