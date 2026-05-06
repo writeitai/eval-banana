@@ -317,8 +317,6 @@ def test_harness_judge_without_harness_aborts_before_runner_is_invoked(
                 "id: judge_check",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -351,8 +349,6 @@ def test_harness_judge_with_harness_configured_proceeds(
                 "id: judge_check",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -455,8 +451,6 @@ def test_check_id_targeting_deterministic_ignores_unrelated_harness_judge(
                 "id: b",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -511,8 +505,6 @@ def test_check_id_targeting_harness_judge_without_harness_fails(
                 "id: b",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -552,8 +544,6 @@ def test_mixed_checks_without_harness_aborts_on_harness_judge(
                 "id: b_judge",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -583,8 +573,6 @@ def test_multiple_harness_judge_without_harness_reports_sorted_first(
                     f"id: {check_id}",
                     "type: harness_judge",
                     "description: desc",
-                    "target_paths:",
-                    "  - README.md",
                     "instructions: Judge the output.",
                 ]
             ),

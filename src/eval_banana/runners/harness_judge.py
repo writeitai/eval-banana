@@ -32,35 +32,8 @@ def _duration_ms(*, started: datetime, completed: datetime) -> int:
     return int((completed - started).total_seconds() * 1000)
 
 
-def _read_target_text(*, path: Path, max_chars: int) -> str:
-    """Read a target file as UTF-8, optionally truncating to *max_chars*.
-
-    When *max_chars* is ``<= 0`` truncation is disabled and the full content
-    is returned.  Non-UTF-8 bytes are replaced with the Unicode replacement
-    character rather than raising.
-    """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        logger.warning("Non-UTF-8 target encountered at %s", path)
-        text = path.read_text(encoding="utf-8", errors="replace")
-
-    if max_chars <= 0 or len(text) <= max_chars:
-        return text
-
-    logger.warning("Truncating target text for %s", path)
-    return f"{text[:max_chars]}\n\n[TRUNCATED]"
-
-
-def _build_judge_prompt(
-    *, check: HarnessJudgeCheckDefinition, project_root: Path, max_chars: int
-) -> str:
-    """Assemble the full prompt sent to the harness agent for judging.
-
-    The prompt contains the judge preamble, the check description and
-    instructions, and the content of every target file (optionally
-    truncated by *max_chars*).
-    """
+def _build_judge_prompt(*, check: HarnessJudgeCheckDefinition) -> str:
+    """Assemble the full prompt sent to the harness agent for judging."""
     sections = [
         _JUDGE_PROMPT_PREFIX,
         "",
@@ -70,18 +43,6 @@ def _build_judge_prompt(
         "Instructions:",
         check.instructions,
     ]
-    if check.target_paths:
-        sections.extend(["", "Target Files:"])
-        for target in check.target_paths:
-            resolved = (project_root / target).resolve()
-            sections.extend(
-                [
-                    f"--- BEGIN FILE: {target} ({resolved}) ---",
-                    _read_target_text(path=resolved, max_chars=max_chars),
-                    f"--- END FILE: {target} ---",
-                    "",
-                ]
-            )
     return "\n".join(sections).strip()
 
 
@@ -214,7 +175,7 @@ def run_harness_judge_check(
             completed_at=completed.isoformat(),
             duration_ms=_duration_ms(started=started, completed=completed),
             error_detail="Harness judge requires config.harness_agent to be set",
-            details={"target_count": len(check.target_paths)},
+            details={},
         )
 
     template = resolve_template(
@@ -229,13 +190,10 @@ def run_harness_judge_check(
         "model": effective_model,
         "agent_type": config.harness_agent,
         "raw_response": "",
-        "target_count": len(check.target_paths),
     }
 
     try:
-        prompt = _build_judge_prompt(
-            check=check, project_root=project_root, max_chars=config.llm_max_input_chars
-        )
+        prompt = _build_judge_prompt(check=check)
         command = build_command_from_template(
             template=template, prompt=prompt, model=command_model
         )

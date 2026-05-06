@@ -51,25 +51,12 @@ def _build_context_payload(
     project_root: Path,
     output_dir: Path,
 ) -> dict[str, Any]:
-    targets: list[dict[str, Any]] = []
-    for target in check.target_paths:
-        resolved = (project_root / target).resolve()
-        targets.append(
-            {
-                "path": target,
-                "resolved_path": str(resolved),
-                "exists": resolved.exists(),
-                "is_dir": resolved.is_dir(),
-            }
-        )
-
     return {
         "check_id": check.id,
         "description": check.description,
         "project_root": str(project_root),
         "source_path": str(source_path.resolve()),
         "output_dir": str((output_dir / check.id).resolve()),
-        "targets": targets,
     }
 
 

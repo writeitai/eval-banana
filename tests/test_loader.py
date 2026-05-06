@@ -36,8 +36,6 @@ def test_legacy_type_raises_migration_error(tmp_path: Path) -> None:
                 "id: bad",
                 "type: llm" + "_judge",
                 "description: x",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge it.",
             ]
         ),
