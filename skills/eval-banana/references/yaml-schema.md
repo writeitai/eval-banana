@@ -18,7 +18,7 @@ Complete field reference for eval-banana check definitions. Each check file defi
 | `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`, non-empty after stripping | Must be unique across ALL discovered check files |
 | `type` | string | **Yes** | One of `deterministic`, `harness_judge` | Discriminator for the Pydantic union |
 | `description` | string | **Yes** | Non-empty after stripping | Human-readable, shown in reports |
-| `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Required non-empty for `harness_judge`. |
+| `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Optional for both check types. |
 | `tags` | list[string] | No | — | Free-form metadata. Not yet used for filtering but allowed. |
 
 `extra="forbid"` is enabled — any unknown field fails validation.
@@ -142,7 +142,6 @@ The runner raises `SystemExit` for:
 | `script and script_path are mutually exclusive` | Both set | Remove one |
 | `deterministic check must have script or script_path` | Neither set | Add one |
 | `instructions must be non-empty` | Empty or missing on harness_judge | Add instructions |
-| `target_paths must be non-empty` | Empty list on harness_judge | Add at least one target |
 | `command must be a non-empty list` | Empty list or not a list | Use list syntax, non-empty |
 | `id does not match pattern` | Invalid chars (dots, spaces, etc.) | Use only `[a-zA-Z0-9_-]` |
 | `Duplicate check id 'X' found in: ...` | Same id in 2+ files | Rename one |

@@ -101,13 +101,6 @@ class HarnessJudgeCheckDefinition(BaseCheckDefinition):
             raise ValueError(msg)
         return stripped
 
-    @model_validator(mode="after")
-    def validate_targets(self) -> HarnessJudgeCheckDefinition:
-        if not self.target_paths:
-            msg = "target_paths must be non-empty for harness_judge checks"
-            raise ValueError(msg)
-        return self
-
 
 def _reject_legacy_check_type(value: object) -> object:
     if isinstance(value, dict) and value.get("type") == _LEGACY_JUDGE_TYPE:

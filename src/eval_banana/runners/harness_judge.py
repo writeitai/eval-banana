@@ -69,19 +69,19 @@ def _build_judge_prompt(
         "",
         "Instructions:",
         check.instructions,
-        "",
-        "Target Files:",
     ]
-    for target in check.target_paths:
-        resolved = (project_root / target).resolve()
-        sections.extend(
-            [
-                f"--- BEGIN FILE: {target} ({resolved}) ---",
-                _read_target_text(path=resolved, max_chars=max_chars),
-                f"--- END FILE: {target} ---",
-                "",
-            ]
-        )
+    if check.target_paths:
+        sections.extend(["", "Target Files:"])
+        for target in check.target_paths:
+            resolved = (project_root / target).resolve()
+            sections.extend(
+                [
+                    f"--- BEGIN FILE: {target} ({resolved}) ---",
+                    _read_target_text(path=resolved, max_chars=max_chars),
+                    f"--- END FILE: {target} ---",
+                    "",
+                ]
+            )
     return "\n".join(sections).strip()
 
 

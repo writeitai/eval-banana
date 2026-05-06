@@ -36,7 +36,7 @@ id: my_check_id              # Unique across the project. Pattern: [a-zA-Z0-9_-]
 type: deterministic          # One of: deterministic, harness_judge
 description: Human-readable  # Required. Non-empty.
 target_paths:                # Files/dirs the check operates on. Resolved from project_root.
-  - path/to/file.json        # Optional for deterministic; required (non-empty) for harness_judge.
+  - path/to/file.json        # Optional. Content is passed to the script/judge when provided.
 tags: [fast, critical]       # Optional list of free-form tags.
 ```
 
@@ -105,7 +105,7 @@ Key points:
 
 ## Writing a `harness_judge` check
 
-Sends target file content + instructions to the configured harness agent. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`.
+Invokes the configured harness agent with instructions. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`. When `target_paths` are provided, their content is included in the prompt. When omitted, the agent can read files on its own.
 
 ```yaml
 schema_version: 1
