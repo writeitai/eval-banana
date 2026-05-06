@@ -36,14 +36,12 @@ schema_version: 1
 id: output_file_exists
 type: deterministic
 description: Verify that output.json was generated.
-target_paths:
-  - output.json
 script: |
   import json, sys
   from pathlib import Path
   ctx = json.loads(Path(sys.argv[1]).read_text())
-  target = ctx["targets"][0]
-  assert target["exists"], f"{target['path']} not found"
+  output = Path(ctx["project_root"]) / "output.json"
+  assert output.exists(), "output.json not found"
 ```
 
 ### Harness judge check
@@ -53,10 +51,8 @@ schema_version: 1
 id: summary_is_accurate
 type: harness_judge
 description: The generated summary accurately reflects source data.
-target_paths:
-  - summary.txt
-  - source_data.json
 instructions: |
+  Read summary.txt and source_data.json.
   Compare the summary against the source data.
   Score 1 if accurate, 0 if it contains fabricated claims.
 ```

@@ -14,12 +14,11 @@ All check types share these fields:
 | `id` | string | Yes | Unique identifier (`[a-zA-Z0-9_-]` only) |
 | `type` | string | Yes | One of: `deterministic`, `harness_judge` |
 | `description` | string | Yes | Human-readable description |
-| `target_paths` | list[string] | No | Files/directories the check operates on |
 | `tags` | list[string] | No | Tags for filtering (future use) |
 
 ## Deterministic checks
 
-Run a Python script that asserts conditions about target files.
+Run a Python script that asserts conditions about project files.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -30,11 +29,10 @@ Exactly one of `script` or `script_path` must be set.
 
 ### How it works
 
-1. Target paths are resolved relative to the project root
-2. A `context.json` file is written with check metadata and resolved targets
-3. The script runs as `python <script> <context.json>`
-4. Exit code 0 = passed, non-zero = failed
-5. Infrastructure errors (missing script, OS execution failure) = error
+1. A `context.json` file is written with check metadata and project root
+2. The script runs as `python <script> <context.json>`
+3. Exit code 0 = passed, non-zero = failed
+4. Infrastructure errors (missing script, OS execution failure) = error
 
 ### context.json shape
 
@@ -44,15 +42,7 @@ Exactly one of `script` or `script_path` must be set.
   "description": "Check description",
   "project_root": "/absolute/project/root",
   "source_path": "/absolute/path/to/check.yaml",
-  "output_dir": "/absolute/path/to/output/checks/my_check",
-  "targets": [
-    {
-      "path": "relative/path.txt",
-      "resolved_path": "/absolute/resolved/path.txt",
-      "exists": true,
-      "is_dir": false
-    }
-  ]
+  "output_dir": "/absolute/path/to/output/checks/my_check"
 }
 ```
 
@@ -63,38 +53,32 @@ schema_version: 1
 id: no_todo_comments
 type: deterministic
 description: No TODO markers in Python source files.
-target_paths:
-  - src
 script: |
   import json, sys
   from pathlib import Path
   ctx = json.loads(Path(sys.argv[1]).read_text())
-  for t in ctx["targets"]:
-      p = Path(t["resolved_path"])
-      if p.is_dir():
-          for f in p.rglob("*.py"):
-              text = f.read_text()
-              if "TODO" in text:
-                  sys.exit(1)
+  src = Path(ctx["project_root"]) / "src"
+  for f in src.rglob("*.py"):
+      if "TODO" in f.read_text():
+          sys.exit(1)
 ```
 
 ## Harness judge checks
 
-Send target file content to the configured harness agent with evaluation instructions.
+Invoke the configured harness agent with evaluation instructions. The agent can read project files on its own.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `instructions` | string | Yes | Evaluation criteria for the judge |
 | `model` | string | No | Override the harness model for this check |
-| `target_paths` | list[string] | Yes | Must be non-empty |
 
 ### How it works
 
-1. Target files are read and included in a judging prompt
+1. A judging prompt is built from the check description and instructions
 2. The configured harness agent subprocess receives that prompt
 3. The final verdict must include `{"score": 0|1, "reason": "..."}`
 4. Score 1 = passed, 0 = failed, parse error = error
-5. Harness spawn failures, timeouts, or unreadable targets = error
+5. Harness spawn failures or timeouts = error
 
 ### Example
 
@@ -103,11 +87,9 @@ schema_version: 1
 id: readme_has_install_steps
 type: harness_judge
 description: README clearly explains how to install the package.
-target_paths:
-  - README.md
 instructions: |
-  Does the README give a new user enough information to install
-  and run the package locally? Score 1 if yes, 0 if no.
+  Read README.md. Does it give a new user enough information to
+  install and run the package locally? Score 1 if yes, 0 if no.
 ```
 
 ## Auto-discovery

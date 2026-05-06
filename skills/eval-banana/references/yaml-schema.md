@@ -18,7 +18,6 @@ Complete field reference for eval-banana check definitions. Each check file defi
 | `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`, non-empty after stripping | Must be unique across ALL discovered check files |
 | `type` | string | **Yes** | One of `deterministic`, `harness_judge` | Discriminator for the Pydantic union |
 | `description` | string | **Yes** | Non-empty after stripping | Human-readable, shown in reports |
-| `target_paths` | list[string] | No | Each entry non-empty | Resolved relative to `project_root`. Optional for both check types. |
 | `tags` | list[string] | No | — | Free-form metadata. Not yet used for filtering but allowed. |
 
 `extra="forbid"` is enabled — any unknown field fails validation.
@@ -50,19 +49,9 @@ Passed as `sys.argv[1]`. Always this exact shape:
   "description": "string",
   "project_root": "/abs/path",
   "source_path": "/abs/path/to/check.yaml",
-  "output_dir": "/abs/path/to/per-check-output-dir",
-  "targets": [
-    {
-      "path": "relative/or/absolute/as/written",
-      "resolved_path": "/abs/path/resolved/from/project_root",
-      "exists": true,
-      "is_dir": false
-    }
-  ]
+  "output_dir": "/abs/path/to/per-check-output-dir"
 }
 ```
-
-`targets` length matches `target_paths` length. Entry order is preserved.
 
 ### Result mapping
 
@@ -83,16 +72,14 @@ Type-specific fields:
 | `instructions` | string | **Yes** | Non-empty. The evaluation prompt sent to the harness agent. |
 | `model` | string | No | Override `harness.model` for this check only |
 
-**Constraint**: `target_paths` must be non-empty for harness_judge checks.
-
 ### Prompt shape
 
 The runner builds a prompt with:
 1. A fixed instruction asking for `{"score": 0|1, "reason": "..."}` JSON output
 2. The `description` as context
 3. The `instructions` as the evaluation criterion
-4. Each target file's content, separated by `--- BEGIN FILE: <path> ---` / `--- END FILE: <path> ---`
-5. Truncation marker `[TRUNCATED]` if `llm_max_input_chars` is set to a positive value and the file exceeds it (default: 0 = no truncation)
+
+The harness agent can read project files on its own — tell it which files to check in the `instructions` field.
 
 ### Required LLM response format
 
@@ -112,7 +99,6 @@ The runner builds a prompt with:
 | Valid JSON, `score == 0` | `failed` | 0 |
 | Malformed JSON or score outside {0,1} | `error` | 0 |
 | Harness subprocess spawn/timeout error | `error` | 0 |
-| Missing / unreadable target file | `error` | 0 |
 
 ## Validation rules summary
 
@@ -126,7 +112,7 @@ The loader raises a `ValueError` naming the file path for any of these:
 - Unknown top-level field (blocked by `extra="forbid"`)
 - `type` not one of the allowed values
 - `script` AND `script_path` both set, or neither set (deterministic)
-- `instructions` empty, or `target_paths` empty (harness_judge)
+- `instructions` empty (harness_judge)
 
 The runner raises `SystemExit` for:
 - Duplicate check IDs across files (shows both file paths)
@@ -142,6 +128,5 @@ The runner raises `SystemExit` for:
 | `script and script_path are mutually exclusive` | Both set | Remove one |
 | `deterministic check must have script or script_path` | Neither set | Add one |
 | `instructions must be non-empty` | Empty or missing on harness_judge | Add instructions |
-| `command must be a non-empty list` | Empty list or not a list | Use list syntax, non-empty |
 | `id does not match pattern` | Invalid chars (dots, spaces, etc.) | Use only `[a-zA-Z0-9_-]` |
 | `Duplicate check id 'X' found in: ...` | Same id in 2+ files | Rename one |

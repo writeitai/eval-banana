@@ -35,8 +35,6 @@ schema_version: 1            # Always 1. Required. No default.
 id: my_check_id              # Unique across the project. Pattern: [a-zA-Z0-9_-]+
 type: deterministic          # One of: deterministic, harness_judge
 description: Human-readable  # Required. Non-empty.
-target_paths:                # Files/dirs the check operates on. Resolved from project_root.
-  - path/to/file.json        # Optional. Content is passed to the script/judge when provided.
 tags: [fast, critical]       # Optional list of free-form tags.
 ```
 
@@ -51,17 +49,16 @@ schema_version: 1
 id: output_has_result_key
 type: deterministic
 description: output.json exists and contains a 'result' key.
-target_paths:
-  - output.json
 script: |
   import json, sys
   from pathlib import Path
 
   ctx = json.loads(Path(sys.argv[1]).read_text())
-  target = ctx["targets"][0]
-  if not target["exists"]:
+  project_root = Path(ctx["project_root"])
+  output = project_root / "output.json"
+  if not output.exists():
       sys.exit(1)
-  data = json.loads(Path(target["resolved_path"]).read_text())
+  data = json.loads(output.read_text())
   if "result" not in data:
       sys.exit(1)
 ```
@@ -78,22 +75,12 @@ The script is invoked as `python <script> <context.json>`. Read `sys.argv[1]` to
   "description": "output.json exists and contains a 'result' key.",
   "project_root": "/abs/path/to/project",
   "source_path": "/abs/path/to/project/eval_checks/my_check.yaml",
-  "output_dir": "/abs/path/.../.eval-banana/results/<run_id>/checks/output_has_result_key",
-  "targets": [
-    {
-      "path": "output.json",
-      "resolved_path": "/abs/path/to/project/output.json",
-      "exists": true,
-      "is_dir": false
-    }
-  ]
+  "output_dir": "/abs/path/.../.eval-banana/results/<run_id>/checks/output_has_result_key"
 }
 ```
 
 Key points:
-- `targets` entries align 1:1 with `target_paths` in the YAML, in order.
-- `resolved_path` is absolute — use it directly, don't re-resolve from `path`.
-- `exists` and `is_dir` are pre-checked for convenience.
+- `project_root` is absolute — use it to locate any file in the project.
 - The subprocess runs with `cwd = project_root`, so relative paths in the script also resolve from there.
 
 ### Deterministic failure mapping
@@ -105,32 +92,30 @@ Key points:
 
 ## Writing a `harness_judge` check
 
-Invokes the configured harness agent with instructions. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`. When `target_paths` are provided, their content is included in the prompt. When omitted, the agent can read files on its own.
+Invokes the configured harness agent with instructions. The agent can read files on its own. It must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`.
 
 ```yaml
 schema_version: 1
 id: readme_explains_install
 type: harness_judge
 description: README gives a new user enough info to install the package.
-target_paths:
-  - README.md
 instructions: |
-  Does the README give a new user enough information to install
-  and run the package locally (environment setup, install command,
-  and how to invoke it)? Score 1 if yes, 0 if anything critical
-  is missing.
+  Read README.md. Does it give a new user enough information to
+  install and run the package locally (environment setup, install
+  command, and how to invoke it)? Score 1 if yes, 0 if anything
+  critical is missing.
 ```
 
 Guidelines for good instructions:
 - State the exact condition for score 1 and score 0.
 - Be binary — avoid "mostly", "partially", etc.
 - Reference concrete things to look for.
+- Tell the agent which files to read.
 - Keep it short. Long instructions confuse the judge.
 - Do not ask for scores outside {0, 1} — the parser rejects anything else as `error`.
 
 Optional fields:
 - `model: gpt-5.4` — override the default harness model for this one check.
-- Multiple `target_paths` — all files are concatenated with separators in the prompt.
 
 ## Auto-discovery rules
 
