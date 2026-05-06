@@ -275,8 +275,6 @@ def test_validate_hard_fails_when_harness_judge_has_no_harness(
                 "id: judge_check",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -307,8 +305,6 @@ def test_validate_succeeds_when_harness_configured_for_harness_judge(
                 "id: judge_check",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),
@@ -348,8 +344,6 @@ def test_list_does_not_enforce_harness_rule(
                 "id: judge_check",
                 "type: harness_judge",
                 "description: desc",
-                "target_paths:",
-                "  - README.md",
                 "instructions: Judge the output.",
             ]
         ),

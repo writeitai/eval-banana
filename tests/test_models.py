@@ -23,21 +23,10 @@ def test_valid_definitions_parse() -> None:
             "script": "print('ok')",
         }
     )
-    llm = _ADAPTER.validate_python(
+    judge = _ADAPTER.validate_python(
         {
             "schema_version": 1,
             "id": "check-2",
-            "type": "harness_judge",
-            "description": "desc",
-            "target_paths": ["README.md"],
-            "instructions": "judge it",
-        }
-    )
-
-    judge_no_targets = _ADAPTER.validate_python(
-        {
-            "schema_version": 1,
-            "id": "check-3",
             "type": "harness_judge",
             "description": "desc",
             "instructions": "judge it",
@@ -45,9 +34,7 @@ def test_valid_definitions_parse() -> None:
     )
 
     assert deterministic.id == "check_1"
-    assert llm.id == "check-2"
-    assert judge_no_targets.id == "check-3"
-    assert judge_no_targets.target_paths == []
+    assert judge.id == "check-2"
 
 
 def test_invalid_union_fails() -> None:
@@ -149,7 +136,6 @@ def test_check_result_tags_field_defaults_and_serializes() -> None:
             "id": "foo",
             "type": "harness_judge",
             "description": "d",
-            "target_paths": ["README.md"],
             "instructions": "grade",
             "timeout_seconds": 30,
         },

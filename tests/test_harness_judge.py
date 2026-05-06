@@ -19,7 +19,6 @@ def _make_check(*, model: str | None = None) -> HarnessJudgeCheckDefinition:
         id="judge_check",
         type="harness_judge",
         description="Judge the README.",
-        target_paths=["README.md"],
         instructions="Return score 1 when install steps are clear.",
         model=model,
     )
@@ -84,26 +83,6 @@ def test_harness_judge_success_path(
     assert captured["cwd"] == tmp_path
     assert captured["capture_output"] is True
     assert captured["text"] is True
-
-
-def test_missing_target_file_returns_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
-) -> None:
-    monkeypatch.setattr(
-        "eval_banana.runners.harness_judge.resolve_template",
-        lambda **kwargs: AgentTemplate(command=("codex", "exec")),
-    )
-
-    result = run_harness_judge_check(
-        check=_make_check(),
-        source_path=tmp_path / "eval_checks" / "judge.yaml",
-        project_root=tmp_path,
-        output_dir=tmp_path / "out" / "checks",
-        config=make_config(project_root=tmp_path, harness_agent="codex"),
-    )
-
-    assert result.status.value == "error"
-    assert "FileNotFoundError" in (result.error_detail or "")
 
 
 def test_malformed_json_returns_error(
@@ -266,81 +245,6 @@ def test_per_check_model_override_reaches_subprocess_command(
     assert result.status.value == "passed"
     assert "--model" in captured["args"]
     assert "gpt-5.4" in captured["args"]
-
-
-def test_prompt_includes_all_target_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
-) -> None:
-    (tmp_path / "README.md").write_text("Readme text", encoding="utf-8")
-    (tmp_path / "docs.md").write_text("Docs text", encoding="utf-8")
-    captured: dict[str, object] = {}
-    monkeypatch.setattr(
-        "eval_banana.runners.harness_judge.resolve_template",
-        lambda **kwargs: AgentTemplate(command=("judge",), prompt_flag="--prompt"),
-    )
-
-    def fake_run(
-        command: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        captured["args"] = command
-        return _completed_process(stdout='{"score": 1, "reason": "ok"}')
-
-    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
-    check = HarnessJudgeCheckDefinition(
-        schema_version=1,
-        id="judge_check",
-        type="harness_judge",
-        description="desc",
-        target_paths=["README.md", "docs.md"],
-        instructions="Judge both files.",
-    )
-
-    run_harness_judge_check(
-        check=check,
-        source_path=tmp_path / "eval_checks" / "judge.yaml",
-        project_root=tmp_path,
-        output_dir=tmp_path / "out" / "checks",
-        config=make_config(project_root=tmp_path, harness_agent="codex"),
-    )
-
-    prompt = captured["args"][-1]
-    assert "Readme text" in prompt
-    assert "Docs text" in prompt
-    assert "--- BEGIN FILE: README.md" in prompt
-    assert "--- BEGIN FILE: docs.md" in prompt
-
-
-def test_prompt_truncates_target_content(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
-) -> None:
-    (tmp_path / "README.md").write_text("abcdefghij", encoding="utf-8")
-    captured: dict[str, object] = {}
-    monkeypatch.setattr(
-        "eval_banana.runners.harness_judge.resolve_template",
-        lambda **kwargs: AgentTemplate(command=("judge",), prompt_flag="--prompt"),
-    )
-
-    def fake_run(
-        command: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        captured["args"] = command
-        return _completed_process(stdout='{"score": 1, "reason": "ok"}')
-
-    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
-
-    run_harness_judge_check(
-        check=_make_check(),
-        source_path=tmp_path / "eval_checks" / "judge.yaml",
-        project_root=tmp_path,
-        output_dir=tmp_path / "out" / "checks",
-        config=make_config(
-            project_root=tmp_path, harness_agent="codex", llm_max_input_chars=5
-        ),
-    )
-
-    prompt = captured["args"][-1]
-    assert "abcde" in prompt
-    assert "[TRUNCATED]" in prompt
 
 
 def test_pretty_printed_multiline_json_is_parsed(

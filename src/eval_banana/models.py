@@ -38,7 +38,6 @@ class BaseCheckDefinition(BaseModel):
     id: str
     type: CheckType
     description: str
-    target_paths: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
     @field_validator("id")
@@ -61,15 +60,6 @@ class BaseCheckDefinition(BaseModel):
             msg = "description must be non-empty"
             raise ValueError(msg)
         return stripped
-
-    @field_validator("target_paths")
-    @classmethod
-    def validate_target_paths(cls, value: list[str]) -> list[str]:
-        for item in value:
-            if not item.strip():
-                msg = "target_paths entries must be non-empty strings"
-                raise ValueError(msg)
-        return value
 
 
 class DeterministicCheckDefinition(BaseCheckDefinition):

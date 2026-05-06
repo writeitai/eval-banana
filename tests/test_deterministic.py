@@ -19,7 +19,6 @@ def test_inline_script_pass(
     source_path = tmp_path / "eval_checks" / "one.yaml"
     source_path.parent.mkdir()
     source_path.write_text("", encoding="utf-8")
-    (tmp_path / "README.md").write_text("hi", encoding="utf-8")
     captured: dict[str, object] = {}
 
     def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -37,7 +36,6 @@ def test_inline_script_pass(
         id="inline_pass",
         type="deterministic",
         description="desc",
-        target_paths=["README.md"],
         script="print('ok')",
     )
 
@@ -53,9 +51,7 @@ def test_inline_script_pass(
     assert result.score == 1
     assert result.stdout == "ok"
     assert captured["cwd"] == project_root
-    assert captured["context"]["targets"][0]["resolved_path"] == str(
-        (tmp_path / "README.md").resolve()
-    )
+    assert captured["context"]["project_root"] == str(project_root)
 
 
 def test_inline_script_fail(
