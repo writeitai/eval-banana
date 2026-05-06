@@ -34,8 +34,20 @@ def test_valid_definitions_parse() -> None:
         }
     )
 
+    judge_no_targets = _ADAPTER.validate_python(
+        {
+            "schema_version": 1,
+            "id": "check-3",
+            "type": "harness_judge",
+            "description": "desc",
+            "instructions": "judge it",
+        }
+    )
+
     assert deterministic.id == "check_1"
     assert llm.id == "check-2"
+    assert judge_no_targets.id == "check-3"
+    assert judge_no_targets.target_paths == []
 
 
 def test_invalid_union_fails() -> None:
