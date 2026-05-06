@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-06
+
+### Removed
+
+- `target_paths` field from check definitions. Harness judges invoke real
+  agents (CC, Codex, Gemini CLI) that read files on their own — tell them
+  which files to check in the `instructions` field. Deterministic scripts
+  receive `project_root` in context.json and locate files independently.
+  Existing YAML files with `target_paths` will fail validation.
+
+### Changed
+
+- Default codex model upgraded from `gpt-5.4` to `gpt-5.5`.
+
 ## [0.2.0] - 2026-04-27
 
 ### Removed
@@ -214,7 +228,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/writeitai/eval-banana/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/writeitai/eval-banana/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/writeitai/eval-banana/compare/v0.0.9...v0.1.0
 [0.0.9]: https://github.com/writeitai/eval-banana/compare/v0.0.8...v0.0.9
