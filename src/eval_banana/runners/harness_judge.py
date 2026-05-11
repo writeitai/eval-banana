@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 from datetime import timezone
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -32,18 +33,35 @@ def _duration_ms(*, started: datetime, completed: datetime) -> int:
     return int((completed - started).total_seconds() * 1000)
 
 
-def _read_target_text(*, path: Path, max_chars: int) -> str:
-    """Read a target file as UTF-8, optionally truncating to *max_chars*.
+def _render_binary_target_metadata(
+    *, relative_path: str, resolved_path: Path, content: bytes
+) -> str:
+    return "\n".join(
+        [
+            "Binary target content omitted.",
+            f"Relative path: {relative_path}",
+            f"Resolved path: {resolved_path}",
+            f"Byte size: {len(content)}",
+            f"SHA-256: {hashlib.sha256(content).hexdigest()}",
+        ]
+    )
 
-    When *max_chars* is ``<= 0`` truncation is disabled and the full content
-    is returned.  Non-UTF-8 bytes are replaced with the Unicode replacement
-    character rather than raising.
-    """
+
+def _render_target_for_prompt(*, relative_path: str, path: Path, max_chars: int) -> str:
+    """Render text content or binary metadata for a target file."""
+    content = path.read_bytes()
+    if b"\x00" in content:
+        return _render_binary_target_metadata(
+            relative_path=relative_path, resolved_path=path, content=content
+        )
+
     try:
-        text = path.read_text(encoding="utf-8")
+        text = content.decode("utf-8")
     except UnicodeDecodeError:
         logger.warning("Non-UTF-8 target encountered at %s", path)
-        text = path.read_text(encoding="utf-8", errors="replace")
+        return _render_binary_target_metadata(
+            relative_path=relative_path, resolved_path=path, content=content
+        )
 
     if max_chars <= 0 or len(text) <= max_chars:
         return text
@@ -58,8 +76,8 @@ def _build_judge_prompt(
     """Assemble the full prompt sent to the harness agent for judging.
 
     The prompt contains the judge preamble, the check description and
-    instructions, and the content of every target file (optionally
-    truncated by *max_chars*).
+    instructions. Text targets are included as content, optionally
+    truncated by *max_chars*. Binary targets are included as metadata.
     """
     sections = [
         _JUDGE_PROMPT_PREFIX,
@@ -77,7 +95,9 @@ def _build_judge_prompt(
         sections.extend(
             [
                 f"--- BEGIN FILE: {target} ({resolved}) ---",
-                _read_target_text(path=resolved, max_chars=max_chars),
+                _render_target_for_prompt(
+                    relative_path=target, path=resolved, max_chars=max_chars
+                ),
                 f"--- END FILE: {target} ---",
                 "",
             ]

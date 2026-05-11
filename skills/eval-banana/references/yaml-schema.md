@@ -91,8 +91,9 @@ The runner builds a prompt with:
 1. A fixed instruction asking for `{"score": 0|1, "reason": "..."}` JSON output
 2. The `description` as context
 3. The `instructions` as the evaluation criterion
-4. Each target file's content, separated by `--- BEGIN FILE: <path> ---` / `--- END FILE: <path> ---`
-5. Truncation marker `[TRUNCATED]` if `llm_max_input_chars` is set to a positive value and the file exceeds it (default: 0 = no truncation)
+4. Each text target file's content, separated by `--- BEGIN FILE: <path> ---` / `--- END FILE: <path> ---`
+5. Binary targets as metadata: relative path, resolved path, byte size, SHA-256 digest, and an omitted-content note
+6. Truncation marker `[TRUNCATED]` if `llm_max_input_chars` is set to a positive value and a text file exceeds it (default: 0 = no truncation)
 
 ### Required LLM response format
 

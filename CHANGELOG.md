@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `harness_judge` now renders binary target files as deterministic metadata
+  instead of prompt content, avoiding subprocess argv failures from embedded
+  NUL bytes.
+
 ## [0.2.0] - 2026-04-27
 
 ### Removed

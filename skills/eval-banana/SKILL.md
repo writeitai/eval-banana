@@ -105,7 +105,7 @@ Key points:
 
 ## Writing a `harness_judge` check
 
-Sends target file content + instructions to the configured harness agent. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`.
+Sends text target content, binary target metadata, and instructions to the configured harness agent. The agent must eventually emit JSON: `{"score": 0|1, "reason": "one sentence"}`.
 
 ```yaml
 schema_version: 1
@@ -131,6 +131,7 @@ Guidelines for good instructions:
 Optional fields:
 - `model: gpt-5.4` — override the default harness model for this one check.
 - Multiple `target_paths` — all files are concatenated with separators in the prompt.
+- Binary `target_paths` — content is omitted; the prompt includes relative path, resolved path, byte size, and SHA-256 digest.
 
 ## Auto-discovery rules
 

@@ -80,7 +80,8 @@ script: |
 
 ## Harness judge checks
 
-Send target file content to the configured harness agent with evaluation instructions.
+Send text target content and binary target metadata to the configured harness
+agent with evaluation instructions.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -90,7 +91,9 @@ Send target file content to the configured harness agent with evaluation instruc
 
 ### How it works
 
-1. Target files are read and included in a judging prompt
+1. Text target files are read and included in a judging prompt
+   - Binary target files are represented by relative path, resolved path, byte
+     size, SHA-256 digest, and an omitted-content note
 2. The configured harness agent subprocess receives that prompt
 3. The final verdict must include `{"score": 0|1, "reason": "..."}`
 4. Score 1 = passed, 0 = failed, parse error = error
