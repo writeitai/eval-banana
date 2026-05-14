@@ -70,7 +70,13 @@ The `harness_judge` check type is essentially an Aspect Critic: you describe wha
 
 ## Skills
 
-eval-banana ships agent skills in the `skills/` directory of the repository. Install them into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
+eval-banana ships agent skills in the `skills/` directory of the repository, including:
+
+- `eval-banana`: guidance for writing and debugging eval-banana checks
+- `gemini_media_use`: Gemini media upload and analysis helpers
+- `voxtral-transcribe`: Mistral Voxtral transcription patterns for generated audio evals
+
+Install repo-local skills into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
 
 ```bash
 npx skills add https://github.com/writeitai/eval-banana
