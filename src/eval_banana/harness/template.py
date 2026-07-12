@@ -42,7 +42,7 @@ DEFAULT_AGENT_TEMPLATES: dict[str, AgentTemplate] = {
             "--skip-git-repo-check",
         ),
         model_flag="--model",
-        default_model="gpt-5.5",
+        default_model="gpt-5.6-sol",
         reasoning_effort_flag=("-c", "model_reasoning_effort={effort}"),
     ),
     "gemini": AgentTemplate(

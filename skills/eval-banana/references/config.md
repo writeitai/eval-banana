@@ -73,7 +73,8 @@ Configure a harness agent when your project uses `harness_judge` checks.
 ```toml
 [harness]
 agent = "codex"
-model = "gpt-5.5"
+# codex GPT-5.6 tiers: gpt-5.6-sol (flagship, default), gpt-5.6-terra, gpt-5.6-luna
+model = "gpt-5.6-sol"
 reasoning_effort = "high"
 ```
 

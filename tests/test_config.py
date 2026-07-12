@@ -127,7 +127,7 @@ def test_toml_mapping_table_is_applied(
                 "",
                 "[harness]",
                 'agent = "codex"',
-                'model = "gpt-5.5"',
+                'model = "gpt-5.6-sol"',
                 'reasoning_effort = "medium"',
                 "",
                 "[discovery]",
@@ -143,7 +143,7 @@ def test_toml_mapping_table_is_applied(
     assert config.pass_threshold == 0.7
     assert config.llm_max_input_chars == 44
     assert config.harness_agent == "codex"
-    assert config.harness_model == "gpt-5.5"
+    assert config.harness_model == "gpt-5.6-sol"
     assert config.harness_reasoning_effort == "medium"
     assert config.discovery_exclude_dirs == ["one", "two"]
 

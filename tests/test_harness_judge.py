@@ -51,7 +51,7 @@ def test_harness_judge_success_path(
     (tmp_path / "README.md").write_text("Install with uv sync", encoding="utf-8")
     captured: dict[str, object] = {}
     template = AgentTemplate(
-        command=("codex", "exec"), model_flag="--model", default_model="gpt-5.5"
+        command=("codex", "exec"), model_flag="--model", default_model="gpt-5.6-sol"
     )
 
     monkeypatch.setattr(
@@ -78,7 +78,7 @@ def test_harness_judge_success_path(
     assert result.status.value == "passed"
     assert result.reason == "Looks good."
     assert result.check_type.value == "harness_judge"
-    assert result.details["model"] == "gpt-5.5"
+    assert result.details["model"] == "gpt-5.6-sol"
     assert captured["timeout"] == 300
     assert captured["cwd"] == tmp_path
     assert captured["capture_output"] is True
@@ -235,7 +235,7 @@ def test_per_check_model_override_reaches_subprocess_command(
     monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
 
     result = run_harness_judge_check(
-        check=_make_check(model="gpt-5.5"),
+        check=_make_check(model="gpt-5.6-sol"),
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -244,7 +244,7 @@ def test_per_check_model_override_reaches_subprocess_command(
 
     assert result.status.value == "passed"
     assert "--model" in captured["args"]
-    assert "gpt-5.5" in captured["args"]
+    assert "gpt-5.6-sol" in captured["args"]
 
 
 def test_pretty_printed_multiline_json_is_parsed(

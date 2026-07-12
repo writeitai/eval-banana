@@ -130,7 +130,8 @@ After installation the CLI is available as `eb`.
 # .eval-banana/config.toml
 [harness]
 agent = "codex"
-model = "gpt-5.5"
+# codex GPT-5.6 tiers: gpt-5.6-sol (flagship), gpt-5.6-terra, gpt-5.6-luna
+model = "gpt-5.6-sol"
 # reasoning_effort = "high"
 ```
 

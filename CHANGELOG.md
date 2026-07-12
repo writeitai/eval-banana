@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default codex model upgraded from `gpt-5.5` to `gpt-5.6-sol`, the flagship
+  tier of OpenAI's GPT-5.6 family. The `gpt-5.6-terra` (balanced) and
+  `gpt-5.6-luna` (fastest/cheapest) tiers remain selectable via `[harness]`
+  `model`, `[agents.codex]` `default_model`, the `--harness-model` flag, the
+  `EVAL_BANANA_HARNESS_MODEL` env var, or a per-check `model:` override.
+
 ## [0.3.0] - 2026-05-06
 
 ### Removed
