@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-12
+
+### Added
+
+- Voxtral transcription skill (`skills/voxtral-transcribe`) for transcribing
+  image, audio, and video content.
+
 ### Changed
 
 - Default codex model upgraded from `gpt-5.5` to `gpt-5.6-sol`, the flagship
@@ -236,7 +243,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/writeitai/eval-banana/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/writeitai/eval-banana/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/writeitai/eval-banana/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/writeitai/eval-banana/compare/v0.0.9...v0.1.0
