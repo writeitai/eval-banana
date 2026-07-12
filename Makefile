@@ -3,12 +3,12 @@
 ## Start Claude Code with MCP configuration
 claude:
 	@test -f .mcp.json || (echo "Error: .mcp.json not found. Please create it first." && exit 1)
-	PATH="$(HOME)/.bun/bin:$(PATH)" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 TELEGRAM_STATE_DIR=$(PWD)/.claude/channels/telegram claude --dangerously-skip-permissions --mcp-config .mcp.json --chrome --channels plugin:telegram@claude-plugins-official
+	CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 CLAUDE_CODE_ENABLE_AUTO_MODE=1 claude --dangerously-skip-permissions --mcp-config .mcp.json --remote-control
 
 ## Continue previous Claude Code session
 claudecontinue:
 	@test -f .mcp.json || (echo "Error: .mcp.json not found. Please create it first." && exit 1)
-	PATH="$(HOME)/.bun/bin:$(PATH)" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 TELEGRAM_STATE_DIR=$(PWD)/.claude/channels/telegram claude --dangerously-skip-permissions --mcp-config .mcp.json --continue --chrome --channels plugin:telegram@claude-plugins-official
+	CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 CLAUDE_CODE_ENABLE_AUTO_MODE=1 claude --dangerously-skip-permissions --mcp-config .mcp.json --continue --remote-control
 
 test:
 	uv run pytest tests -v --tb=short
