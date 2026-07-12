@@ -44,8 +44,10 @@ _HARNESS_TEMPLATE = """\
 agent = "codex"
 
 # Override the agent's default model. Format is agent-specific.
+# For codex, the GPT-5.6 tiers are: gpt-5.6-sol (flagship, default),
+# gpt-5.6-terra (balanced everyday), gpt-5.6-luna (fastest, cheapest).
 # Env: EVAL_BANANA_HARNESS_MODEL
-model = "gpt-5.5"
+model = "gpt-5.6-sol"
 
 # Agent-specific reasoning-effort level. Common values: "low", "medium", "high".
 # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT

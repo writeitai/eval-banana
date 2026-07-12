@@ -115,7 +115,8 @@ Guidelines for good instructions:
 - Do not ask for scores outside {0, 1} — the parser rejects anything else as `error`.
 
 Optional fields:
-- `model: gpt-5.5` — override the default harness model for this one check.
+- `model: gpt-5.6-sol` — override the default harness model for this one check
+  (codex tiers: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`).
 
 ## Auto-discovery rules
 

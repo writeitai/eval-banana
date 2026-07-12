@@ -91,7 +91,9 @@ Override built-in agent templates or define custom ones. Built-in templates exis
 
 ```toml
 [agents.codex]
-default_model = "gpt-5.5"
+# GPT-5.6 tiers: gpt-5.6-sol (flagship, default), gpt-5.6-terra (balanced),
+# gpt-5.6-luna (fastest/cheapest).
+default_model = "gpt-5.6-sol"
 reasoning_effort = "high"
 ```
 
