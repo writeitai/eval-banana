@@ -1,0 +1,38 @@
+export const metadata = {
+  title: "Skills",
+  description:
+    "eval-banana ships agent skills that teach AI coding agents how to write and debug checks. Install them with the npx skills CLI.",
+};
+
+# Skills
+
+eval-banana ships **agent skills** in the `skills/` directory of the [repository](https://github.com/writeitai/eval-banana). A skill is a bundle of instructions and references that teaches an AI coding agent — Claude Code, Codex, and compatible agents — how to operate a tool. Installing the eval-banana skill lets an agent write, debug, and run checks for you.
+
+## Available skills
+
+- **`eval-banana`** — guidance for writing and debugging eval-banana checks: the two check types, auto-discovery rules, the `context.json` contract, config precedence, and how to read a report.
+- **`gemini_media_use`** — helpers for uploading and analyzing image, audio, and video with Gemini, for evals over generated media.
+- **`voxtral-transcribe`** — Mistral Voxtral transcription patterns, for evals over generated audio.
+
+## Installing skills
+
+Install the repo's skills into your project with the [`npx skills` CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add https://github.com/writeitai/eval-banana
+```
+
+The CLI auto-detects the AI agents you have installed and copies the skills into their native directories — `.claude/skills/`, `.codex/skills/`, `.agents/skills/`, `.gemini/skills/`, and so on.
+
+Installed skill directories are installation artifacts: they should usually be gitignored rather than committed into the target project.
+
+## What the skill covers
+
+Once installed, the `eval-banana` skill gives the agent the working knowledge to:
+
+- choose between `deterministic` and `harness_judge` for a given condition;
+- write a valid check file, including the required `schema_version`, a unique `id`, and exactly one of `script` / `script_path`;
+- read the `context.json` contract correctly so deterministic scripts locate project files;
+- configure a harness for judge checks and read back the scored report.
+
+It is optional — everything the skill automates, you can do by hand from these docs — but it makes an agent a competent operator of eval-banana inside your repo.

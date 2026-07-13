@@ -1,0 +1,74 @@
+export const metadata = {
+  title: "Reports",
+  description:
+    "What eval-banana writes after a run: the output directory layout, the console summary, and exactly how the pass/fail verdict is computed.",
+};
+
+# Reports
+
+Every `eb run` writes a timestamped directory of results and prints a summary to the console. This page covers what you get and how the verdict is computed.
+
+## Output directory layout
+
+Each run creates a directory under the configured `output_dir` (default `.eval-banana/results`), keyed by a run id:
+
+```text
+.eval-banana/results/<run_id>/
+├── report.json                # machine-readable, the full report
+├── report.md                  # human-readable Markdown summary
+└── checks/
+    ├── <check_id>.json        # per-check result
+    ├── <check_id>.stdout.txt  # captured stdout (only if non-empty)
+    └── <check_id>.stderr.txt  # captured stderr (only if non-empty)
+```
+
+- **`report.json`** is the complete, structured report — parse this in tooling.
+- **`report.md`** is the same information formatted for a human to read.
+- **`checks/<check_id>.json`** holds one check's status, score, and reason.
+- **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land.
+
+## Console summary
+
+The console output shows:
+
+- the **run id**;
+- `points_earned/total_points` and the percentage;
+- a **`PASS`** or **`FAIL`** verdict;
+- a per-check list, with the `reason` for failed checks and the error for errored ones.
+
+## The three statuses
+
+Every check resolves to exactly one status, which sets its score:
+
+| Status | Meaning | Score |
+|---|---|---|
+| `passed` | The condition held (exit `0`, or judge `score == 1`) | 1 |
+| `failed` | The condition did not hold (non-zero exit, or judge `score == 0`) | 0 |
+| `error` | The check could not be evaluated (script crash, malformed judge output, timeout) | 0 |
+
+All checks carry equal weight, so the run score is simply `points_earned / total_points`.
+
+## How a run passes
+
+A run passes only when **both** conditions hold:
+
+```text
+run_passed = (points_earned / total_points) >= pass_threshold
+             AND errored_checks == 0
+```
+
+Two things follow:
+
+- **`pass_threshold` defaults to `1.0`**, so by default every check must pass. Lower it in [configuration](/docs/configuration) to tolerate some failures.
+- **A single `error` fails the entire run**, no matter the threshold or how many other checks passed. An `error` means a check could not be trusted to give a verdict, so the run is not clean.
+
+## Exit code
+
+`eb run` exits `0` when `run_passed` is true and `1` otherwise. That makes it a drop-in CI gate:
+
+```yaml
+- name: Run evals
+  run: eb run     # non-zero exit fails the job
+```
+
+If a check keeps landing in `error`, fix the check itself — a crashing script or a judge emitting prose instead of `{"score": 0|1}` — before trusting the run. See [Troubleshooting](/docs/troubleshooting).

@@ -1,0 +1,118 @@
+export const metadata = {
+  title: "Harness Setup",
+  description:
+    "Configure the AI agent that powers harness_judge checks: built-in templates, API keys, CI, custom agents, and provider env.",
+};
+
+# Harness Setup
+
+`harness_judge` checks are graded by an AI coding agent — the **harness**. eval-banana never calls a model API directly; it shells out to the agent's CLI, which reads the files and returns the verdict. This page shows how to select and configure that agent.
+
+A harness is required only for judge checks. If any discovered `harness_judge` check has no harness configured, `eb run` and `eb validate` fail fast before running anything. Deterministic checks never need a harness.
+
+## Built-in agent templates
+
+eval-banana ships templates for these agents — set `[harness] agent` to one of them:
+
+`codex` · `gemini` · `claude` · `openhands` · `opencode` · `pi`
+
+Each template knows how to build the agent's command line (the executable, the flags, how to pass a prompt and a model). You only supply the choice of agent and, optionally, a model and reasoning effort.
+
+## Minimal configuration
+
+```toml
+# .eval-banana/config.toml
+[harness]
+agent = "codex"
+# codex GPT-5.6 tiers: gpt-5.6-sol (flagship), gpt-5.6-terra, gpt-5.6-luna
+model = "gpt-5.6-sol"
+# reasoning_effort = "high"
+```
+
+| Key | Env var | Description |
+|---|---|---|
+| `agent` | `EVAL_BANANA_HARNESS_AGENT` | Template name (`codex`, `claude`, `gemini`, …) |
+| `model` | `EVAL_BANANA_HARNESS_MODEL` | Override the agent's default model |
+| `reasoning_effort` | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning-effort level, for agents that honor it |
+
+You can also set these per run without touching the file:
+
+```bash
+eb run --harness-agent codex --harness-model gpt-5.6-sol --harness-reasoning-effort high
+```
+
+## Credentials
+
+The harness subprocess inherits the parent shell environment, so provide API keys exactly as you would to run the agent by hand:
+
+| Agent | Environment variable |
+|---|---|
+| `claude` | `ANTHROPIC_API_KEY` |
+| `codex` | `OPENAI_API_KEY` |
+| `gemini` | `GEMINI_API_KEY` or `GOOGLE_API_KEY` (or Application Default Credentials) |
+| `openhands` | depends on the configured LLM backend |
+
+## Running in CI
+
+Because the harness reads keys from the environment, wiring it into CI is just exporting the right secret:
+
+```yaml
+- name: Run evals
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: eb run
+```
+
+`eb run` exits `0` on a passing run and `1` otherwise, so it works directly as a gate.
+
+## Extra environment variables
+
+Inject additional env vars into the harness subprocess with `[harness.env]`:
+
+```toml
+[harness.env]
+CI = "1"
+PYTHONUNBUFFERED = "1"
+```
+
+## Custom and overridden agents
+
+Add `[agents.<name>]` sections to override a built-in template or define a new agent. Omitted fields inherit from the built-in template of the same name; a brand-new agent must provide `command`:
+
+```toml
+# Tune the built-in codex template
+[agents.codex]
+# GPT-5.6 tiers: gpt-5.6-sol (flagship, default), gpt-5.6-terra, gpt-5.6-luna
+default_model = "gpt-5.6-sol"
+reasoning_effort = "high"
+
+# Define a brand-new agent
+[agents.myagent]
+command = ["my-cli", "run"]
+shared_flags = ["--headless"]
+prompt_flag = "--prompt"
+model_flag = "--model"
+```
+
+### Provider-wide env with placeholders
+
+`[agents.<name>.provider_env]` sets env vars for that agent's subprocess. Values may contain `{env:VARNAME}` placeholders resolved from the parent shell — handy for routing an agent through an OpenAI-compatible gateway:
+
+```toml
+[agents.claude.provider_env]
+ANTHROPIC_BASE_URL = "https://openrouter.ai/api"
+ANTHROPIC_AUTH_TOKEN = "{env:OPENROUTER_API_KEY}"
+ANTHROPIC_API_KEY = ""
+```
+
+## Choosing a model tier (codex)
+
+For codex, the GPT-5.6 family has three tiers, selectable via `harness.model`, `[agents.codex] default_model`, `--harness-model`, `EVAL_BANANA_HARNESS_MODEL`, or a per-check `model:` override:
+
+| Tier | Model ID | Role |
+|---|---|---|
+| Sol | `gpt-5.6-sol` | Flagship — the default; hardest judgments |
+| Terra | `gpt-5.6-terra` | Balanced everyday workhorse |
+| Luna | `gpt-5.6-luna` | Fastest and cheapest |
+
+See [Harness Judge Checks](/docs/harness-judge-checks#per-check-model-override) for overriding the model on a single check.

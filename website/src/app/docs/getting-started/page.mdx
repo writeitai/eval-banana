@@ -1,0 +1,114 @@
+export const metadata = {
+  title: "Getting Started",
+  description:
+    "Install eval-banana, initialize a project, write your first check, and run it.",
+};
+
+# Getting Started
+
+This page takes you from an empty terminal to a scored report: install the CLI, initialize project config, write a first check, and run it. It assumes you have a project you want to evaluate.
+
+## Install the CLI
+
+Install from the [PyPI package](https://pypi.org/project/eval-banana/). With [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+uv add eval-banana
+```
+
+Or with `pip`:
+
+```bash
+pip install eval-banana
+```
+
+The CLI is available under two equivalent names, `eb` and `eval-banana`. This documentation uses `eb` for brevity.
+
+If you are working inside a checkout of the eval-banana repository itself, install the development dependencies instead:
+
+```bash
+git clone https://github.com/writeitai/eval-banana.git
+cd eval-banana
+uv sync --extra dev
+```
+
+## Initialize project config
+
+Run `eb init` from your project root. It creates a single TOML config at `.eval-banana/config.toml`:
+
+```bash
+eb init
+```
+
+The generated config carries commented defaults. You only need to edit it if you use `harness_judge` checks (which require an AI agent) or want to change the output directory or pass threshold. See [Configuration](/docs/configuration).
+
+## Write your first check
+
+Create a directory called `eval_checks/` anywhere in your project and add a YAML file — **one check per file**. Start with a deterministic check, since it needs no credentials:
+
+```yaml
+# eval_checks/output_exists.yaml
+schema_version: 1
+id: output_file_exists
+type: deterministic
+description: Verify that output.json was generated.
+script: |
+  import json, sys
+  from pathlib import Path
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  output = Path(ctx["project_root"]) / "output.json"
+  assert output.exists(), "output.json not found"
+```
+
+The script receives a `context.json` path as its first argument. `context.json` always contains `project_root` (an absolute path), so your script can locate any file in the project. Exit code `0` means pass; any non-zero exit means fail. See the [Deterministic Checks](/docs/deterministic-checks) contract for the full shape.
+
+## Run the checks
+
+```bash
+eb run
+```
+
+eval-banana walks the project from the root, discovers every `eval_checks/` directory, loads all `*.yaml` / `*.yml` files, runs each check, and writes a report:
+
+```text
+.eval-banana/results/<run_id>/
+  report.json       # machine-readable full report
+  report.md         # human-readable Markdown report
+  checks/           # per-check results, stdout, stderr
+```
+
+The console prints the run id, `points_earned/total_points` with a percentage, a `PASS`/`FAIL` verdict, and a per-check breakdown. The process exits `0` when the run passes and `1` otherwise, so `eb run` drops straight into CI. See [Reports](/docs/reports).
+
+## Inspect before running
+
+Two commands let you look without executing anything:
+
+```bash
+eb list       # discover and print every check, without running
+eb validate   # validate all YAML definitions, without running
+```
+
+## Add a harness judge check
+
+For qualitative judgments, add a `harness_judge` check. These require a configured AI agent:
+
+```yaml
+# eval_checks/readme_quality.yaml
+schema_version: 1
+id: readme_explains_install
+type: harness_judge
+description: README gives a new user enough info to install the package.
+instructions: |
+  Read README.md. Does it give a new user enough information to install
+  and run the package locally? Score 1 if yes, 0 if anything critical is
+  missing.
+```
+
+Configure an agent before running judge checks — set `[harness] agent` in config or pass `--harness-agent`. If any discovered `harness_judge` check has no harness configured, `eb run` aborts before running anything. See [Harness Setup](/docs/harness-setup).
+
+## Next steps
+
+- [Concepts](/docs/concepts) — the run pipeline, auto-discovery, and pass/fail semantics.
+- [Deterministic Checks](/docs/deterministic-checks) — the `context.json` contract and failure mapping.
+- [Harness Judge Checks](/docs/harness-judge-checks) — writing instructions the judge can follow.
+- [Examples](/docs/examples) — a gallery of real-world check patterns to copy.

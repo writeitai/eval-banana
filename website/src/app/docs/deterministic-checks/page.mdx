@@ -1,0 +1,99 @@
+export const metadata = {
+  title: "Deterministic Checks",
+  description:
+    "Script-based checks: the context.json contract, the subprocess model, and how exit codes map to scores.",
+};
+
+# Deterministic Checks
+
+A `deterministic` check runs a Python script via subprocess. The script asserts something objective about your project files, and its **exit code** is the verdict: `0` passes, non-zero fails. Reach for this type whenever a condition can be checked with code — it is the cheapest and most reliable option, and it needs no credentials.
+
+## Anatomy
+
+```yaml
+schema_version: 1
+id: output_has_result_key
+type: deterministic
+description: output.json exists and contains a 'result' key.
+script: |
+  import json, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  project_root = Path(ctx["project_root"])
+  output = project_root / "output.json"
+  if not output.exists():
+      sys.exit(1)
+  data = json.loads(output.read_text())
+  if "result" not in data:
+      sys.exit(1)
+```
+
+Use `script: |` for inline Python, or `script_path: my_script.py` for an external file. The path is resolved **relative to the YAML file's directory**. **Exactly one** of `script` or `script_path` must be set — both or neither is a validation error.
+
+## The `context.json` contract
+
+The script is invoked as `python <script> <context.json>`. Read `sys.argv[1]` to get the path to a JSON file with this exact shape:
+
+```json
+{
+  "check_id": "output_has_result_key",
+  "description": "output.json exists and contains a 'result' key.",
+  "project_root": "/abs/path/to/project",
+  "source_path": "/abs/path/to/project/eval_checks/my_check.yaml",
+  "output_dir": "/abs/path/.../results/<run_id>/checks/output_has_result_key"
+}
+```
+
+- **`project_root`** is absolute — use it to locate any file in the project. This is the field you will use most.
+- **`source_path`** is the check's own YAML file, useful for resolving paths relative to the check.
+- **`output_dir`** is a per-check directory you may write artifacts into.
+
+## Subprocess model
+
+- **Command:** `python <script> <context_path>`
+- **Working directory:** `project_root` — so relative paths in your script also resolve from the project root, not from wherever you invoked `eb`.
+- **Environment:** the full parent environment is inherited; nothing extra is injected.
+
+Because `cwd` is `project_root`, both of these locate the same file:
+
+```python
+Path(ctx["project_root"]) / "output.json"   # explicit, recommended
+Path("output.json")                          # relative to cwd == project_root
+```
+
+Prefer the explicit form — it survives a future change to the working directory and reads clearly.
+
+## Exit codes map to scores
+
+| Outcome | Status | Score |
+|---|---|---|
+| `sys.exit(0)` or falling off the end of the script | `passed` | 1 |
+| `sys.exit(1)`, any non-zero exit, `AssertionError`, or any uncaught exception | `failed` | 0 |
+| `FileNotFoundError` on the script itself, or an `OSError` launching it | `error` | 0 |
+
+An uncaught exception exits non-zero, so a bare `assert output.exists(), "..."` is a perfectly good way to fail a check with a message. The distinction that matters: a *failed* check ran and returned "no", while an *errored* check could not run at all — and an error fails the whole run (see [Concepts](/docs/concepts)).
+
+## Reporting diagnostics
+
+`stdout` and `stderr` are captured and written to `<output_dir>/checks/<check_id>.stdout.txt` and `.stderr.txt` (only when non-empty). Print a short explanation to `stderr` before exiting non-zero so the report says *why* a check failed:
+
+```python
+if row_count < 100:
+    print(f"only {row_count} rows", file=sys.stderr)
+    sys.exit(1)
+```
+
+## When to use deterministic checks
+
+Pick `deterministic` when the condition is objective and testable with code:
+
+- "file X exists and is non-empty"
+- "the JSON has field Y with the right type"
+- "no `print()` calls in `src/`"
+- "the CSV has at least N rows with these columns"
+- "the test suite exits clean"
+
+If the condition needs language understanding — "the summary is accurate", "the tone is professional" — use a [Harness Judge Check](/docs/harness-judge-checks) instead. **When in doubt, prefer deterministic.**
+
+See [Examples](/docs/examples) for copy-ready deterministic patterns, and [Check Format](/docs/check-format) for the exhaustive field reference.

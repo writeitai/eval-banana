@@ -1,0 +1,108 @@
+export const metadata = {
+  title: "Harness Judge Checks",
+  description:
+    "LLM-as-a-judge checks: the required JSON verdict, writing instructions the judge can follow, and per-check model overrides.",
+};
+
+# Harness Judge Checks
+
+A `harness_judge` check evaluates a qualitative property by invoking a configured AI agent (the "harness"). The agent reads the relevant files on its own and returns a strict JSON verdict. Use this type for judgments that need language understanding — accuracy, tone, clarity, consistency — where no script could give a reliable answer.
+
+These checks require a configured harness. If any discovered judge check has no harness configured, `eb run` and `eb validate` abort before running anything. See [Harness Setup](/docs/harness-setup).
+
+## Anatomy
+
+```yaml
+schema_version: 1
+id: readme_explains_install
+type: harness_judge
+description: README gives a new user enough info to install the package.
+instructions: |
+  Read README.md. Does it give a new user enough information to install
+  and run the package locally (environment setup, install command, and
+  how to invoke it)? Score 1 if yes, 0 if anything critical is missing.
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `instructions` | **Yes** | The evaluation prompt sent to the agent. Non-empty. |
+| `model` | No | Override the configured harness model for this one check. |
+
+The agent reads files itself — name the files to check inside `instructions`. There is no `target_paths` field.
+
+## The judge must return JSON
+
+The runner builds a prompt from a fixed instruction (asking for a JSON verdict), the check `description` as context, and your `instructions` as the criterion. The agent's final output must be exactly:
+
+```json
+{"score": 0, "reason": "one sentence explanation"}
+```
+
+- **`score` must be exactly `0` or `1`.** Any other value is an `error` result.
+- **`reason`** is optional but recommended; if present it must be a string. It appears in the report for failed checks.
+- **The response must be valid JSON.** Prose, Markdown fences around nothing, or malformed JSON is an `error` result.
+
+| Judge output | Status | Score |
+|---|---|---|
+| Valid JSON, `score == 1` | `passed` | 1 |
+| Valid JSON, `score == 0` | `failed` | 0 |
+| Malformed JSON, or a score outside `{0, 1}` | `error` | 0 |
+| Harness subprocess spawn failure or timeout | `error` | 0 |
+
+Because an `error` fails the whole run, an unreliable judge that emits prose instead of JSON will sink an otherwise-passing run. Tell the agent, in the instructions, to respond with JSON only.
+
+## Writing instructions the judge can follow
+
+The quality of a judge check lives entirely in its `instructions`. Good ones share these traits:
+
+- **State the exact condition for 1 and for 0.** Leave no middle ground.
+- **Be binary.** Avoid "mostly", "partially", "somewhat" — they invite scores the parser rejects.
+- **Reference concrete things to look for**, not vague qualities.
+- **Name the files to read.** The agent will not guess.
+- **Keep it short.** Long instructions dilute the criterion and confuse the judge.
+
+A sharpened example:
+
+```yaml
+schema_version: 1
+id: error_messages_are_helpful
+type: harness_judge
+description: Error messages in errors.log are helpful and professional.
+instructions: |
+  Read errors.log. Score 1 if the error messages: (a) explain what went
+  wrong in plain language, (b) suggest what to do next, and (c) do NOT
+  expose stack traces or internal paths to end users. Score 0 if any
+  message is cryptic, blames the user, or leaks internals.
+```
+
+## Per-check model override
+
+Set `model` to run one check on a different (often stronger) model than the project default — useful for a hard judgment among otherwise cheap checks:
+
+```yaml
+schema_version: 1
+id: subtle_factual_consistency
+type: harness_judge
+description: The summary makes no claim unsupported by the source.
+model: gpt-5.6-sol
+instructions: |
+  Read summary.md and source_data.json. Score 1 only if every numeric
+  claim, name, and date in the summary is verifiable from the source.
+  Score 0 if any claim is fabricated or contradicts the source.
+```
+
+For codex, the GPT-5.6 tiers are `gpt-5.6-sol` (flagship), `gpt-5.6-terra` (balanced), and `gpt-5.6-luna` (fastest/cheapest). The override falls back to `harness.model` when omitted.
+
+## When to use harness judge checks
+
+Pick `harness_judge` when the condition is subjective or needs language understanding:
+
+- "the error message is helpful to end users"
+- "the generated summary captures the key points"
+- "the tone is professional and friendly"
+- "the docs explain the concept clearly"
+- "the API docs match the endpoints actually implemented"
+
+If the condition is objective and code-checkable, use a [Deterministic Check](/docs/deterministic-checks) — it is cheaper and needs no credentials. **When in doubt, prefer deterministic.**
+
+See [Examples](/docs/examples) for more judge patterns and [Harness Setup](/docs/harness-setup) to connect an agent.

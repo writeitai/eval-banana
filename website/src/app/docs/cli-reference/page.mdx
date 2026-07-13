@@ -1,0 +1,93 @@
+export const metadata = {
+  title: "CLI Reference",
+  description:
+    "Every eval-banana command and option: init, run, list, and validate.",
+};
+
+# CLI Reference
+
+The CLI is available under two equivalent names, `eb` and `eval-banana`. It exposes four commands: `init`, `run`, `list`, and `validate`.
+
+## `eb init`
+
+Create the project config at `.eval-banana/config.toml`.
+
+```bash
+eb init            # create config; refuses to overwrite an existing file
+eb init --force    # overwrite an existing config
+```
+
+| Option | Description |
+|---|---|
+| `--force` | Overwrite an existing `.eval-banana/config.toml`. |
+
+Without `--force`, running `init` when a config already exists fails rather than clobbering it.
+
+## `eb run`
+
+Discover every check, run it, write the report, and exit `0` on a passing run or `1` otherwise.
+
+```bash
+eb run
+eb run --check-id readme_explains_install
+eb run --tag fast --tag critical
+eb run --harness-agent codex --harness-model gpt-5.6-sol
+```
+
+| Option | Description |
+|---|---|
+| `--check-dir PATH` | Scan only this directory instead of the whole project. |
+| `--check-id TEXT` | Run only the check with this id. Uses **relaxed validation** — broken YAML in other files does not block it. |
+| `--tag TEXT` | Run only checks carrying this tag. Repeatable; multiple tags are OR'd. |
+| `--output-dir TEXT` | Override the output directory for this run. |
+| `--pass-threshold FLOAT` | Override the minimum pass ratio (0.0–1.0). |
+| `--harness-agent TEXT` | Agent template used by `harness_judge` checks. |
+| `--harness-model TEXT` | Model override for the harness agent. |
+| `--harness-reasoning-effort TEXT` | Reasoning-effort level for the agent. |
+| `--cwd TEXT` | Working directory (default `.`). |
+| `--verbose` | Enable debug logging. |
+
+`--check-id` is the debug escape hatch: it targets one check with relaxed validation, so you can iterate on it in a repo whose other checks are incomplete.
+
+## `eb list`
+
+Discover and print every check without running anything. Output is tab-separated: `id`, `type`, `description`, and the source file path.
+
+```bash
+eb list
+eb list --tag critical
+```
+
+| Option | Description |
+|---|---|
+| `--check-dir PATH` | Scan only this directory. |
+| `--tag TEXT` | List only checks carrying this tag. Repeatable; OR'd. |
+| `--cwd TEXT` | Working directory (default `.`). |
+| `--verbose` | Enable debug logging. |
+
+## `eb validate`
+
+Validate every YAML definition without executing anything. Exits non-zero on the first validation error, naming the offending file.
+
+```bash
+eb validate
+```
+
+| Option | Description |
+|---|---|
+| `--check-dir PATH` | Validate only this directory. |
+| `--cwd TEXT` | Working directory (default `.`). |
+| `--verbose` | Enable debug logging. |
+
+Like `run`, `validate` fails fast if any discovered `harness_judge` check has no harness configured.
+
+## Exit codes
+
+| Command | Exit `0` | Exit non-zero |
+|---|---|---|
+| `run` | The run passed (`run_passed`) | The run failed, or a setup error aborted it |
+| `list` | Checks listed | Discovery or load error |
+| `validate` | All definitions valid | A validation or setup error |
+| `init` | Config written | Refused to overwrite without `--force` |
+
+Because `eb run` mirrors the run's pass/fail in its exit code, it works directly as a CI gate. See [Reports](/docs/reports) for how the verdict is computed.
