@@ -1,0 +1,100 @@
+export const metadata = {
+  title: "Check Format",
+  description:
+    "The complete YAML schema for eval-banana check definitions: common fields, type-specific fields, and validation rules.",
+};
+
+# Check Format
+
+The complete field reference for a check definition. Every check is a single YAML file in an `eval_checks/` directory — there is no suite wrapper. eval-banana validates strictly: `extra="forbid"` is enabled, so any unknown field fails validation.
+
+> The harness (AI agent) is configured in TOML config or CLI flags, **not** in YAML check files. There is no `type: harness` check type — qualitative checks use `type: harness_judge`. See [Harness Setup](/docs/harness-setup).
+
+## Common fields
+
+Every check shares these, regardless of type:
+
+| Field | Type | Required | Constraints |
+|---|---|---|---|
+| `schema_version` | int | **Yes** | Must equal `1`. No default — omitting it is an error. |
+| `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`; non-empty. Unique across all discovered files. |
+| `type` | string | **Yes** | One of `deterministic`, `harness_judge`. Discriminates the union. |
+| `description` | string | **Yes** | Non-empty. Human-readable; shown in reports. |
+| `tags` | list[string] | No | Free-form metadata. Filter checks by tag with `--tag` on `eb run` / `eb list` (repeatable, OR'd). |
+
+## `deterministic` fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `script` | string | **One of** | Inline Python source (use a `script: \|` block scalar). |
+| `script_path` | string | **One of** | Path to an external `.py` file, relative to the YAML file's directory. |
+
+**Exactly one** of `script` or `script_path` must be set — both, or neither, is a validation error.
+
+```yaml
+schema_version: 1
+id: no_todo_comments
+type: deterministic
+description: No TODO markers in Python source files.
+script: |
+  import json, sys
+  from pathlib import Path
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  src = Path(ctx["project_root"]) / "src"
+  for f in src.rglob("*.py"):
+      if "TODO" in f.read_text():
+          sys.exit(1)
+```
+
+The subprocess runs `python <script> <context.json>` with `cwd = project_root`, inheriting the full parent environment. The `context.json` shape and exit-code mapping are documented in [Deterministic Checks](/docs/deterministic-checks).
+
+## `harness_judge` fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `instructions` | string | **Yes** | Non-empty. The evaluation prompt sent to the agent. |
+| `model` | string | No | Override `harness.model` for this check only. |
+
+```yaml
+schema_version: 1
+id: readme_has_install_steps
+type: harness_judge
+description: README clearly explains how to install the package.
+instructions: |
+  Read README.md. Does it give a new user enough information to install
+  and run the package locally? Score 1 if yes, 0 if no.
+```
+
+The agent must emit a JSON verdict `{"score": 0|1, "reason": "..."}`; the runner extracts the last valid such object from stdout, so `score` must be exactly `0` or `1` and stdout must contain at least one valid verdict (otherwise the check is an `error`). The full prompt shape and result mapping are in [Harness Judge Checks](/docs/harness-judge-checks).
+
+## Validation rules
+
+The loader raises an error naming the offending file for any of these:
+
+- YAML parse error, or top-level YAML that is not a mapping
+- Any required field missing
+- `id` does not match `^[a-zA-Z0-9_-]+$`
+- `description` empty or whitespace-only
+- An unknown top-level field (blocked by `extra="forbid"`)
+- `type` not one of the allowed values
+- `script` **and** `script_path` both set, or neither (deterministic)
+- `instructions` empty (harness_judge)
+
+The runner aborts the whole run (fail-fast) for:
+
+- Duplicate check IDs across files — the error shows both paths
+- No checks found after discovery and filtering
+- `--check-id` matching more than one file
+
+## Common validation errors
+
+| Error text | Cause | Fix |
+|---|---|---|
+| `Field required` on `schema_version` | Forgot the field | Add `schema_version: 1` |
+| `Extra inputs are not permitted` | Unknown field | Remove it or fix the spelling |
+| `exactly one of script or script_path must be set` | Both set, or neither | Set exactly one |
+| `instructions must be non-empty` | Blank `instructions` on a judge check | Add instructions (a missing field reports `Field required`) |
+| `id must match ^[a-zA-Z0-9_-]+$` | Invalid characters (dots, spaces) | Use only `[a-zA-Z0-9_-]` |
+| `Duplicate check id 'X' found in: ...` | Same id in two files | Rename one |
+
+Run `eb validate` to check every definition without executing anything. See the [CLI Reference](/docs/cli-reference).

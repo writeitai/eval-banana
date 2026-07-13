@@ -1,0 +1,83 @@
+export const metadata = {
+  title: "Configuration",
+  description:
+    "The project-level TOML config: sections, precedence rules, environment variables, and discovery settings.",
+};
+
+# Configuration
+
+eval-banana uses a single project-level TOML config at `.eval-banana/config.toml`. This page covers the general settings; connecting an AI agent for `harness_judge` checks is covered separately in [Harness Setup](/docs/harness-setup).
+
+## Where the config lives
+
+The config file is discovered by walking **upward** from the current directory, so you can run `eb` from any subdirectory and it finds the project config. Create it with:
+
+```bash
+eb init          # create .eval-banana/config.toml
+eb init --force   # overwrite an existing config
+```
+
+## Precedence
+
+Config values resolve in this order, highest priority first:
+
+1. **CLI arguments** — `--output-dir`, `--harness-model`, `--pass-threshold`, …
+2. **Environment variables** — `EVAL_BANANA_*`
+3. **Project config** — `.eval-banana/config.toml`
+4. **Built-in defaults**
+
+A CLI flag always wins over an env var, which wins over the file, which wins over the default. Relative `output_dir` values resolve from the project root.
+
+## `[core]` settings
+
+| Key | Default | Env var | Description |
+|---|---|---|---|
+| `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where run output is written |
+| `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0–1.0) for the run to pass |
+| `llm_max_input_chars` | `0` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Reserved. Accepted and parsed, but the current `harness_judge` runner does not read it, so it has no runtime effect yet. |
+
+With `pass_threshold` at its default of `1.0`, every check must pass for the run to pass. Lower it (e.g. `0.8`) to tolerate some failures. Note that a single `error` fails the run regardless of the threshold — see [Concepts](/docs/concepts).
+
+## `[discovery]` settings
+
+| Key | Default | Description |
+|---|---|---|
+| `exclude_dirs` | see below | Directory names to skip while walking for `eval_checks/` |
+
+The default excluded directories are `.git`, `.hg`, `.svn`, `.venv`, `venv`, `node_modules`, `__pycache__`, `dist`, `build`. Setting `exclude_dirs` replaces the list, so include the defaults you still want.
+
+## A complete example
+
+```toml
+# .eval-banana/config.toml
+[core]
+output_dir = ".eval-banana/results"
+pass_threshold = 1.0
+
+[discovery]
+exclude_dirs = [".git", ".venv", "node_modules", "__pycache__", "dist", "build"]
+
+[harness]
+agent = "codex"
+model = "gpt-5.6-sol"
+reasoning_effort = "high"
+```
+
+The `[harness]` and `[agents.*]` sections are only needed for `harness_judge` checks — see [Harness Setup](/docs/harness-setup) for the full agent configuration.
+
+## Environment variables
+
+Every core and harness setting has an `EVAL_BANANA_*` environment variable, which sits above the config file but below CLI flags in precedence. The common ones:
+
+| Variable | Overrides |
+|---|---|
+| `EVAL_BANANA_OUTPUT_DIR` | `output_dir` |
+| `EVAL_BANANA_PASS_THRESHOLD` | `pass_threshold` |
+| `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | `llm_max_input_chars` |
+| `EVAL_BANANA_HARNESS_AGENT` | `harness.agent` |
+| `EVAL_BANANA_HARNESS_MODEL` | `harness.model` |
+| `EVAL_BANANA_HARNESS_REASONING_EFFORT` | `harness.reasoning_effort` |
+
+## Migration note
+
+The legacy `[llm]` section was removed. If it is present in `.eval-banana/config.toml`, eval-banana exits with a migration error telling you to delete that section and use `[harness]` / `[agents.*]` instead. A stale `[harness].skills_dir` key is ignored (skills are now installed with the [`npx skills` CLI](/docs/skills)), so old configs keep loading, but the key has no effect.

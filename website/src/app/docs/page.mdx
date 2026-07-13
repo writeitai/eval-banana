@@ -1,0 +1,67 @@
+export const metadata = {
+  title: "Introduction",
+  description:
+    "eval-banana is a lightweight, aspect-based evaluation framework that scores anything with simple YAML check definitions.",
+};
+
+# Introduction
+
+**eval-banana** is a lightweight, aspect-based evaluation framework. It discovers YAML check definitions from `eval_checks/` directories anywhere in your project, runs them, and produces a scored report. Every check scores **0 or 1** with equal weight — there is no weighting system and no partial credit.
+
+It is built for evaluating the things that are otherwise awkward to test: the output of an AI agent, the behavior of a workflow, the quality of generated content — anything you can describe as pass or fail. (The name was inspired by [a song](https://open.spotify.com/track/2DW0Mowto3hrXkFBQt0nye) the author's kids love.)
+
+## Two check types
+
+Every check is one of two types. Reach for the cheapest one that can express your condition.
+
+| Type | Use when | How it works |
+|---|---|---|
+| `deterministic` | The condition is objective and testable with code — a file exists, JSON has a field, no `TODO`s in `src/` | Runs a Python script via subprocess; exit `0` = pass, non-zero = fail |
+| `harness_judge` | The condition is qualitative — a summary is accurate, a tone is professional, docs are clear | Invokes a configured AI agent that reads the files and returns `{"score": 0\|1}` |
+
+**Prefer `deterministic`** whenever a condition can be checked with code — it is the cheapest, most reliable option and needs no credentials. Use `harness_judge` only for judgments that genuinely need language understanding.
+
+## What a check looks like
+
+A deterministic check is a YAML file with an inline Python script:
+
+```yaml
+schema_version: 1
+id: output_file_exists
+type: deterministic
+description: Verify that output.json was generated.
+script: |
+  import json, sys
+  from pathlib import Path
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  output = Path(ctx["project_root"]) / "output.json"
+  assert output.exists(), "output.json not found"
+```
+
+A harness judge check describes what "good" looks like in plain language:
+
+```yaml
+schema_version: 1
+id: summary_is_accurate
+type: harness_judge
+description: The generated summary accurately reflects the source data.
+instructions: |
+  Read summary.txt and source_data.json. Compare the summary against the
+  source data. Score 1 if accurate, 0 if it contains fabricated claims.
+```
+
+## Why binary scoring
+
+eval-banana's 0/1 philosophy draws on two earlier bodies of work:
+
+- **Hamel Husain's [_Creating LLM-as-a-Judge that drives business results_](https://hamel.dev/blog/posts/llm-judge/)** — argues that binary pass/fail judgments produce more reliable, actionable evals than Likert-style 1–5 scales.
+- **RAGAS's [Aspect Critic metric](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/general_purpose/#aspect-critic)** — evaluates an output against a natural-language aspect definition and returns a binary verdict.
+
+A `harness_judge` check is essentially an Aspect Critic: you describe what "good" means, and the judge returns `{"score": 0|1}`.
+
+## Where to go next
+
+- **[Getting Started](/docs/getting-started)** — install the CLI, write your first check, and run it.
+- **[Concepts](/docs/concepts)** — the run pipeline, auto-discovery, and how a run passes or fails.
+- **[Deterministic Checks](/docs/deterministic-checks)** and **[Harness Judge Checks](/docs/harness-judge-checks)** — the two check types in depth.
+- **[Configuration](/docs/configuration)** and **[Harness Setup](/docs/harness-setup)** — project config and connecting an AI agent.

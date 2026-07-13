@@ -1,0 +1,190 @@
+export const metadata = {
+  title: "Examples",
+  description:
+    "A gallery of real-world eval-banana check patterns — file assertions, JSON validation, linters, and LLM judges — ready to copy and adapt.",
+};
+
+# Examples
+
+A gallery of real-world check patterns. Copy one and adapt it to your project. Deterministic patterns need no credentials; the harness judge patterns require a [configured agent](/docs/harness-setup).
+
+## Deterministic: file existence and content
+
+```yaml
+schema_version: 1
+id: changelog_exists_and_nonempty
+type: deterministic
+description: CHANGELOG.md exists and is at least 200 chars.
+script: |
+  import json, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  changelog = Path(ctx["project_root"]) / "CHANGELOG.md"
+  if not changelog.exists():
+      print("missing: CHANGELOG.md", file=sys.stderr)
+      sys.exit(1)
+  content = changelog.read_text(encoding="utf-8")
+  if len(content) < 200:
+      print(f"only {len(content)} chars", file=sys.stderr)
+      sys.exit(1)
+```
+
+## Deterministic: JSON schema validation
+
+```yaml
+schema_version: 1
+id: output_matches_schema
+type: deterministic
+description: output.json has required top-level keys and correct types.
+script: |
+  import json, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  data = json.loads((Path(ctx["project_root"]) / "output.json").read_text())
+
+  required = {"id": str, "created_at": str, "items": list}
+  for key, expected_type in required.items():
+      if key not in data:
+          print(f"missing key: {key}", file=sys.stderr)
+          sys.exit(1)
+      if not isinstance(data[key], expected_type):
+          print(f"{key} should be {expected_type.__name__}", file=sys.stderr)
+          sys.exit(1)
+  if not data["items"]:
+      print("items is empty", file=sys.stderr)
+      sys.exit(1)
+```
+
+## Deterministic: no forbidden tokens in source
+
+```yaml
+schema_version: 1
+id: no_print_statements_in_src
+type: deterministic
+description: No print() calls in src/ (should use logging).
+script: |
+  import json, re, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  src_dir = Path(ctx["project_root"]) / "src"
+  pattern = re.compile(r"\bprint\(")
+  offenders = []
+  for py_file in src_dir.rglob("*.py"):
+      text = py_file.read_text(encoding="utf-8")
+      for line_no, line in enumerate(text.splitlines(), 1):
+          if line.strip().startswith("#"):
+              continue
+          if pattern.search(line):
+              offenders.append(f"{py_file}:{line_no}")
+  if offenders:
+      print("\n".join(offenders[:10]), file=sys.stderr)
+      sys.exit(1)
+```
+
+## Deterministic: counting records
+
+```yaml
+schema_version: 1
+id: users_csv_has_enough_rows
+type: deterministic
+description: users.csv has at least 100 rows (excluding header).
+script: |
+  import csv, json, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  path = Path(ctx["project_root"]) / "data" / "users.csv"
+  with path.open() as f:
+      reader = csv.reader(f)
+      next(reader, None)  # skip header
+      row_count = sum(1 for _ in reader)
+  if row_count < 100:
+      print(f"only {row_count} rows", file=sys.stderr)
+      sys.exit(1)
+```
+
+## Deterministic: run an existing test suite
+
+A deterministic script can shell out — any non-zero exit fails the check:
+
+```yaml
+schema_version: 1
+id: unit_tests_pass
+type: deterministic
+description: The project's pytest suite exits clean.
+script: |
+  import json, subprocess, sys
+  from pathlib import Path
+
+  ctx = json.loads(Path(sys.argv[1]).read_text())
+  result = subprocess.run(
+      ["pytest", "-q"],
+      cwd=ctx["project_root"],
+      capture_output=True,
+      text=True,
+  )
+  sys.stdout.write(result.stdout)
+  sys.stderr.write(result.stderr)
+  sys.exit(result.returncode)
+```
+
+## Harness judge: README quality
+
+```yaml
+schema_version: 1
+id: readme_has_quickstart
+type: harness_judge
+description: README contains a quickstart a new user can follow in under 5 minutes.
+instructions: |
+  Read README.md. Look for a "Quick start" or "Getting started" section.
+  Score 1 ONLY if it contains: (1) an install command, (2) a minimum
+  config step if required, and (3) at least one example command to run.
+  Score 0 if any of these are missing or unclear.
+```
+
+## Harness judge: tone / professionalism
+
+```yaml
+schema_version: 1
+id: error_messages_are_helpful
+type: harness_judge
+description: Error messages in errors.log are helpful and professional.
+instructions: |
+  Read errors.log. Score 1 if the error messages: (a) explain what went
+  wrong in plain language, (b) suggest what to do next, and (c) do NOT
+  expose stack traces or internal paths to end users. Score 0 if any
+  message is cryptic, blames the user, or leaks internals.
+```
+
+## Harness judge: factual consistency
+
+```yaml
+schema_version: 1
+id: summary_matches_source
+type: harness_judge
+description: The generated summary accurately reflects the source data.
+instructions: |
+  Read summary.md and source_data.json. Compare the claims in the summary
+  against the facts in the source data. Score 1 if every numeric claim,
+  name, and date in the summary can be verified from the source data.
+  Score 0 if ANY claim is fabricated, hallucinated, or contradicts the source.
+```
+
+## Harness judge: multi-file comparison
+
+```yaml
+schema_version: 1
+id: docs_consistent_with_code
+type: harness_judge
+description: API docs describe the actual endpoints implemented in routes.py.
+instructions: |
+  Read docs/api.md and src/routes.py. For each endpoint documented in the
+  API docs, check if it exists in routes.py. Score 1 if every documented
+  endpoint is implemented AND every public endpoint in routes.py is
+  documented. Score 0 if there is any drift between the two files.
+```
+
+For the exhaustive field reference behind these, see [Check Format](/docs/check-format).

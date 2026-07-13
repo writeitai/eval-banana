@@ -1,0 +1,100 @@
+export const metadata = {
+  title: "Concepts",
+  description:
+    "How eval-banana discovers, runs, and scores checks — the run pipeline, auto-discovery, and pass/fail semantics.",
+};
+
+# Concepts
+
+This page explains the model behind eval-banana: how checks are discovered, how a run executes, and exactly how a run decides it passed or failed. Read it once before customizing anything.
+
+## Checks are single YAML files
+
+A check is one YAML file in an `eval_checks/` directory. There is no suite wrapper and no grouping file — the unit of definition is the file, and its `id` is the unit of reporting. This keeps checks easy to co-locate with the code they verify and easy to add or remove without touching a central manifest.
+
+Every check declares a `type`, and eval-banana ships two:
+
+- **`deterministic`** — runs a Python script via subprocess. Objective, code-checkable conditions.
+- **`harness_judge`** — invokes a configured AI agent that reads files and returns a score. Qualitative, language-level judgments.
+
+See [Check Format](/docs/check-format) for the full field reference.
+
+## Auto-discovery
+
+eval-banana walks from the **project root** — the directory containing `.eval-banana/` — and finds every directory named exactly `eval_checks/`. Inside each, it loads every `*.yaml` and `*.yml` file.
+
+```text
+project/
+├── eval_checks/                     # top-level checks
+│   └── overall_quality.yaml
+├── src/api/
+│   └── eval_checks/                 # API-specific checks
+│       └── response_schema.yaml
+└── frontend/
+    └── eval_checks/                 # frontend checks
+        └── login_flow.yaml
+```
+
+Key rules:
+
+- **Check IDs must be unique** across all discovered files. A duplicate is a fatal load error that names both files.
+- These directories are skipped by default: `.git`, `.hg`, `.svn`, `.venv`, `venv`, `node_modules`, `__pycache__`, `dist`, `build`. The list is configurable via `[discovery] exclude_dirs`.
+- Symlinked directories are not followed.
+
+## The run pipeline
+
+`eb run` executes in a fixed order:
+
+1. **Load config** — resolve settings from CLI flags, environment, project config, and defaults (see [Configuration](/docs/configuration)).
+2. **Discover** — walk the tree and collect every check file.
+3. **Validate & select** — parse each file, enforce unique IDs, and apply any `--check-id` / `--check-dir` filter.
+4. **Guard the harness** — if any selected `harness_judge` check exists but no harness is configured, abort *before* running anything.
+5. **Run each check** — deterministic scripts as subprocesses; judge checks via the harness agent subprocess. Execution is synchronous, one check at a time.
+6. **Score & report** — compute the totals and write `report.json`, `report.md`, and per-check artifacts.
+
+## Fail fast vs. continue
+
+eval-banana distinguishes two failure classes:
+
+- **Setup errors fail fast.** Broken YAML, a missing required field, or duplicate IDs stop the whole run before any check executes. These are bugs in your check definitions, and running past them would produce a misleading report.
+- **Execution errors continue.** If the runner cannot launch a check's script, or a judge times out or returns no readable verdict, that check is recorded as `error` and the run proceeds. One misbehaving check never blocks the others. (A script that runs and exits non-zero is a `failed`, not an `error`.)
+
+Runners never raise on expected execution errors — they always return a result. (The one relaxation: `--check-id` uses relaxed validation, so broken YAML in *other* files does not block the single check you targeted.)
+
+## Scoring and the three statuses
+
+Every check ends in one of three statuses:
+
+| Status | Meaning | Score |
+|---|---|---|
+| `passed` | The condition held (exit `0`, or judge `score == 1`) | 1 |
+| `failed` | The condition did not hold (non-zero exit, or judge `score == 0`) | 0 |
+| `error` | The check could not be run or its verdict read (script file missing or OS launch failure; malformed/absent judge verdict; harness timeout) | 0 |
+
+All checks carry **equal weight**. The run's score is simply `points_earned / total_points`.
+
+## When a run passes
+
+A run passes only when both conditions hold:
+
+```text
+run_passed = (points_earned / total_points) >= pass_threshold
+             AND errored_checks == 0
+```
+
+Two consequences worth internalizing:
+
+- **`pass_threshold` defaults to `1.0`** — by default, every check must pass.
+- **A single `error` fails the whole run**, even if every other check passed. An `error` means a check could not be trusted to give a verdict, so the run is not clean.
+
+The process exits `0` on `run_passed` and `1` otherwise, which makes `eb run` usable directly as a CI gate. See [Reports](/docs/reports) for how to read the output.
+
+## Design principles
+
+A few decisions shape everything above:
+
+- **One YAML file per check** — no suites, no weighting.
+- **Auto-discovery** — drop a check next to the code it verifies; no registration.
+- **Equal weight** — every check counts the same.
+- **All model calls go through the harness subprocess** — eval-banana never talks to a model API directly; the configured agent CLI does.
+- **Synchronous execution** — no async, no hidden concurrency.

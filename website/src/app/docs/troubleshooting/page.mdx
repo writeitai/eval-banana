@@ -1,0 +1,56 @@
+export const metadata = {
+  title: "Troubleshooting",
+  description:
+    "Common eval-banana pitfalls and how to fix them — validation errors, harness setup, the context.json contract, and judge output.",
+};
+
+# Troubleshooting
+
+The failure modes that trip people up most, and how to fix each.
+
+## Validation and definition errors
+
+**Forgetting `schema_version: 1`.** It has no default; omitting it is a validation error. Every check file must start with `schema_version: 1`.
+
+**Setting both `script` and `script_path`.** A deterministic check needs **exactly one**. Setting both — or neither — fails validation. Pick inline `script:` or an external `script_path:`.
+
+**Invalid `id`.** IDs must match `^[a-zA-Z0-9_-]+$`. Dots, spaces, and slashes are rejected. Use only letters, digits, underscores, and hyphens.
+
+**Unknown fields.** Validation uses `extra="forbid"`, so a misspelled or unsupported key fails. Check the spelling against the [Check Format](/docs/check-format) reference.
+
+**Duplicate check IDs.** IDs must be unique across every discovered file. A duplicate is a fatal load error that names both files — grep for the id before adding a new check, and rename one.
+
+## Discovery surprises
+
+**A check isn't being found.** eval-banana only looks in directories named exactly `eval_checks/`, walking from the project root (the directory containing `.eval-banana/`). Confirm the directory name and that it is not inside an excluded directory (`.git`, `.venv`, `node_modules`, `dist`, `build`, …). Symlinked directories are not followed.
+
+**Iterating on one check in a messy repo.** Use `eb run --check-id my_check`. It uses relaxed validation, so broken YAML in *other* files does not block the single check you are targeting.
+
+## Deterministic script issues
+
+**Assuming `cwd` is where you ran `eb`.** Deterministic scripts run with `cwd = project_root`, not your shell's directory. Locate files via `Path(ctx["project_root"]) / "..."` — the absolute `project_root` from `context.json` — rather than bare relative paths.
+
+**Reading the context path wrong.** The script is invoked as `python <script> <context.json>`. Read `sys.argv[1]` to get the JSON path, then `json.loads(Path(sys.argv[1]).read_text())`. See the [context.json contract](/docs/deterministic-checks#the-contextjson-contract).
+
+**A check shows `error` instead of `failed`.** `failed` means the script ran and returned non-zero; `error` means it could not run at all (a `FileNotFoundError` on the script, an `OSError`). Because an `error` fails the whole run, fix the script so it runs and exits cleanly with `0` or `1`.
+
+## Harness judge issues
+
+**Judge checks fail before anything runs.** If a discovered `harness_judge` check has no harness configured, `eb run` and `eb validate` abort up front. Set `[harness] agent` in config or pass `--harness-agent`. See [Harness Setup](/docs/harness-setup).
+
+**The judge never emits a parseable verdict.** The runner extracts the *last* valid `{"score": 0|1, "reason": "..."}` object from the agent's stdout — surrounding reasoning is tolerated, but if stdout contains no valid verdict (or the score is outside `{0, 1}`), the check is an `error`, which sinks the run. Make sure the agent ends with the JSON verdict; instructing it to respond with JSON only is the most reliable way.
+
+**Missing credentials.** The harness subprocess inherits your shell environment. Export the agent's key the same way you would to run it by hand (`ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `codex`, and so on).
+
+## Config gotchas
+
+**A `command` written as a string.** In `[agents.*]`, `command` must be a list — `["pytest", "-q"]`, never `"pytest -q"`.
+
+**A legacy `[llm]` section.** It was removed. If present, eval-banana exits with a migration error — delete the section and use `[harness]` / `[agents.*]` instead. (A stale `[harness].skills_dir` key is ignored and harmless.)
+
+## Still stuck?
+
+- Run `eb validate` to surface definition errors without executing anything.
+- Run `eb list` to confirm which checks are discovered and how they are typed.
+- Read the per-check `stderr` under `.eval-banana/results/<run_id>/checks/` — for deterministic checks, your printed diagnostics land there.
+- Open an issue at [github.com/writeitai/eval-banana](https://github.com/writeitai/eval-banana).
