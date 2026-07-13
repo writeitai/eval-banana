@@ -20,11 +20,11 @@ export const metadata: Metadata = {
   },
   description:
     "Aspect-based evaluation framework — score anything with simple YAML checks. Documentation for eval-banana.",
+  // Only site-level Open Graph defaults live here. With no `openGraph.title`
+  // or `openGraph.description` set, Next falls those back to each page's own
+  // `title`/`description`, so every route gets a specific `og:title`. We also
+  // omit `openGraph.url` so pages no longer stamp the root URL onto every route.
   openGraph: {
-    title: "eval-banana — Documentation",
-    description:
-      "Aspect-based evaluation framework — score anything with simple YAML checks.",
-    url: siteUrl,
     siteName: "eval-banana",
     type: "website",
   },
