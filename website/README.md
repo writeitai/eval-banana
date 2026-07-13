@@ -4,9 +4,8 @@ The public documentation for [eval-banana](https://github.com/writeitai/eval-ban
 published at **[eval-banana.writeit.ai](https://eval-banana.writeit.ai)**.
 
 It is a self-contained static site: a Next.js App-Router app whose pages are authored
-as MDX, exported to static HTML, and served by GitHub Pages. The stack replicates the
-pattern used by the `loopy-loop` docs site (native `@next/mdx`, WriteIt palette,
-Pagefind search).
+as MDX, exported to static HTML, and served by GitHub Pages — native `@next/mdx`, the
+WriteIt brand palette, and Pagefind keyboard search.
 
 ## Stack
 

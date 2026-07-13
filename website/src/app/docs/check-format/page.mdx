@@ -20,7 +20,7 @@ Every check shares these, regardless of type:
 | `id` | string | **Yes** | Pattern `^[a-zA-Z0-9_-]+$`; non-empty. Unique across all discovered files. |
 | `type` | string | **Yes** | One of `deterministic`, `harness_judge`. Discriminates the union. |
 | `description` | string | **Yes** | Non-empty. Human-readable; shown in reports. |
-| `tags` | list[string] | No | Free-form metadata. Allowed but not yet used for filtering. |
+| `tags` | list[string] | No | Free-form metadata. Filter checks by tag with `--tag` on `eb run` / `eb list` (repeatable, OR'd). |
 
 ## `deterministic` fields
 
@@ -65,7 +65,7 @@ instructions: |
   and run the package locally? Score 1 if yes, 0 if no.
 ```
 
-The agent's final output must be JSON: `{"score": 0|1, "reason": "..."}`. `score` must be exactly `0` or `1`; anything else, or malformed JSON, is an `error`. The full prompt shape and result mapping are in [Harness Judge Checks](/docs/harness-judge-checks).
+The agent must emit a JSON verdict `{"score": 0|1, "reason": "..."}`; the runner extracts the last valid such object from stdout, so `score` must be exactly `0` or `1` and stdout must contain at least one valid verdict (otherwise the check is an `error`). The full prompt shape and result mapping are in [Harness Judge Checks](/docs/harness-judge-checks).
 
 ## Validation rules
 
@@ -90,12 +90,11 @@ The runner aborts the whole run (fail-fast) for:
 
 | Error text | Cause | Fix |
 |---|---|---|
-| `Field required [type=missing]` on `schema_version` | Forgot the field | Add `schema_version: 1` |
+| `Field required` on `schema_version` | Forgot the field | Add `schema_version: 1` |
 | `Extra inputs are not permitted` | Unknown field | Remove it or fix the spelling |
-| `script and script_path are mutually exclusive` | Both set | Remove one |
-| `deterministic check must have script or script_path` | Neither set | Add one |
-| `instructions must be non-empty` | Empty/missing on a judge check | Add instructions |
-| `id does not match pattern` | Invalid characters (dots, spaces) | Use only `[a-zA-Z0-9_-]` |
+| `exactly one of script or script_path must be set` | Both set, or neither | Set exactly one |
+| `instructions must be non-empty` | Blank `instructions` on a judge check | Add instructions (a missing field reports `Field required`) |
+| `id must match ^[a-zA-Z0-9_-]+$` | Invalid characters (dots, spaces) | Use only `[a-zA-Z0-9_-]` |
 | `Duplicate check id 'X' found in: ...` | Same id in two files | Rename one |
 
 Run `eb validate` to check every definition without executing anything. See the [CLI Reference](/docs/cli-reference).

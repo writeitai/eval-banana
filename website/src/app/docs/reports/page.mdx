@@ -23,18 +23,19 @@ Each run creates a directory under the configured `output_dir` (default `.eval-b
 ```
 
 - **`report.json`** is the complete, structured report — parse this in tooling.
-- **`report.md`** is the same information formatted for a human to read.
+- **`report.md`** is a condensed, human-readable summary; `report.json` remains the full record.
 - **`checks/<check_id>.json`** holds one check's status, score, and reason.
 - **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land.
 
 ## Console summary
 
-The console output shows:
+The console output prints these labels:
 
-- the **run id**;
-- `points_earned/total_points` and the percentage;
-- a **`PASS`** or **`FAIL`** verdict;
-- a per-check list, with the `reason` for failed checks and the error for errored ones.
+- `Run ID:` — the run id;
+- `Score:` — `points_earned/total_points`;
+- `Percentage:` — the pass ratio as a percentage;
+- `Passed:` — `yes` or `no`;
+- a per-check list, showing each check's `reason` (or, for errored checks, the error detail).
 
 ## The three statuses
 
@@ -44,7 +45,7 @@ Every check resolves to exactly one status, which sets its score:
 |---|---|---|
 | `passed` | The condition held (exit `0`, or judge `score == 1`) | 1 |
 | `failed` | The condition did not hold (non-zero exit, or judge `score == 0`) | 0 |
-| `error` | The check could not be evaluated (script crash, malformed judge output, timeout) | 0 |
+| `error` | The check could not be run or its verdict could not be read (script file missing or OS launch failure; malformed/absent judge verdict; harness timeout) | 0 |
 
 All checks carry equal weight, so the run score is simply `points_earned / total_points`.
 
@@ -71,4 +72,4 @@ Two things follow:
   run: eb run     # non-zero exit fails the job
 ```
 
-If a check keeps landing in `error`, fix the check itself — a crashing script or a judge emitting prose instead of `{"score": 0|1}` — before trusting the run. See [Troubleshooting](/docs/troubleshooting).
+If a check keeps landing in `error`, fix the check itself — a script the runner can't locate or launch, or a judge whose output contains no valid `{"score": 0|1}` verdict — before trusting the run. (A script that *runs* and exits non-zero is a `failed`, not an `error`.) See [Troubleshooting](/docs/troubleshooting).

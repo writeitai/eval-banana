@@ -77,7 +77,7 @@ eval-banana walks the project from the root, discovers every `eval_checks/` dire
   checks/           # per-check results, stdout, stderr
 ```
 
-The console prints the run id, `points_earned/total_points` with a percentage, a `PASS`/`FAIL` verdict, and a per-check breakdown. The process exits `0` when the run passes and `1` otherwise, so `eb run` drops straight into CI. See [Reports](/docs/reports).
+The console prints the run id, the `Score:` as `points_earned/total_points`, a `Percentage:`, a `Passed: yes` / `Passed: no` line, and a per-check breakdown. The process exits `0` when the run passes and `1` otherwise, so `eb run` drops straight into CI. See [Reports](/docs/reports).
 
 ## Inspect before running
 

@@ -30,26 +30,28 @@ instructions: |
 
 The agent reads files itself — name the files to check inside `instructions`. There is no `target_paths` field.
 
-## The judge must return JSON
+## The judge must emit a JSON verdict
 
-The runner builds a prompt from a fixed instruction (asking for a JSON verdict), the check `description` as context, and your `instructions` as the criterion. The agent's final output must be exactly:
+The runner builds a prompt from a fixed instruction, the check `description` as context, and your `instructions` as the criterion. The fixed instruction asks the agent to respond with **only** a JSON verdict of this shape:
 
 ```json
 {"score": 0, "reason": "one sentence explanation"}
 ```
 
-- **`score` must be exactly `0` or `1`.** Any other value is an `error` result.
-- **`reason`** is optional but recommended; if present it must be a string. It appears in the report for failed checks.
-- **The response must be valid JSON.** Prose, Markdown fences around nothing, or malformed JSON is an `error` result.
+The runner then scans the agent's stdout and extracts the **last** valid `{"score": 0|1, ...}` object. That means incidental preamble, streaming events, or Markdown fences around the verdict are tolerated — the final valid verdict wins. What must hold:
 
-| Judge output | Status | Score |
+- **`score` must be exactly `0` or `1`.** Any other value makes that object invalid.
+- **`reason`** is optional but recommended; if present it must be a string. It appears in the report.
+- **stdout must contain at least one valid verdict object.** If it contains none, the check is an `error`.
+
+| Judge stdout | Status | Score |
 |---|---|---|
-| Valid JSON, `score == 1` | `passed` | 1 |
-| Valid JSON, `score == 0` | `failed` | 0 |
-| Malformed JSON, or a score outside `{0, 1}` | `error` | 0 |
+| Last valid verdict has `score == 1` | `passed` | 1 |
+| Last valid verdict has `score == 0` | `failed` | 0 |
+| No valid `{"score": 0\|1}` object anywhere | `error` | 0 |
 | Harness subprocess spawn failure or timeout | `error` | 0 |
 
-Because an `error` fails the whole run, an unreliable judge that emits prose instead of JSON will sink an otherwise-passing run. Tell the agent, in the instructions, to respond with JSON only.
+Because an `error` fails the whole run, a judge that never emits a parseable verdict will sink an otherwise-passing run. You do not need to suppress the agent's reasoning, but do make sure it ends with the JSON verdict — instructing it to respond with JSON only is the most reliable way.
 
 ## Writing instructions the judge can follow
 

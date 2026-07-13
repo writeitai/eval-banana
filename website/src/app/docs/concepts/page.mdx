@@ -57,7 +57,7 @@ Key rules:
 eval-banana distinguishes two failure classes:
 
 - **Setup errors fail fast.** Broken YAML, a missing required field, or duplicate IDs stop the whole run before any check executes. These are bugs in your check definitions, and running past them would produce a misleading report.
-- **Execution errors continue.** If a single check's script crashes or a judge times out, that check is recorded as `error` and the run proceeds. One misbehaving check never blocks the others.
+- **Execution errors continue.** If the runner cannot launch a check's script, or a judge times out or returns no readable verdict, that check is recorded as `error` and the run proceeds. One misbehaving check never blocks the others. (A script that runs and exits non-zero is a `failed`, not an `error`.)
 
 Runners never raise on expected execution errors — they always return a result. (The one relaxation: `--check-id` uses relaxed validation, so broken YAML in *other* files does not block the single check you targeted.)
 
@@ -69,7 +69,7 @@ Every check ends in one of three statuses:
 |---|---|---|
 | `passed` | The condition held (exit `0`, or judge `score == 1`) | 1 |
 | `failed` | The condition did not hold (non-zero exit, or judge `score == 0`) | 0 |
-| `error` | The check could not be evaluated (script crash, malformed judge output, timeout) | 0 |
+| `error` | The check could not be run or its verdict read (script file missing or OS launch failure; malformed/absent judge verdict; harness timeout) | 0 |
 
 All checks carry **equal weight**. The run's score is simply `points_earned / total_points`.
 

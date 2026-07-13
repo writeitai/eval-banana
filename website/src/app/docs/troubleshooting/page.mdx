@@ -38,7 +38,7 @@ The failure modes that trip people up most, and how to fix each.
 
 **Judge checks fail before anything runs.** If a discovered `harness_judge` check has no harness configured, `eb run` and `eb validate` abort up front. Set `[harness] agent` in config or pass `--harness-agent`. See [Harness Setup](/docs/harness-setup).
 
-**The judge returns prose instead of JSON.** The runner requires a strict `{"score": 0|1, "reason": "..."}` final output. Anything else — prose, a score outside `{0, 1}`, malformed JSON — is an `error`, which sinks the run. Tell the agent, in the `instructions`, to respond with JSON only.
+**The judge never emits a parseable verdict.** The runner extracts the *last* valid `{"score": 0|1, "reason": "..."}` object from the agent's stdout — surrounding reasoning is tolerated, but if stdout contains no valid verdict (or the score is outside `{0, 1}`), the check is an `error`, which sinks the run. Make sure the agent ends with the JSON verdict; instructing it to respond with JSON only is the most reliable way.
 
 **Missing credentials.** The harness subprocess inherits your shell environment. Export the agent's key the same way you would to run it by hand (`ANTHROPIC_API_KEY` for `claude`, `OPENAI_API_KEY` for `codex`, and so on).
 

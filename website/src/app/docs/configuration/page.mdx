@@ -34,7 +34,7 @@ A CLI flag always wins over an env var, which wins over the file, which wins ove
 |---|---|---|---|
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where run output is written |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0–1.0) for the run to pass |
-| `llm_max_input_chars` | `0` (disabled) | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to a `harness_judge` per target file; `0` = no limit |
+| `llm_max_input_chars` | `0` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Reserved. Accepted and parsed, but the current `harness_judge` runner does not read it, so it has no runtime effect yet. |
 
 With `pass_threshold` at its default of `1.0`, every check must pass for the run to pass. Lower it (e.g. `0.8`) to tolerate some failures. Note that a single `error` fails the run regardless of the threshold — see [Concepts](/docs/concepts).
 
@@ -53,7 +53,6 @@ The default excluded directories are `.git`, `.hg`, `.svn`, `.venv`, `venv`, `no
 [core]
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
-llm_max_input_chars = 0
 
 [discovery]
 exclude_dirs = [".git", ".venv", "node_modules", "__pycache__", "dist", "build"]

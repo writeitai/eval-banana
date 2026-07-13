@@ -76,7 +76,7 @@ An uncaught exception exits non-zero, so a bare `assert output.exists(), "..."` 
 
 ## Reporting diagnostics
 
-`stdout` and `stderr` are captured and written to `<output_dir>/checks/<check_id>.stdout.txt` and `.stderr.txt` (only when non-empty). Print a short explanation to `stderr` before exiting non-zero so the report says *why* a check failed:
+`stdout` and `stderr` are captured and written under the run's `checks/` directory as `<check_id>.stdout.txt` and `<check_id>.stderr.txt` — i.e. `<output_dir>/<run_id>/checks/<check_id>.stdout.txt` (only when non-empty). Print a short explanation to `stderr` before exiting non-zero so the report says *why* a check failed:
 
 ```python
 if row_count < 100:
