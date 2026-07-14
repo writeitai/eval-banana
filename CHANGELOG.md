@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The built-in `codex` harness template now defaults `reasoning_effort` to
+  `high` (previously unset, which fell back to codex's own default). Override
+  per project with `[harness] reasoning_effort`, per run with
+  `--harness-reasoning-effort`, or via `EVAL_BANANA_HARNESS_REASONING_EFFORT`.
+
 ## [0.3.1] - 2026-07-12
 
 ### Added

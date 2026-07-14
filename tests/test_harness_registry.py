@@ -32,6 +32,9 @@ def test_build_command_codex_uses_tail_prompt_and_default_model() -> None:
     assert command[-1] == "Fix the failing tests"
     assert "--model" in command
     assert "gpt-5.6-sol" in command
+    # The codex template ships a default reasoning effort of "high".
+    assert "-c" in command
+    assert "model_reasoning_effort=high" in command
 
 
 def test_build_command_gemini_uses_prompt_flag() -> None:
