@@ -26,14 +26,14 @@ Each template knows how to build the agent's command line (the executable, the f
 agent = "codex"
 # codex GPT-5.6 tiers: gpt-5.6-sol (flagship), gpt-5.6-terra, gpt-5.6-luna
 model = "gpt-5.6-sol"
-# reasoning_effort = "high"
+# reasoning_effort = "high"   # codex default; override to low/medium/xhigh/max
 ```
 
 | Key | Env var | Description |
 |---|---|---|
 | `agent` | `EVAL_BANANA_HARNESS_AGENT` | Template name (`codex`, `claude`, `gemini`, …) |
 | `model` | `EVAL_BANANA_HARNESS_MODEL` | Override the agent's default model |
-| `reasoning_effort` | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning-effort level, for agents that honor it |
+| `reasoning_effort` | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning-effort level, for agents that honor it. The built-in `codex` template defaults to `high`. |
 
 You can also set these per run without touching the file:
 
