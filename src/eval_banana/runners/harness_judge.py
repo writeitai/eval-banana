@@ -194,12 +194,12 @@ def run_harness_judge_check(
     effective_model = command_model or template.default_model
     effective_reasoning_effort = template.reasoning_effort
     unsupported: list[str] = []
-    if effective_model is not None and not template_supports_model(template):
+    if effective_model is not None and not template_supports_model(template=template):
         unsupported.append(
             f"model {effective_model!r} (configure model_flag or model_env_vars)"
         )
     if effective_reasoning_effort is not None and not (
-        template_supports_reasoning_effort(template)
+        template_supports_reasoning_effort(template=template)
     ):
         unsupported.append(
             "reasoning effort "

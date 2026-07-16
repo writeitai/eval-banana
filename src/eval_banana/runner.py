@@ -36,6 +36,12 @@ def _make_run_id() -> str:
 def _prepare_run_output_dir(
     *, config: Config, run_id: str, flat_output: bool = False
 ) -> Path:
+    """Create the artifact directory without overwriting caller-owned contents.
+
+    Normal runs receive a generated ``run_id`` child. Flat runs use the exact
+    configured directory and require it to be empty, real, and non-symlinked.
+    """
+
     base_output_dir = Path(config.output_dir)
     if flat_output:
         run_output_dir = base_output_dir.resolve()
@@ -72,6 +78,12 @@ def _prepare_run_output_dir(
 def _snapshot_check_definition(
     *, source_path: Path, expected_definition: CheckDefinition
 ) -> tuple[CheckDefinition, str]:
+    """Freeze, validate, and hash the exact definition bytes used for execution.
+
+    A definition that changed since discovery is rejected so the reported hash
+    cannot describe different bytes from the check object passed to a runner.
+    """
+
     try:
         definition_bytes = source_path.read_bytes()
     except OSError as exc:
@@ -90,7 +102,9 @@ def _snapshot_check_definition(
     return execution_definition, definition_sha256
 
 
-def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
+def _select_runner(*, check: CheckDefinition) -> Callable[..., CheckResult]:
+    """Return the type-specific runner responsible for one validated check."""
+
     if check.type == "deterministic":
         return run_deterministic_check
     return run_harness_judge_check
@@ -174,8 +188,10 @@ def run_checks(
     2. Load and validate check definitions (or a single one via *check_id*).
     3. Filter by *tags* if provided.
     4. Validate that ``harness_judge`` checks have a configured harness.
-    5. Execute each selected check via its type-specific runner.
-    6. Score results, emit reports, and return the :class:`EvalReport`.
+    5. Freeze and hash each exact definition byte sequence.
+    6. Prepare either a generated or caller-owned flat artifact directory.
+    7. Execute each selected check via its type-specific runner.
+    8. Score results, emit reports, and return the :class:`EvalReport`.
     """
     if config.project_root is None:
         msg = "Config.project_root must be set"
@@ -237,7 +253,7 @@ def run_checks(
     results: list[CheckResult] = []
     for source_path, execution_definition, check_definition_sha256 in execution_checks:
         logger.info("Running check %s", execution_definition.id)
-        runner = _select_runner(execution_definition)
+        runner = _select_runner(check=execution_definition)
         result = runner(
             check=execution_definition,
             check_definition_sha256=check_definition_sha256,

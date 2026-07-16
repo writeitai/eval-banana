@@ -150,7 +150,7 @@ def render_reasoning_effort_flags(
     ]
 
 
-def template_supports_model(template: AgentTemplate) -> bool:
+def template_supports_model(*, template: AgentTemplate) -> bool:
     """Return whether a selected model can reach this agent invocation."""
 
     return bool(template.model_flag and template.model_flag.strip()) or any(
@@ -158,7 +158,7 @@ def template_supports_model(template: AgentTemplate) -> bool:
     )
 
 
-def template_supports_reasoning_effort(template: AgentTemplate) -> bool:
+def template_supports_reasoning_effort(*, template: AgentTemplate) -> bool:
     """Return whether a reasoning-effort value can reach this agent invocation."""
 
     return any("{effort}" in token for token in template.reasoning_effort_flag)

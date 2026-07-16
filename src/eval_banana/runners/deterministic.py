@@ -75,6 +75,13 @@ def run_deterministic_check(
     output_dir: Path,
     config: Config,
 ) -> CheckResult:
+    """Execute one deterministic check and bind its result to the definition hash.
+
+    Inline or referenced Python is run with a structured context file. Exit
+    zero passes, a non-zero exit fails, and launch/setup errors produce an
+    ``error`` result while preserving captured process output when available.
+    """
+
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
     check_output_dir = output_dir / check.id

@@ -78,6 +78,12 @@ def run_cli(
     cwd: str,
     verbose: bool,
 ) -> None:
+    """Execute selected checks and exit with a status matching the run verdict.
+
+    ``--no-project-config`` makes the invocation hermetic, while
+    ``--flat-output`` lets an orchestrator own the exact artifact directory.
+    """
+
     _configure_logging(verbose=verbose)
     if flat_output and output_dir is None:
         raise click.UsageError("--flat-output requires an explicit --output-dir")
@@ -163,6 +169,8 @@ def validate_checks(
     cwd: str,
     verbose: bool,
 ) -> None:
+    """Validate check definitions and harness configuration without executing them."""
+
     _configure_logging(verbose=verbose)
     try:
         config = load_config(

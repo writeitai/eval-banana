@@ -18,7 +18,12 @@ _CHECK_DEFINITION_ADAPTER = TypeAdapter(CheckDefinition)
 def load_check_definition_bytes(
     *, path: Path, definition_bytes: bytes
 ) -> CheckDefinition:
-    """Validate one exact byte snapshot of a YAML check definition."""
+    """Decode and validate one exact byte snapshot of a YAML definition.
+
+    ``path`` is used only for actionable diagnostics; parsing always consumes
+    ``definition_bytes`` so a caller can hash and execute the same immutable
+    input.
+    """
 
     try:
         definition_text = definition_bytes.decode("utf-8")

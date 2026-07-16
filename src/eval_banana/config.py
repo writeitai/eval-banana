@@ -489,7 +489,7 @@ def load_config(
         raw = os.getenv(env_name)
         if raw is None:
             continue
-        _set_nested_value(merged, section=section, key=key, value=caster(raw))
+        _set_nested_value(data=merged, section=section, key=key, value=caster(raw))
 
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
@@ -501,24 +501,27 @@ def load_config(
     for value, section, key in cli_overrides:
         if value is None:
             continue
-        _set_nested_value(merged, section=section, key=key, value=value)
+        _set_nested_value(data=merged, section=section, key=key, value=value)
 
-    _sanitize_harness_section(merged)
+    _sanitize_harness_section(data=merged)
 
-    agent_templates = _parse_agent_templates(merged)
+    agent_templates = _parse_agent_templates(data=merged)
 
     config = Config(
         output_dir=_get_string(
-            merged, section="core", key="output_dir", default=".eval-banana/results"
+            data=merged,
+            section="core",
+            key="output_dir",
+            default=".eval-banana/results",
         ),
         pass_threshold=_get_float(
-            merged, section="core", key="pass_threshold", default=1.0
+            data=merged, section="core", key="pass_threshold", default=1.0
         ),
         llm_max_input_chars=_get_int(
-            merged, section="core", key="llm_max_input_chars", default=0
+            data=merged, section="core", key="llm_max_input_chars", default=0
         ),
         discovery_exclude_dirs=_get_string_list(
-            merged,
+            data=merged,
             section="discovery",
             key="exclude_dirs",
             default=Config().discovery_exclude_dirs,
@@ -527,15 +530,17 @@ def load_config(
         project_root=project_root,
         local_config_path=local_config_path,
         harness_agent=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="agent")
+            value=_get_nested_value(data=merged, section="harness", key="agent")
         ),
         harness_model=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="model")
+            value=_get_nested_value(data=merged, section="harness", key="model")
         ),
         harness_reasoning_effort=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="reasoning_effort")
+            value=_get_nested_value(
+                data=merged, section="harness", key="reasoning_effort"
+            )
         ),
-        harness_env=_get_string_dict(merged, section="harness", key="env"),
+        harness_env=_get_string_dict(data=merged, section="harness", key="env"),
         agent_templates=agent_templates,
     )
 
