@@ -30,9 +30,18 @@ Exactly one of `script` or `script_path` must be set.
 ### How it works
 
 1. A `context.json` file is written with check metadata and project root
-2. The script runs as `python <script> <context.json>`
-3. Exit code 0 = passed, non-zero = failed
-4. Infrastructure errors (missing script, OS execution failure) = error
+2. An inline script is materialized privately; a `script_path` file is read once,
+   included in `check_definition_sha256`, and materialized from those frozen bytes
+3. The materialized script runs as `python <script> <context.json>`
+4. Exit code 0 = passed, non-zero = failed
+5. Infrastructure errors (missing script, OS execution failure) = error
+
+Freezing a referenced script makes the result auditable: the runner executes the
+same bytes that its definition digest covers, even if the original file changes
+after the run snapshots it. The private launcher retains the referenced script's
+original resolved path as `__file__` and `sys.argv[0]`, and retains its parent as
+the first import path, so existing relative-asset and sibling-import behavior does
+not change.
 
 ### context.json shape
 

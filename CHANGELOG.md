@@ -21,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attempt-unique output directory while preserving the generated run-id child
   directory as the default layout. Flat output refuses symlinks and existing
   contents.
-- Every check result now carries `check_definition_sha256`, the canonical
-  `sha256:<64 lowercase hex>` digest of the exact definition bytes read before
-  execution.
+- Every check result now carries `check_definition_sha256`, a versioned canonical
+  `sha256:<64 lowercase hex>` digest of the exact YAML bytes and any referenced
+  deterministic-script bytes frozen and used for execution.
 - Machine-readable `report.json` output now declares `schema_version: 1` so
   orchestration callers can version-gate the structured result contract.
 

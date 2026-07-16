@@ -252,10 +252,24 @@ contents instead of overwriting them. Without this flag, the timestamped
 `report.json` declares `"schema_version": 1`; readers can therefore reject a
 future incompatible report shape explicitly. Every check result in that report
 and in `checks/<check_id>.json` includes `check_definition_sha256`, formatted as
-`sha256:<64 lowercase hex>`. It hashes the exact YAML definition bytes before
-the check executes, so a caller can bind the verdict to the definition that
-produced it. Harness-judge `details` also record the resolved `agent_type`,
-`model`, and nullable `reasoning_effort`.
+`sha256:<64 lowercase hex>`. The digest binds every byte that defines the check:
+the exact YAML bytes and, for `script_path` deterministic checks, the referenced
+script bytes frozen before execution. The runner executes that same frozen script
+snapshot, so a concurrent file change cannot produce a verdict under the older
+digest. Its private launcher preserves the original resolved script path as
+`__file__` and `sys.argv[0]`, plus its parent as the first import path. Inline
+scripts are already part of the YAML component.
+
+The canonical digest input is versioned and length-framed. It starts with the
+ASCII domain `eval-banana/check-definition-sha256/v1` followed by a NUL byte.
+Each component is `u64be(name_length) || name || u64be(content_length) || content`.
+The first component is always `definition.yaml`; a readable referenced script adds
+`referenced-script`. A missing or unreadable referenced script adds an empty
+`referenced-script-unavailable` component and produces an error result. The
+reported value is SHA-256 over the complete framed input.
+
+Harness-judge `details` also record the resolved `agent_type`, `model`, and
+nullable `reasoning_effort`.
 A judge result is accepted only when its process exits `0`; a non-zero exit is
 an `error` with score `0`, even when stdout contains valid passing JSON.
 If the selected template has no model flag/environment variable or no

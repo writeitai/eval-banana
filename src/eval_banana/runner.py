@@ -17,14 +17,22 @@ from eval_banana.loader import load_check_definition_bytes
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
+from eval_banana.models import DeterministicCheckDefinition
 from eval_banana.models import EvalReport
 from eval_banana.reporter import emit_console_report
 from eval_banana.reporter import write_report_files
+from eval_banana.runners.deterministic import freeze_referenced_script
+from eval_banana.runners.deterministic import FrozenDeterministicScript
 from eval_banana.runners.deterministic import run_deterministic_check
 from eval_banana.runners.harness_judge import run_harness_judge_check
 from eval_banana.scorer import score_results
 
 logger = logging.getLogger(__name__)
+
+_CHECK_DIGEST_DOMAIN = b"eval-banana/check-definition-sha256/v1\0"
+_YAML_COMPONENT_NAME = b"definition.yaml"
+_SCRIPT_COMPONENT_NAME = b"referenced-script"
+_UNAVAILABLE_SCRIPT_COMPONENT_NAME = b"referenced-script-unavailable"
 
 
 def _make_run_id() -> str:
@@ -77,11 +85,13 @@ def _prepare_run_output_dir(
 
 def _snapshot_check_definition(
     *, source_path: Path, expected_definition: CheckDefinition
-) -> tuple[CheckDefinition, str]:
-    """Freeze, validate, and hash the exact definition bytes used for execution.
+) -> tuple[CheckDefinition, str, FrozenDeterministicScript | None]:
+    """Freeze and hash every definition byte sequence used for execution.
 
     A definition that changed since discovery is rejected so the reported hash
-    cannot describe different bytes from the check object passed to a runner.
+    cannot describe different YAML from the check object passed to a runner.
+    Referenced deterministic scripts are also frozen here, included in the
+    canonical digest, and passed to the runner as the execution source.
     """
 
     try:
@@ -98,8 +108,54 @@ def _snapshot_check_definition(
     if execution_definition != expected_definition:
         msg = f"Check definition changed after discovery: {source_path}"
         raise SystemExit(msg)
-    definition_sha256 = f"sha256:{hashlib.sha256(definition_bytes).hexdigest()}"
-    return execution_definition, definition_sha256
+
+    script_snapshot = None
+    if isinstance(execution_definition, DeterministicCheckDefinition):
+        script_snapshot = freeze_referenced_script(
+            check=execution_definition, source_path=source_path
+        )
+    definition_sha256 = _canonical_check_definition_sha256(
+        definition_bytes=definition_bytes, script_snapshot=script_snapshot
+    )
+    return execution_definition, definition_sha256, script_snapshot
+
+
+def _frame_digest_component(*, name: bytes, content: bytes) -> bytes:
+    """Encode one named digest component with unambiguous 64-bit lengths."""
+
+    return b"".join(
+        (
+            len(name).to_bytes(length=8, byteorder="big"),
+            name,
+            len(content).to_bytes(length=8, byteorder="big"),
+            content,
+        )
+    )
+
+
+def _canonical_check_definition_sha256(
+    *, definition_bytes: bytes, script_snapshot: FrozenDeterministicScript | None
+) -> str:
+    """Hash the v1 canonical framing of YAML and referenced script bytes."""
+
+    components = [
+        _frame_digest_component(name=_YAML_COMPONENT_NAME, content=definition_bytes)
+    ]
+    if script_snapshot is not None:
+        if script_snapshot.content is not None:
+            components.append(
+                _frame_digest_component(
+                    name=_SCRIPT_COMPONENT_NAME, content=script_snapshot.content
+                )
+            )
+        else:
+            components.append(
+                _frame_digest_component(
+                    name=_UNAVAILABLE_SCRIPT_COMPONENT_NAME, content=b""
+                )
+            )
+    digest_input = b"".join((_CHECK_DIGEST_DOMAIN, *components))
+    return f"sha256:{hashlib.sha256(string=digest_input).hexdigest()}"
 
 
 def _select_runner(*, check: CheckDefinition) -> Callable[..., CheckResult]:
@@ -188,7 +244,7 @@ def run_checks(
     2. Load and validate check definitions (or a single one via *check_id*).
     3. Filter by *tags* if provided.
     4. Validate that ``harness_judge`` checks have a configured harness.
-    5. Freeze and hash each exact definition byte sequence.
+    5. Freeze and hash each YAML definition and referenced script byte sequence.
     6. Prepare either a generated or caller-owned flat artifact directory.
     7. Execute each selected check via its type-specific runner.
     8. Score results, emit reports, and return the :class:`EvalReport`.
@@ -251,17 +307,33 @@ def run_checks(
     checks_output_dir = run_output_dir / "checks"
 
     results: list[CheckResult] = []
-    for source_path, execution_definition, check_definition_sha256 in execution_checks:
+    for (
+        source_path,
+        execution_definition,
+        check_definition_sha256,
+        script_snapshot,
+    ) in execution_checks:
         logger.info("Running check %s", execution_definition.id)
         runner = _select_runner(check=execution_definition)
-        result = runner(
-            check=execution_definition,
-            check_definition_sha256=check_definition_sha256,
-            source_path=source_path,
-            project_root=config.project_root,
-            output_dir=checks_output_dir,
-            config=config,
-        )
+        if isinstance(execution_definition, DeterministicCheckDefinition):
+            result = runner(
+                check=execution_definition,
+                check_definition_sha256=check_definition_sha256,
+                source_path=source_path,
+                project_root=config.project_root,
+                output_dir=checks_output_dir,
+                config=config,
+                script_snapshot=script_snapshot,
+            )
+        else:
+            result = runner(
+                check=execution_definition,
+                check_definition_sha256=check_definition_sha256,
+                source_path=source_path,
+                project_root=config.project_root,
+                output_dir=checks_output_dir,
+                config=config,
+            )
         if result.check_definition_sha256 != check_definition_sha256:
             msg = (
                 "Runner returned the wrong definition hash for check "

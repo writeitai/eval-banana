@@ -28,9 +28,21 @@ Each run creates a directory under the configured `output_dir` (default `.eval-b
 - **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land.
 
 Every per-check JSON object includes `check_definition_sha256` in
-`sha256:<64 lowercase hex>` form. The digest covers the exact bytes of the YAML
-definition read before execution, allowing another system to verify which
-definition produced the verdict.
+`sha256:<64 lowercase hex>` form. Its versioned, length-framed input covers the
+exact YAML bytes and, for a deterministic `script_path` check, the referenced
+script bytes frozen before execution. The runner executes that same script
+snapshot, so the digest identifies the effective definition that produced the
+verdict instead of only the YAML pointer to it. The private launcher preserves
+the original resolved script path as `__file__` and `sys.argv[0]`, plus its
+parent as the first import path. Inline scripts are already part of the YAML
+component.
+
+The v1 digest input starts with
+`eval-banana/check-definition-sha256/v1\0`. Each component is encoded as
+`u64be(name_length) || name || u64be(content_length) || content`. The first is
+always `definition.yaml`; a readable external script adds `referenced-script`.
+A missing or unreadable external script adds an empty
+`referenced-script-unavailable` component and yields an error result.
 
 For `harness_judge`, `details` also records the resolved `agent_type`, `model`,
 and nullable `reasoning_effort`. These are the effective values after template,

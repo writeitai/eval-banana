@@ -16,6 +16,32 @@ from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.runner import _snapshot_check_definition
 from eval_banana.runner import run_checks
+from eval_banana.runners.deterministic import run_deterministic_check
+
+_CHECK_DIGEST_DOMAIN = b"eval-banana/check-definition-sha256/v1\0"
+
+
+def _expected_definition_digest(
+    *, definition_bytes: bytes, script_bytes: bytes | None = None
+) -> str:
+    """Reproduce the documented v1 digest framing independently of production."""
+
+    components = [(b"definition.yaml", definition_bytes)]
+    if script_bytes is not None:
+        components.append((b"referenced-script", script_bytes))
+    framed_components = [
+        b"".join(
+            (
+                len(name).to_bytes(length=8, byteorder="big"),
+                name,
+                len(content).to_bytes(length=8, byteorder="big"),
+                content,
+            )
+        )
+        for name, content in components
+    ]
+    digest_input = b"".join((_CHECK_DIGEST_DOMAIN, *framed_components))
+    return f"sha256:{hashlib.sha256(string=digest_input).hexdigest()}"
 
 
 def test_full_orchestration_happy_path(
@@ -58,8 +84,8 @@ def test_full_orchestration_happy_path(
 
     assert report.total_checks == 1
     assert (Path(report.output_dir) / "report.json").is_file()
-    assert report.checks[0].check_definition_sha256 == (
-        "sha256:" + hashlib.sha256(check_path.read_bytes()).hexdigest()
+    assert report.checks[0].check_definition_sha256 == _expected_definition_digest(
+        definition_bytes=check_path.read_bytes()
     )
 
 
@@ -85,9 +111,149 @@ def test_flat_output_writes_directly_into_exact_empty_directory(
     assert Path(report.output_dir) == output_dir.resolve()
     assert (output_dir / "report.json").is_file()
     assert not (output_dir / report.run_id).exists()
-    assert report.checks[0].check_definition_sha256 == (
-        "sha256:" + hashlib.sha256(check_path.read_bytes()).hexdigest()
+    assert report.checks[0].check_definition_sha256 == _expected_definition_digest(
+        definition_bytes=check_path.read_bytes()
     )
+
+
+def test_referenced_script_bytes_change_digest_and_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Bind each verdict to the referenced script snapshot that produced it."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script_path: check.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    script_path = checks_dir / "check.py"
+    passing_script = b"raise SystemExit(0)\n"
+    failing_script = b"raise SystemExit(9)\n"
+    script_path.write_bytes(passing_script)
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+    config = make_config(project_root=tmp_path, cwd=str(tmp_path))
+
+    passing_report = run_checks(config=config)
+    script_path.write_bytes(failing_script)
+    failing_report = run_checks(config=config)
+
+    passing_result = passing_report.checks[0]
+    failing_result = failing_report.checks[0]
+    assert passing_result.status == CheckStatus.passed
+    assert failing_result.status == CheckStatus.failed
+    assert passing_result.check_definition_sha256 == _expected_definition_digest(
+        definition_bytes=check_path.read_bytes(), script_bytes=passing_script
+    )
+    assert failing_result.check_definition_sha256 == _expected_definition_digest(
+        definition_bytes=check_path.read_bytes(), script_bytes=failing_script
+    )
+    assert (
+        passing_result.check_definition_sha256 != failing_result.check_definition_sha256
+    )
+
+
+def test_referenced_script_executes_frozen_bytes_after_live_file_changes(
+    tmp_path: Path, make_config: Callable[..., Config]
+) -> None:
+    """Prevent a post-snapshot file mutation from racing hash and execution."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script_path: check.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    script_path = checks_dir / "check.py"
+    passing_script = b"raise SystemExit(0)\n"
+    script_path.write_bytes(passing_script)
+    discovered_definition = load_check_definition(path=check_path)
+
+    execution_definition, definition_sha256, script_snapshot = (
+        _snapshot_check_definition(
+            source_path=check_path, expected_definition=discovered_definition
+        )
+    )
+    script_path.write_bytes(b"raise SystemExit(11)\n")
+    assert execution_definition.type == "deterministic"
+    result = run_deterministic_check(
+        check=execution_definition,
+        check_definition_sha256=definition_sha256,
+        source_path=check_path,
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path),
+        script_snapshot=script_snapshot,
+    )
+
+    assert result.status == CheckStatus.passed
+    assert result.check_definition_sha256 == _expected_definition_digest(
+        definition_bytes=check_path.read_bytes(), script_bytes=passing_script
+    )
+
+
+def test_frozen_referenced_script_preserves_logical_file_for_adjacent_asset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Keep ``__file__``-relative assets working from a frozen script snapshot."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script_path: scripts/check.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    scripts_dir = checks_dir / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "asset.txt").write_text("expected", encoding="utf-8")
+    (scripts_dir / "helper.py").write_text("VALUE = 7\n", encoding="utf-8")
+    script_path = scripts_dir / "check.py"
+    script_path.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import sys",
+                "from helper import VALUE",
+                'asset = (Path(__file__).parent / "asset.txt").read_text()',
+                "logical_argv = Path(sys.argv[0]) == Path(__file__)",
+                'passed = asset == "expected" and logical_argv and VALUE == 7',
+                "raise SystemExit(0 if passed else 1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(config=make_config(project_root=tmp_path, cwd=str(tmp_path)))
+
+    assert report.checks[0].status == CheckStatus.passed
 
 
 def test_flat_output_rejects_nonempty_directory_before_execution(

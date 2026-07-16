@@ -31,6 +31,13 @@ script: |
 
 Use `script: |` for inline Python, or `script_path: my_script.py` for an external file. The path is resolved **relative to the YAML file's directory**. **Exactly one** of `script` or `script_path` must be set — both or neither is a validation error.
 
+Before a referenced script runs, eval-banana reads it once, includes those exact
+bytes in `check_definition_sha256`, and executes a private snapshot of the same
+bytes. If the original file changes between snapshot and execution, it cannot
+silently produce a verdict under the older digest. A private launcher preserves
+the original resolved script path as `__file__` and `sys.argv[0]`, plus its parent
+as the first import path, so adjacent assets and sibling imports keep working.
+
 ## The `context.json` contract
 
 The script is invoked as `python <script> <context.json>`. Read `sys.argv[1]` to get the path to a JSON file with this exact shape:
