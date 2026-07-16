@@ -48,10 +48,20 @@ def init(force: bool) -> None:
     "--tag", "tags", multiple=True, help="Filter checks by tag (repeatable, OR logic)"
 )
 @click.option("--output-dir")
+@click.option(
+    "--flat-output",
+    is_flag=True,
+    help="Write artifacts directly into an explicit, empty --output-dir.",
+)
 @click.option("--pass-threshold", type=float)
 @click.option("--harness-agent")
 @click.option("--harness-model")
 @click.option("--harness-reasoning-effort")
+@click.option(
+    "--no-project-config",
+    is_flag=True,
+    help="Do not discover or load .eval-banana/config.toml.",
+)
 @click.option("--cwd", default=".")
 @click.option("--verbose", is_flag=True)
 def run_cli(
@@ -59,24 +69,33 @@ def run_cli(
     check_id: str | None,
     tags: tuple[str, ...],
     output_dir: str | None,
+    flat_output: bool,
     pass_threshold: float | None,
     harness_agent: str | None,
     harness_model: str | None,
     harness_reasoning_effort: str | None,
+    no_project_config: bool,
     cwd: str,
     verbose: bool,
 ) -> None:
     _configure_logging(verbose=verbose)
+    if flat_output and output_dir is None:
+        raise click.UsageError("--flat-output requires an explicit --output-dir")
     config = load_config(
         output_dir=output_dir,
         pass_threshold=pass_threshold,
         harness_agent=harness_agent,
         harness_model=harness_model,
         harness_reasoning_effort=harness_reasoning_effort,
+        use_project_config=not no_project_config,
         cwd=cwd,
     )
     report = run_checks(
-        config=config, check_dir=check_dir, check_id=check_id, tags=list(tags) or None
+        config=config,
+        check_dir=check_dir,
+        check_id=check_id,
+        tags=list(tags) or None,
+        flat_output=flat_output,
     )
     raise SystemExit(0 if report.run_passed else 1)
 
@@ -123,12 +142,34 @@ def list_checks(
 
 @main.command(name="validate")
 @click.option("--check-dir", type=click.Path(path_type=Path))
+@click.option(
+    "--harness-agent",
+    help=(
+        "Agent template used to validate harness_judge checks. This only "
+        "validates configuration; no agent is executed."
+    ),
+)
+@click.option(
+    "--no-project-config",
+    is_flag=True,
+    help="Do not discover or load .eval-banana/config.toml.",
+)
 @click.option("--cwd", default=".")
 @click.option("--verbose", is_flag=True)
-def validate_checks(check_dir: Path | None, cwd: str, verbose: bool) -> None:
+def validate_checks(
+    check_dir: Path | None,
+    harness_agent: str | None,
+    no_project_config: bool,
+    cwd: str,
+    verbose: bool,
+) -> None:
     _configure_logging(verbose=verbose)
     try:
-        config = load_config(cwd=cwd)
+        config = load_config(
+            cwd=cwd,
+            harness_agent=harness_agent,
+            use_project_config=not no_project_config,
+        )
         explicit_check_dir = check_dir
         if explicit_check_dir is not None and config.project_root is not None:
             if not explicit_check_dir.is_absolute():

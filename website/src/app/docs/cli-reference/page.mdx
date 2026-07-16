@@ -32,6 +32,8 @@ eb run
 eb run --check-id readme_explains_install
 eb run --tag fast --tag critical
 eb run --harness-agent codex --harness-model gpt-5.6-sol
+eb run --no-project-config --harness-agent codex --harness-model gpt-5.6-sol
+eb run --flat-output --output-dir /absolute/path/to/attempt/eval
 ```
 
 | Option | Description |
@@ -40,14 +42,21 @@ eb run --harness-agent codex --harness-model gpt-5.6-sol
 | `--check-id TEXT` | Run only the check with this id. Uses **relaxed validation** — broken YAML in other files does not block it. |
 | `--tag TEXT` | Run only checks carrying this tag. Repeatable; multiple tags are OR'd. |
 | `--output-dir TEXT` | Override the output directory for this run. |
+| `--flat-output` | Write artifacts directly into an explicit `--output-dir`; the exact path must be absent or an empty, non-symlink directory. |
 | `--pass-threshold FLOAT` | Override the minimum pass ratio (0.0–1.0). |
 | `--harness-agent TEXT` | Agent template used by `harness_judge` checks. |
 | `--harness-model TEXT` | Model override for the harness agent. |
 | `--harness-reasoning-effort TEXT` | Reasoning-effort level for the agent. |
+| `--no-project-config` | Do not discover or load `.eval-banana/config.toml`; treat `--cwd` as the project root. |
 | `--cwd TEXT` | Working directory (default `.`). |
 | `--verbose` | Enable debug logging. |
 
 `--check-id` is the debug escape hatch: it targets one check with relaxed validation, so you can iterate on it in a repo whose other checks are incomplete.
+
+The default output remains `<output_dir>/<run_id>/`. `--flat-output` is for an
+orchestrator that already allocates an attempt-unique directory and needs
+`report.json` at that exact path. It requires `--output-dir` and refuses to
+overwrite existing contents.
 
 ## `eb list`
 
@@ -71,15 +80,18 @@ Validate every YAML definition without executing anything. Exits non-zero on the
 
 ```bash
 eb validate
+eb validate --no-project-config --harness-agent codex
 ```
 
 | Option | Description |
 |---|---|
 | `--check-dir PATH` | Validate only this directory. |
+| `--harness-agent TEXT` | Agent template required by `harness_judge` checks. Validation records the configuration choice but does not execute the agent. |
+| `--no-project-config` | Do not discover or load `.eval-banana/config.toml`; treat `--cwd` as the project root. |
 | `--cwd TEXT` | Working directory (default `.`). |
 | `--verbose` | Enable debug logging. |
 
-Like `run`, `validate` fails fast if any discovered `harness_judge` check has no harness configured.
+Like `run`, `validate` fails fast if any discovered `harness_judge` check has no harness configured. Use `--no-project-config --harness-agent NAME` when validation must not depend on a project or ancestor config file.
 
 ## Exit codes
 

@@ -11,6 +11,8 @@ from eval_banana.config import Config
 from eval_banana.models import DeterministicCheckDefinition
 from eval_banana.runners.deterministic import run_deterministic_check
 
+_CHECK_DEFINITION_SHA256 = "sha256:" + "0" * 64
+
 
 def test_inline_script_pass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
@@ -41,6 +43,7 @@ def test_inline_script_pass(
 
     result = run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=project_root,
         output_dir=tmp_path / "out" / "checks",
@@ -49,6 +52,7 @@ def test_inline_script_pass(
 
     assert result.status == "passed"
     assert result.score == 1
+    assert result.check_definition_sha256 == _CHECK_DEFINITION_SHA256
     assert result.stdout == "ok"
     assert captured["cwd"] == project_root
     assert captured["context"]["project_root"] == str(project_root)
@@ -77,6 +81,7 @@ def test_inline_script_fail(
 
     result = run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -114,6 +119,7 @@ def test_script_path_resolution(
 
     run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -148,6 +154,7 @@ def test_subprocess_run_called_without_timeout(
 
     run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -173,6 +180,7 @@ def test_missing_script_returns_error(
 
     result = run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -208,6 +216,7 @@ def test_subprocess_cwd_is_project_root(
 
     run_deterministic_check(
         check=check,
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=source_path,
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",

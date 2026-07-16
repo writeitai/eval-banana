@@ -27,6 +27,28 @@ Each run creates a directory under the configured `output_dir` (default `.eval-b
 - **`checks/<check_id>.json`** holds one check's status, score, and reason.
 - **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land.
 
+Every per-check JSON object includes `check_definition_sha256` in
+`sha256:<64 lowercase hex>` form. The digest covers the exact bytes of the YAML
+definition read before execution, allowing another system to verify which
+definition produced the verdict.
+
+For `harness_judge`, `details` also records the resolved `agent_type`, `model`,
+and nullable `reasoning_effort`. These are the effective values after template,
+project, environment, and CLI selection; `model` also reflects a per-check
+override. Automation can therefore bind the verdict to the judge configuration
+that produced it.
+
+If a caller already allocates an attempt-unique output directory, it can write
+this same layout without the generated run-id child:
+
+```bash
+eb run --flat-output --output-dir /absolute/path/to/attempt/eval
+```
+
+The exact directory must be absent or empty and cannot be a symlink. Existing
+contents are refused, never overwritten. Runs without `--flat-output` keep the
+default timestamped layout shown above.
+
 ## Console summary
 
 The console output prints these labels:
@@ -43,9 +65,13 @@ Every check resolves to exactly one status, which sets its score:
 
 | Status | Meaning | Score |
 |---|---|---|
-| `passed` | The condition held (exit `0`, or judge `score == 1`) | 1 |
-| `failed` | The condition did not hold (non-zero exit, or judge `score == 0`) | 0 |
-| `error` | The check could not be run or its verdict could not be read (script file missing or OS launch failure; malformed/absent judge verdict; harness timeout) | 0 |
+| `passed` | The condition held (deterministic exit `0`, or judge exit `0` and `score == 1`) | 1 |
+| `failed` | The condition did not hold (deterministic non-zero exit, or judge exit `0` and `score == 0`) | 0 |
+| `error` | The check could not produce a trustworthy verdict (script file missing or OS launch failure; malformed/absent judge verdict; harness timeout; any non-zero judge exit) | 0 |
+
+A harness judge must satisfy both halves of its protocol: process exit `0` and
+a valid JSON verdict. A non-zero judge exit is always `error` with score `0`,
+even if stdout happens to contain `{"score": 1}`.
 
 All checks carry equal weight, so the run score is simply `points_earned / total_points`.
 

@@ -12,6 +12,8 @@ from eval_banana.models import HarnessJudgeCheckDefinition
 from eval_banana.runners.harness_judge import _extract_last_verdict
 from eval_banana.runners.harness_judge import run_harness_judge_check
 
+_CHECK_DEFINITION_SHA256 = "sha256:" + "0" * 64
+
 
 def _make_check(*, model: str | None = None) -> HarnessJudgeCheckDefinition:
     return HarnessJudgeCheckDefinition(
@@ -51,7 +53,11 @@ def test_harness_judge_success_path(
     (tmp_path / "README.md").write_text("Install with uv sync", encoding="utf-8")
     captured: dict[str, object] = {}
     template = AgentTemplate(
-        command=("codex", "exec"), model_flag="--model", default_model="gpt-5.6-sol"
+        command=("codex", "exec"),
+        model_flag="--model",
+        default_model="gpt-5.6-sol",
+        reasoning_effort="medium",
+        reasoning_effort_flag=("-c", "model_reasoning_effort={effort}"),
     )
 
     monkeypatch.setattr(
@@ -69,6 +75,116 @@ def test_harness_judge_success_path(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(
+            project_root=tmp_path,
+            harness_agent="codex",
+            harness_reasoning_effort="xhigh",
+        ),
+    )
+
+    assert result.status.value == "passed"
+    assert result.reason == "Looks good."
+    assert result.check_type.value == "harness_judge"
+    assert result.check_definition_sha256 == _CHECK_DEFINITION_SHA256
+    assert result.details["agent_type"] == "codex"
+    assert result.details["model"] == "gpt-5.6-sol"
+    assert result.details["reasoning_effort"] == "xhigh"
+    assert "model_reasoning_effort=xhigh" in captured["command"]
+    assert captured["timeout"] == 300
+    assert captured["cwd"] == tmp_path
+    assert captured["capture_output"] is True
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
+    assert captured["text"] is True
+
+
+def test_model_without_template_injection_surface_errors_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.resolve_template",
+        lambda **kwargs: AgentTemplate(command=("model-blind-agent",), model_flag=None),
+    )
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("unsupported model must not launch"),
+    )
+
+    result = run_harness_judge_check(
+        check=_make_check(model="requested-model"),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path, harness_agent="custom"),
+    )
+
+    assert result.status.value == "error"
+    assert result.score == 0
+    assert "cannot inject" in (result.error_detail or "")
+    assert "requested-model" in (result.error_detail or "")
+    assert result.details["model"] is None
+    assert result.details["reasoning_effort"] is None
+
+
+def test_reasoning_effort_without_placeholder_errors_before_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.resolve_template",
+        lambda **kwargs: AgentTemplate(
+            command=("effort-blind-agent",),
+            model_flag=None,
+            reasoning_effort_flag=("--effort",),
+        ),
+    )
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.subprocess.run",
+        lambda *args, **kwargs: pytest.fail("unsupported effort must not launch"),
+    )
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(
+            project_root=tmp_path,
+            harness_agent="custom",
+            harness_reasoning_effort="xhigh",
+        ),
+    )
+
+    assert result.status.value == "error"
+    assert result.score == 0
+    assert "cannot inject" in (result.error_detail or "")
+    assert "reasoning effort 'xhigh'" in (result.error_detail or "")
+    assert "{effort} placeholder" in (result.error_detail or "")
+    assert result.details["model"] is None
+    assert result.details["reasoning_effort"] is None
+
+
+def test_stock_codex_model_and_effort_remain_supported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        captured["command"] = command
+        return _completed_process(stdout='{"score": 1, "reason": "ok"}')
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -76,13 +192,11 @@ def test_harness_judge_success_path(
     )
 
     assert result.status.value == "passed"
-    assert result.reason == "Looks good."
-    assert result.check_type.value == "harness_judge"
     assert result.details["model"] == "gpt-5.6-sol"
-    assert captured["timeout"] == 300
-    assert captured["cwd"] == tmp_path
-    assert captured["capture_output"] is True
-    assert captured["text"] is True
+    assert result.details["reasoning_effort"] == "high"
+    assert "--model" in captured["command"]
+    assert "gpt-5.6-sol" in captured["command"]
+    assert "model_reasoning_effort=high" in captured["command"]
 
 
 def test_malformed_json_returns_error(
@@ -100,6 +214,7 @@ def test_malformed_json_returns_error(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -127,6 +242,7 @@ def test_invalid_score_returns_error(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -154,6 +270,7 @@ def test_missing_binary_returns_error(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -164,7 +281,7 @@ def test_missing_binary_returns_error(
     assert "FileNotFoundError" in (result.error_detail or "")
 
 
-def test_non_zero_exit_with_valid_json_still_passes(
+def test_non_zero_exit_with_valid_json_is_an_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
     (tmp_path / "README.md").write_text("Install", encoding="utf-8")
@@ -181,14 +298,17 @@ def test_non_zero_exit_with_valid_json_still_passes(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
         config=make_config(project_root=tmp_path, harness_agent="codex"),
     )
 
-    assert result.status.value == "passed"
+    assert result.status.value == "error"
+    assert result.score == 0
     assert result.exit_code == 1
+    assert "exited with code 1" in (result.error_detail or "")
 
 
 def test_non_zero_exit_without_json_returns_error(
@@ -206,6 +326,7 @@ def test_non_zero_exit_without_json_returns_error(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -236,6 +357,7 @@ def test_per_check_model_override_reaches_subprocess_command(
 
     result = run_harness_judge_check(
         check=_make_check(model="gpt-5.6-sol"),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -264,6 +386,7 @@ def test_pretty_printed_multiline_json_is_parsed(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",
@@ -295,6 +418,7 @@ def test_timeout_returns_error(
 
     result = run_harness_judge_check(
         check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
         source_path=tmp_path / "eval_checks" / "judge.yaml",
         project_root=tmp_path,
         output_dir=tmp_path / "out" / "checks",

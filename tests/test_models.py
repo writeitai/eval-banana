@@ -93,6 +93,7 @@ def test_score_validator_enforces_zero_or_one() -> None:
         CheckResult(
             check_id="one",
             check_type=CheckType.deterministic,
+            check_definition_sha256="sha256:" + "0" * 64,
             description="desc",
             source_path="/tmp/check.yaml",
             status=CheckStatus.passed,
@@ -107,6 +108,7 @@ def test_check_result_tags_field_defaults_and_serializes() -> None:
     result = CheckResult(
         check_id="one",
         check_type=CheckType.deterministic,
+        check_definition_sha256="sha256:" + "0" * 64,
         description="desc",
         source_path="/tmp/check.yaml",
         status=CheckStatus.passed,
@@ -118,6 +120,22 @@ def test_check_result_tags_field_defaults_and_serializes() -> None:
 
     assert result.tags == []
     assert result.model_dump()["tags"] == []
+
+
+def test_check_definition_hash_requires_canonical_sha256_form() -> None:
+    with pytest.raises(ValidationError):
+        CheckResult(
+            check_id="one",
+            check_type=CheckType.deterministic,
+            check_definition_sha256="0" * 64,
+            description="desc",
+            source_path="/tmp/check.yaml",
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
 
 
 @pytest.mark.parametrize(

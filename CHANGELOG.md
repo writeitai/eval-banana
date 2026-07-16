@@ -7,12 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-16
+
+### Added
+
+- `eb validate --harness-agent NAME` can now validate `harness_judge` checks
+  without relying on a project or ancestor `.eval-banana/config.toml`. The
+  command verifies configuration only and does not execute the selected agent.
+- `eb run` and `eb validate` now accept `--no-project-config` for hermetic
+  callers that must disable upward `.eval-banana/config.toml` discovery and
+  treat `--cwd` as the project root.
+- `eb run --flat-output --output-dir PATH` writes artifacts directly into an
+  attempt-unique output directory while preserving the generated run-id child
+  directory as the default layout. Flat output refuses symlinks and existing
+  contents.
+- Every check result now carries `check_definition_sha256`, the canonical
+  `sha256:<64 lowercase hex>` digest of the exact definition bytes read before
+  execution.
+
 ### Changed
 
 - The built-in `codex` harness template now defaults `reasoning_effort` to
   `high` (previously unset, which fell back to codex's own default). Override
   per project with `[harness] reasoning_effort`, per run with
   `--harness-reasoning-effort`, or via `EVAL_BANANA_HARNESS_REASONING_EFFORT`.
+- Harness-judge result details now record the resolved `agent_type`, `model`,
+  and nullable `reasoning_effort`, so orchestration callers can bind a verdict
+  to the judge configuration that produced it. A harness process must also exit
+  zero: any non-zero exit is an `error` with score `0`, even if stdout contains
+  an otherwise valid passing JSON verdict.
+- A selected model or reasoning effort now fails the check before launch when
+  its agent template has no matching model flag/environment variable or
+  `{effort}` flag placeholder. The error result records both effective fields
+  as `null` instead of claiming an override that never reached the judge.
 
 ## [0.3.1] - 2026-07-12
 
@@ -250,7 +277,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/writeitai/eval-banana/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/writeitai/eval-banana/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/writeitai/eval-banana/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/writeitai/eval-banana/compare/v0.1.0...v0.2.0

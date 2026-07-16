@@ -69,6 +69,7 @@ def _write_inline_script(*, script: str, temp_dir: Path) -> Path:
 def run_deterministic_check(
     *,
     check: DeterministicCheckDefinition,
+    check_definition_sha256: str,
     source_path: Path,
     project_root: Path,
     output_dir: Path,
@@ -109,6 +110,7 @@ def run_deterministic_check(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.deterministic,
+            check_definition_sha256=check_definition_sha256,
             description=check.description,
             source_path=str(source_path.resolve()),
             tags=check.tags,
@@ -131,6 +133,7 @@ def run_deterministic_check(
     return CheckResult(
         check_id=check.id,
         check_type=CheckType.deterministic,
+        check_definition_sha256=check_definition_sha256,
         description=check.description,
         source_path=str(source_path.resolve()),
         tags=check.tags,

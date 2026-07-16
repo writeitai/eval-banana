@@ -41,6 +41,32 @@ You can also set these per run without touching the file:
 eb run --harness-agent codex --harness-model gpt-5.6-sol --harness-reasoning-effort high
 ```
 
+Pass the agent explicitly during definition-only validation when there is no
+project config (or when callers must not inherit an ancestor config):
+
+```bash
+eb validate --no-project-config --harness-agent codex
+```
+
+Validation checks that the required agent setting is present but does not
+execute it. Model and reasoning-effort flags apply only to `run`.
+
+Each executed harness result records the resolved agent, model, and nullable
+reasoning effort in its `details`. The agent process must exit `0` and emit a
+valid JSON verdict. Any non-zero judge exit is an errored check with score `0`,
+even if its output contains a parseable passing verdict.
+
+Those fields describe values that actually have an injection surface. A model
+requires the selected template's `model_flag` or `model_env_vars`; reasoning
+effort requires a `reasoning_effort_flag` token containing `{effort}`. An
+unsupported selection errors before launch and leaves both effective details
+`null` rather than claiming configuration the judge never received.
+
+`--no-project-config` makes `--cwd` the project root and disables upward
+`.eval-banana/config.toml` discovery. Use it for automation that must rely only
+on explicit flags, environment variables, and this installed eval-banana
+version's built-in agent templates.
+
 ## Credentials
 
 The harness subprocess inherits the parent shell environment, so provide API keys exactly as you would to run the agent by hand:

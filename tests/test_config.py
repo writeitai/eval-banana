@@ -75,6 +75,38 @@ def test_relative_output_dir_resolves_from_project_root(
     assert config.output_dir == str((project / "custom-results").resolve())
 
 
+def test_load_config_can_ignore_ancestor_project_config(tmp_path: Path) -> None:
+    ancestor_config = tmp_path / ".eval-banana" / "config.toml"
+    ancestor_config.parent.mkdir()
+    ancestor_config.write_text(
+        "\n".join(
+            [
+                "[core]",
+                "pass_threshold = 0.25",
+                "",
+                "[harness]",
+                'agent = "claude"',
+                "",
+                "[agents.codex]",
+                'shared_flags = ["--ambient-override"]',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    target = tmp_path / "target"
+    target.mkdir()
+
+    config = load_config(
+        cwd=str(target), harness_agent="codex", use_project_config=False
+    )
+
+    assert config.project_root == target.resolve()
+    assert config.local_config_path is None
+    assert config.pass_threshold == 1.0
+    assert config.harness_agent == "codex"
+    assert config.agent_templates == {}
+
+
 def test_legacy_harness_skills_dir_is_ignored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

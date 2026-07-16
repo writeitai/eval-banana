@@ -447,6 +447,7 @@ def load_config(
     harness_agent: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
+    use_project_config: bool = True,
 ) -> Config:
     """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
 
@@ -456,10 +457,16 @@ def load_config(
     3. Project-level ``.eval-banana/config.toml`` (walked upward from *cwd*).
     4. Built-in defaults on :class:`Config`.
 
+    When *use_project_config* is false, config discovery is disabled and *cwd*
+    itself becomes the project root. Environment variables, explicit keyword
+    arguments, and built-in defaults still apply.
+
     Raises :class:`SystemExit` on invalid TOML or legacy ``[llm]`` sections.
     """
     cwd_path = Path(cwd or ".").resolve()
-    local_config_path = find_local_config(start=cwd_path)
+    local_config_path = (
+        find_local_config(start=cwd_path) if use_project_config else None
+    )
     project_root = _resolve_project_root(
         cwd=cwd_path, local_config_path=local_config_path
     )

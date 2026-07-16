@@ -31,6 +31,7 @@ def make_check_result() -> Callable[..., CheckResult]:
         defaults = {
             "check_id": "check_one",
             "check_type": CheckType.deterministic,
+            "check_definition_sha256": "sha256:" + "0" * 64,
             "description": "Example check",
             "source_path": "/tmp/check.yaml",
             "status": CheckStatus.passed,

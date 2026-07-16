@@ -15,15 +15,19 @@ _LEGACY_JUDGE_TYPE = "llm" + "_judge"
 _CHECK_DEFINITION_ADAPTER = TypeAdapter(CheckDefinition)
 
 
-def load_check_definition(*, path: Path) -> CheckDefinition:
-    """Load and validate a single YAML check definition from *path*.
+def load_check_definition_bytes(
+    *, path: Path, definition_bytes: bytes
+) -> CheckDefinition:
+    """Validate one exact byte snapshot of a YAML check definition."""
 
-    Raises :class:`ValueError` on YAML parse errors, schema violations,
-    or if the legacy ``llm_judge`` type is encountered (with an actionable
-    migration message).
-    """
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        definition_text = definition_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        msg = f"Failed to decode YAML in {path} as UTF-8: {exc}"
+        raise ValueError(msg) from exc
+
+    try:
+        raw = yaml.safe_load(definition_text)
     except yaml.YAMLError as exc:
         msg = f"Failed to parse YAML in {path}: {exc}"
         raise ValueError(msg) from exc
@@ -44,6 +48,17 @@ def load_check_definition(*, path: Path) -> CheckDefinition:
     except ValidationError as exc:
         msg = f"Invalid check definition in {path}: {exc}"
         raise ValueError(msg) from exc
+
+
+def load_check_definition(*, path: Path) -> CheckDefinition:
+    """Load and validate a single YAML check definition from *path*.
+
+    Raises :class:`ValueError` on YAML parse errors, schema violations,
+    or if the legacy ``llm_judge`` type is encountered (with an actionable
+    migration message).
+    """
+
+    return load_check_definition_bytes(path=path, definition_bytes=path.read_bytes())
 
 
 def load_check_definitions(*, paths: list[Path]) -> list[tuple[Path, CheckDefinition]]:

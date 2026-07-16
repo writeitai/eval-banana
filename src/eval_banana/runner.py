@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from datetime import timezone
+import hashlib
 import logging
 from pathlib import Path
 import uuid
@@ -12,6 +13,7 @@ import yaml
 from eval_banana.config import Config
 from eval_banana.discovery import discover_check_files
 from eval_banana.loader import load_check_definition
+from eval_banana.loader import load_check_definition_bytes
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
@@ -31,12 +33,61 @@ def _make_run_id() -> str:
     return f"{timestamp}_{suffix}"
 
 
-def _prepare_run_output_dir(*, config: Config, run_id: str) -> Path:
+def _prepare_run_output_dir(
+    *, config: Config, run_id: str, flat_output: bool = False
+) -> Path:
     base_output_dir = Path(config.output_dir)
+    if flat_output:
+        run_output_dir = base_output_dir.resolve()
+        if base_output_dir.is_symlink():
+            msg = (
+                "Refusing --flat-output because the exact output path is a symlink: "
+                f"{base_output_dir}"
+            )
+            raise SystemExit(msg)
+        if run_output_dir.exists():
+            if not run_output_dir.is_dir():
+                msg = (
+                    "Refusing --flat-output because the output path is not a "
+                    f"directory: {run_output_dir}"
+                )
+                raise SystemExit(msg)
+            if any(run_output_dir.iterdir()):
+                msg = (
+                    "Refusing --flat-output because the output directory is not "
+                    f"empty: {run_output_dir}"
+                )
+                raise SystemExit(msg)
+        else:
+            run_output_dir.mkdir(parents=True)
+        (run_output_dir / "checks").mkdir()
+        return run_output_dir
+
     run_output_dir = (base_output_dir / run_id).resolve()
     run_output_dir.mkdir(parents=True, exist_ok=True)
     (run_output_dir / "checks").mkdir(parents=True, exist_ok=True)
     return run_output_dir
+
+
+def _snapshot_check_definition(
+    *, source_path: Path, expected_definition: CheckDefinition
+) -> tuple[CheckDefinition, str]:
+    try:
+        definition_bytes = source_path.read_bytes()
+    except OSError as exc:
+        msg = f"Failed to hash check definition {source_path}: {exc}"
+        raise SystemExit(msg) from exc
+    try:
+        execution_definition = load_check_definition_bytes(
+            path=source_path, definition_bytes=definition_bytes
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if execution_definition != expected_definition:
+        msg = f"Check definition changed after discovery: {source_path}"
+        raise SystemExit(msg)
+    definition_sha256 = f"sha256:{hashlib.sha256(definition_bytes).hexdigest()}"
+    return execution_definition, definition_sha256
 
 
 def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
@@ -114,6 +165,7 @@ def run_checks(
     check_dir: Path | None = None,
     check_id: str | None = None,
     tags: list[str] | None = None,
+    flat_output: bool = False,
 ) -> EvalReport:
     """Top-level orchestration: discover checks, execute checks, and score.
 
@@ -162,25 +214,44 @@ def run_checks(
 
     require_harness_for_harness_judge(config=config, selected_checks=selected_checks)
 
+    execution_checks = [
+        (
+            source_path,
+            *_snapshot_check_definition(
+                source_path=source_path, expected_definition=definition
+            ),
+        )
+        for source_path, definition in sorted(
+            selected_checks, key=lambda item: str(item[0])
+        )
+    ]
+
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
     run_id = _make_run_id()
-    run_output_dir = _prepare_run_output_dir(config=config, run_id=run_id)
+    run_output_dir = _prepare_run_output_dir(
+        config=config, run_id=run_id, flat_output=flat_output
+    )
     checks_output_dir = run_output_dir / "checks"
 
     results: list[CheckResult] = []
-    for source_path, definition in sorted(
-        selected_checks, key=lambda item: str(item[0])
-    ):
-        logger.info("Running check %s", definition.id)
-        runner = _select_runner(definition)
+    for source_path, execution_definition, check_definition_sha256 in execution_checks:
+        logger.info("Running check %s", execution_definition.id)
+        runner = _select_runner(execution_definition)
         result = runner(
-            check=definition,
+            check=execution_definition,
+            check_definition_sha256=check_definition_sha256,
             source_path=source_path,
             project_root=config.project_root,
             output_dir=checks_output_dir,
             config=config,
         )
+        if result.check_definition_sha256 != check_definition_sha256:
+            msg = (
+                "Runner returned the wrong definition hash for check "
+                f"'{execution_definition.id}'"
+            )
+            raise RuntimeError(msg)
         results.append(result)
 
     completed = datetime.now(timezone.utc)

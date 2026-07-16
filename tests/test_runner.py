@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 from pathlib import Path
 from typing import cast
 
 import pytest
 
 from eval_banana.config import Config
+from eval_banana.loader import load_check_definition
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
+from eval_banana.runner import _snapshot_check_definition
 from eval_banana.runner import run_checks
 
 
@@ -38,6 +41,7 @@ def test_full_orchestration_happy_path(
         return CheckResult(
             check_id="one",
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(check_path),
             status=CheckStatus.passed,
@@ -53,6 +57,134 @@ def test_full_orchestration_happy_path(
 
     assert report.total_checks == 1
     assert (Path(report.output_dir) / "report.json").is_file()
+    assert report.checks[0].check_definition_sha256 == (
+        "sha256:" + hashlib.sha256(check_path.read_bytes()).hexdigest()
+    )
+
+
+def test_flat_output_writes_directly_into_exact_empty_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_bytes(
+        b"schema_version: 1\r\nid: one\r\ntype: deterministic\r\n"
+        b"description: desc\r\nscript: print('ok')\r\n"
+    )
+    output_dir = tmp_path / "attempt-eval"
+    output_dir.mkdir()
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(
+        config=make_config(project_root=tmp_path, output_dir=str(output_dir)),
+        flat_output=True,
+    )
+
+    assert Path(report.output_dir) == output_dir.resolve()
+    assert (output_dir / "report.json").is_file()
+    assert not (output_dir / report.run_id).exists()
+    assert report.checks[0].check_definition_sha256 == (
+        "sha256:" + hashlib.sha256(check_path.read_bytes()).hexdigest()
+    )
+
+
+def test_flat_output_rejects_nonempty_directory_before_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "one.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "attempt-eval"
+    output_dir.mkdir()
+    (output_dir / "foreign.txt").write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(
+        "eval_banana.runner._select_runner", lambda check: pytest.fail("must not run")
+    )
+
+    with pytest.raises(SystemExit, match="output directory is not empty"):
+        run_checks(
+            config=make_config(project_root=tmp_path, output_dir=str(output_dir)),
+            flat_output=True,
+        )
+
+    assert (output_dir / "foreign.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_flat_output_rejects_symlink_directory(
+    tmp_path: Path, make_config: Callable[..., Config]
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "one.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    actual_output = tmp_path / "actual-output"
+    actual_output.mkdir()
+    output_link = tmp_path / "attempt-eval"
+    output_link.symlink_to(actual_output, target_is_directory=True)
+
+    with pytest.raises(SystemExit, match="exact output path is a symlink"):
+        run_checks(
+            config=make_config(project_root=tmp_path, output_dir=str(output_link)),
+            flat_output=True,
+        )
+
+
+def test_definition_snapshot_rejects_semantic_change_after_discovery(
+    tmp_path: Path,
+) -> None:
+    check_path = tmp_path / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: first",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    discovered_definition = load_check_definition(path=check_path)
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: changed",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="changed after discovery"):
+        _snapshot_check_definition(
+            source_path=check_path, expected_definition=discovered_definition
+        )
 
 
 def test_no_checks_found(tmp_path: Path, make_config: Callable[..., Config]) -> None:
@@ -86,6 +218,7 @@ def test_check_id_filtering_with_relaxed_validation(
         return CheckResult(
             check_id="good",
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(good),
             status=CheckStatus.passed,
@@ -129,6 +262,7 @@ def test_check_id_succeeds_with_broken_yaml_elsewhere(
         return CheckResult(
             check_id="target",
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(checks_dir / "target.yaml"),
             status=CheckStatus.passed,
@@ -212,6 +346,7 @@ def test_tag_filter_runs_only_matching_checks(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description=check.description,
             source_path=str(kwargs["source_path"]),
             tags=list(check.tags),
@@ -286,6 +421,7 @@ def test_no_tag_filter_runs_all_checks(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description=check.description,
             source_path=str(kwargs["source_path"]),
             tags=list(check.tags),
@@ -365,6 +501,7 @@ def test_harness_judge_with_harness_configured_proceeds(
         return CheckResult(
             check_id="judge_check",
             check_type=CheckType.harness_judge,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(judge_path),
             status=CheckStatus.passed,
@@ -410,6 +547,7 @@ def test_deterministic_run_with_no_harness_agent_succeeds(
         return CheckResult(
             check_id="one",
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(check_path),
             status=CheckStatus.passed,
@@ -462,6 +600,7 @@ def test_check_id_targeting_deterministic_ignores_unrelated_harness_judge(
         return CheckResult(
             check_id="a",
             check_type=CheckType.deterministic,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
             description="desc",
             source_path=str(deterministic_path),
             status=CheckStatus.passed,
