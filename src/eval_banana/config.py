@@ -546,7 +546,9 @@ def load_config(
 
     output_path = Path(config.output_dir)
     if not output_path.is_absolute():
-        output_path = (project_root / output_path).resolve()
+        # Keep the caller's final path component intact. Flat-output mode must
+        # be able to detect when that exact component is a symlink.
+        output_path = project_root / output_path
     config.output_dir = str(output_path)
 
     logger.debug("Resolved config: %s", config)

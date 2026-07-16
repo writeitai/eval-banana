@@ -8,6 +8,7 @@ from typing import cast
 import pytest
 
 from eval_banana.config import Config
+from eval_banana.config import load_config
 from eval_banana.loader import load_check_definition
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
@@ -149,6 +150,34 @@ def test_flat_output_rejects_symlink_directory(
             config=make_config(project_root=tmp_path, output_dir=str(output_link)),
             flat_output=True,
         )
+
+
+def test_flat_output_rejects_relative_output_dir_symlink(tmp_path: Path) -> None:
+    """Reject a relative CLI output path whose exact target is a symlink."""
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "one.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script: print('ok')",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    actual_output = tmp_path / "actual-output"
+    actual_output.mkdir()
+    output_link = tmp_path / "attempt-eval"
+    output_link.symlink_to(actual_output, target_is_directory=True)
+    config = load_config(
+        cwd=str(tmp_path), output_dir="attempt-eval", use_project_config=False
+    )
+
+    with pytest.raises(SystemExit, match="exact output path is a symlink"):
+        run_checks(config=config, flat_output=True)
 
 
 def test_definition_snapshot_rejects_semantic_change_after_discovery(

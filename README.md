@@ -249,11 +249,13 @@ absent or an empty, non-symlink directory; eval-banana refuses conflicting
 contents instead of overwriting them. Without this flag, the timestamped
 `<output_dir>/<run_id>/` layout is unchanged.
 
-Every entry in `report.json` and `checks/<check_id>.json` includes
-`check_definition_sha256`, formatted as `sha256:<64 lowercase hex>`. It hashes
-the exact YAML definition bytes before the check executes, so a caller can bind
-the verdict to the definition that produced it. Harness-judge `details` also
-record the resolved `agent_type`, `model`, and nullable `reasoning_effort`.
+`report.json` declares `"schema_version": 1`; readers can therefore reject a
+future incompatible report shape explicitly. Every check result in that report
+and in `checks/<check_id>.json` includes `check_definition_sha256`, formatted as
+`sha256:<64 lowercase hex>`. It hashes the exact YAML definition bytes before
+the check executes, so a caller can bind the verdict to the definition that
+produced it. Harness-judge `details` also record the resolved `agent_type`,
+`model`, and nullable `reasoning_effort`.
 A judge result is accepted only when its process exits `0`; a non-zero exit is
 an `error` with score `0`, even when stdout contains valid passing JSON.
 If the selected template has no model flag/environment variable or no

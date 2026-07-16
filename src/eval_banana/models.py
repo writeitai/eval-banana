@@ -144,6 +144,7 @@ class CheckResult(BaseModel):
 class EvalReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: Literal[1] = 1
     run_id: str
     project_root: str
     output_dir: str

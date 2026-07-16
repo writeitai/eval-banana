@@ -165,7 +165,8 @@ def test_stale_timeout_seconds_yaml_is_rejected(payload: dict[str, object]) -> N
         _ADAPTER.validate_python(payload)
 
 
-def test_eval_report_does_not_include_removed_harness_field() -> None:
+def test_eval_report_serialization_contract() -> None:
+    """Default the report schema and keep the removed harness field absent."""
     report = EvalReport(
         run_id="run1",
         project_root="/tmp/project",
@@ -186,4 +187,8 @@ def test_eval_report_does_not_include_removed_harness_field() -> None:
         checks=[],
     )
 
-    assert '"harness"' not in report.model_dump_json()
+    serialized_report = report.model_dump_json()
+
+    assert report.schema_version == 1
+    assert '"schema_version":1' in serialized_report
+    assert '"harness"' not in serialized_report
