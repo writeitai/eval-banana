@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-07-17
+
+### Fixed
+
+- Harness judges now extract the authoritative verdict from a successful
+  terminal `stream-json` result event before falling back to plain stdout.
+  Claude verdicts embedded in the event's quoted `result` payload are therefore
+  scored as pass/fail instead of being misclassified as parser errors, while
+  prompts and tool outputs remain ineligible to supply the verdict.
+
 ## [0.3.5] - 2026-07-17
 
 ### Changed
@@ -330,7 +340,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/writeitai/eval-banana/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/writeitai/eval-banana/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/writeitai/eval-banana/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/writeitai/eval-banana/compare/v0.3.2...v0.3.3

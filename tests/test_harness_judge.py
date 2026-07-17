@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 from pathlib import Path
 import subprocess
 
@@ -36,6 +37,8 @@ def _completed_process(
 
 
 def test_extract_last_verdict_prefers_last_valid_json() -> None:
+    """Use the final verdict when a plain response contains several objects."""
+
     score, reason = _extract_last_verdict(
         text=(
             '{"type":"progress","msg":"reading"}\n'
@@ -46,6 +49,120 @@ def test_extract_last_verdict_prefers_last_valid_json() -> None:
 
     assert score == 1
     assert reason == "new"
+
+
+def test_extract_last_verdict_unwraps_successful_stream_result() -> None:
+    """Prefer Claude's terminal stream result over an earlier score example."""
+
+    stdout = "\n".join(
+        [
+            '{"score": 1, "reason": "earlier example"}',
+            json.dumps(
+                obj={
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "result": (
+                        "Final judgment:\n```json\n"
+                        '{"score": 0, "reason": "work is incomplete"}'
+                        "\n```"
+                    ),
+                }
+            ),
+        ]
+    )
+
+    score, reason = _extract_last_verdict(text=stdout)
+
+    assert score == 0
+    assert reason == "work is incomplete"
+
+
+def test_extract_last_verdict_rejects_tool_result_decoy() -> None:
+    """Do not accept a tool payload when the terminal result has no verdict."""
+
+    stdout = "\n".join(
+        [
+            json.dumps(
+                obj={
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "content": '{"score": 1, "reason": "decoy"}',
+                            }
+                        ]
+                    },
+                }
+            ),
+            json.dumps(
+                obj={
+                    "type": "result",
+                    "subtype": "success",
+                    "is_error": False,
+                    "result": "No verdict was produced.",
+                }
+            ),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="valid JSON verdict"):
+        _extract_last_verdict(text=stdout)
+
+
+def test_extract_last_verdict_rejects_failed_result_decoy() -> None:
+    """Do not accept a verdict carried by an unsuccessful terminal event."""
+
+    stdout = json.dumps(
+        obj={
+            "type": "result",
+            "subtype": "error",
+            "is_error": True,
+            "result": '{"score": 1, "reason": "decoy"}',
+        }
+    )
+
+    with pytest.raises(ValueError, match="valid JSON verdict"):
+        _extract_last_verdict(text=stdout)
+
+
+def test_harness_judge_stream_result_score_zero_is_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Classify a valid score-zero Claude stream result as failed, not error."""
+
+    stdout = json.dumps(
+        obj={
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": '{"score": 0, "reason": "program is incomplete"}',
+        }
+    )
+
+    def fake_run(
+        *, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        """Return a successful process containing a Claude-style result event."""
+
+        return _completed_process(stdout=stdout)
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path, harness_agent="claude"),
+    )
+
+    assert result.status.value == "failed"
+    assert result.score == 0
+    assert result.reason == "program is incomplete"
+    assert result.error_detail is None
 
 
 def test_harness_judge_success_path(
