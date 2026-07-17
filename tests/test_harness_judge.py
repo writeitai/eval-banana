@@ -65,9 +65,11 @@ def test_harness_judge_success_path(
     )
 
     def fake_run(
-        command: list[str], **kwargs: object
+        *, args: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        captured["command"] = command
+        """Capture the keyword-only subprocess contract used by the runner."""
+
+        captured["command"] = args
         captured.update(kwargs)
         return _completed_process(stdout='{"score": 1, "reason": "Looks good."}')
 
@@ -93,13 +95,52 @@ def test_harness_judge_success_path(
     assert result.details["agent_type"] == "codex"
     assert result.details["model"] == "gpt-5.6-sol"
     assert result.details["reasoning_effort"] == "xhigh"
-    assert "model_reasoning_effort=xhigh" in captured["command"]
+    assert result.details["timeout_seconds"] == 300
+    captured_command = captured["command"]
+    assert isinstance(captured_command, list)
+    assert "model_reasoning_effort=xhigh" in captured_command
     assert captured["timeout"] == 300
     assert captured["cwd"] == tmp_path
     assert captured["capture_output"] is True
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
     assert captured["text"] is True
+    prompt_path = tmp_path / "out" / "checks" / "judge_check.prompt.txt"
+    assert prompt_path.read_text(encoding="utf-8") == captured_command[-1]
+
+
+def test_configured_harness_timeout_reaches_process_and_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Bind a long-running judge's configured timeout into report provenance."""
+
+    captured: dict[str, object] = {}
+
+    def fake_run(
+        *, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        """Capture the effective subprocess timeout without launching an agent."""
+
+        captured["args"] = args
+        captured.update(kwargs)
+        return _completed_process(stdout='{"score": 1, "reason": "complete"}')
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(
+            project_root=tmp_path, harness_agent="codex", harness_timeout_seconds=10800
+        ),
+    )
+
+    assert result.status.value == "passed"
+    assert captured["timeout"] == 10800
+    assert result.details["timeout_seconds"] == 10800
 
 
 def test_model_without_template_injection_surface_errors_before_launch(
@@ -175,9 +216,11 @@ def test_stock_codex_model_and_effort_remain_supported(
     captured: dict[str, object] = {}
 
     def fake_run(
-        command: list[str], **kwargs: object
+        *, args: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        captured["command"] = command
+        """Capture the stock command assembled for the subprocess."""
+
+        captured["command"] = args
         return _completed_process(stdout='{"score": 1, "reason": "ok"}')
 
     monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
@@ -348,9 +391,11 @@ def test_per_check_model_override_reaches_subprocess_command(
     )
 
     def fake_run(
-        command: list[str], **kwargs: object
+        *, args: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        captured["args"] = command
+        """Capture the per-check model command assembled by the runner."""
+
+        captured["args"] = args
         return _completed_process(stdout='{"score": 1, "reason": "ok"}')
 
     monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
@@ -429,3 +474,7 @@ def test_timeout_returns_error(
     assert "timed out" in (result.error_detail or "")
     assert result.stdout == "partial stdout"
     assert result.stderr == "partial stderr"
+    prompt_path = tmp_path / "out" / "checks" / "judge_check.prompt.txt"
+    assert "Check Description:\nJudge the README." in prompt_path.read_text(
+        encoding="utf-8"
+    )

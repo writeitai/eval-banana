@@ -58,6 +58,11 @@ def init(force: bool) -> None:
 @click.option("--harness-model")
 @click.option("--harness-reasoning-effort")
 @click.option(
+    "--harness-timeout-seconds",
+    type=click.IntRange(min=1),
+    help="Maximum wall-clock seconds for each harness_judge agent subprocess.",
+)
+@click.option(
     "--no-project-config",
     is_flag=True,
     help="Do not discover or load .eval-banana/config.toml.",
@@ -74,6 +79,7 @@ def run_cli(
     harness_agent: str | None,
     harness_model: str | None,
     harness_reasoning_effort: str | None,
+    harness_timeout_seconds: int | None,
     no_project_config: bool,
     cwd: str,
     verbose: bool,
@@ -93,6 +99,7 @@ def run_cli(
         harness_agent=harness_agent,
         harness_model=harness_model,
         harness_reasoning_effort=harness_reasoning_effort,
+        harness_timeout_seconds=harness_timeout_seconds,
         use_project_config=not no_project_config,
         cwd=cwd,
     )

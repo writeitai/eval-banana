@@ -133,6 +133,7 @@ agent = "codex"
 # codex GPT-5.6 tiers: gpt-5.6-sol (flagship), gpt-5.6-terra, gpt-5.6-luna
 model = "gpt-5.6-sol"
 # reasoning_effort = "high"
+# timeout_seconds = 300
 ```
 
 ### Running in CI / cloud
@@ -219,6 +220,7 @@ Harness options:
   --harness-agent TEXT          Agent used by harness_judge checks (run/validate)
   --harness-model TEXT          Model override for the agent
   --harness-reasoning-effort TEXT  Reasoning effort level
+  --harness-timeout-seconds INTEGER  Per-agent wall-clock limit (default: 300)
 ```
 
 ## Output
@@ -230,9 +232,10 @@ Each run creates a timestamped directory under the configured `output_dir`:
   report.json       # Machine-readable full report
   report.md         # Human-readable Markdown report
   checks/
-    <check_id>.json       # Per-check result
-    <check_id>.stdout.txt # Captured stdout (if any)
-    <check_id>.stderr.txt # Captured stderr (if any)
+    <safe_check_id_stem>.json       # Per-check result
+    <safe_check_id_stem>.prompt.txt # Exact harness-judge input (harness only)
+    <safe_check_id_stem>.stdout.txt # Captured stdout (if any)
+    <safe_check_id_stem>.stderr.txt # Captured stderr (if any)
 ```
 
 An orchestration system that already owns an attempt-unique directory can use
@@ -249,10 +252,19 @@ absent or an empty, non-symlink directory; eval-banana refuses conflicting
 contents instead of overwriting them. Without this flag, the timestamped
 `<output_dir>/<run_id>/` layout is unchanged.
 
+For every harness process that is invoked, eval-banana writes the exact prompt
+argument first as `checks/<safe_check_id_stem>.prompt.txt`. The prompt and its
+result JSON use the same deterministic filesystem-safe stem: unsafe characters
+become underscores and leading/trailing dots or underscores are trimmed. The
+prompt remains available when the agent fails, times out, or returns an invalid
+verdict, so an attempt-level trace naturally inventories both the judge input
+and its outputs.
+
 `report.json` declares `"schema_version": 1`; readers can therefore reject a
 future incompatible report shape explicitly. Every check result in that report
-and in `checks/<check_id>.json` includes `check_definition_sha256`, formatted as
-`sha256:<64 lowercase hex>`. The digest binds every byte that defines the check:
+and in `checks/<safe_check_id_stem>.json` includes `check_definition_sha256`,
+formatted as `sha256:<64 lowercase hex>`. The digest binds every byte that defines
+the check:
 the exact YAML bytes and, for `script_path` deterministic checks, the referenced
 script bytes frozen before execution. The runner executes that same frozen script
 snapshot, so a concurrent file change cannot produce a verdict under the older
@@ -268,8 +280,29 @@ The first component is always `definition.yaml`; a readable referenced script ad
 `referenced-script-unavailable` component and produces an error result. The
 reported value is SHA-256 over the complete framed input.
 
-Harness-judge `details` also record the resolved `agent_type`, `model`, and
-nullable `reasoning_effort`.
+Orchestrators must not substitute a raw YAML file hash for this canonical
+digest. Use the producer-owned API to validate a report without duplicating the
+framing algorithm:
+
+```python
+from pathlib import Path
+
+from eval_banana.runner import compute_check_definition_sha256
+
+definition_sha256 = compute_check_definition_sha256(
+    source_path=Path("eval_checks/goal.yaml")
+)
+```
+
+The function reads one exact YAML snapshot and applies the same referenced
+script snapshot rules as the runner. It raises `OSError` when the YAML cannot
+be read and `ValueError` when the bytes are not a valid check definition.
+
+Harness-judge `details` also record the resolved `agent_type`, `model`, nullable
+`reasoning_effort`, and positive `timeout_seconds`. Configure the per-agent
+wall-clock limit with `[harness] timeout_seconds`,
+`EVAL_BANANA_HARNESS_TIMEOUT_SECONDS`, or `--harness-timeout-seconds`; it
+defaults to 300 seconds.
 A judge result is accepted only when its process exits `0`; a non-zero exit is
 an `error` with score `0`, even when stdout contains valid passing JSON.
 If the selected template has no model flag/environment variable or no

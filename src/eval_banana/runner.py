@@ -100,14 +100,28 @@ def _snapshot_check_definition(
         msg = f"Failed to hash check definition {source_path}: {exc}"
         raise SystemExit(msg) from exc
     try:
-        execution_definition = load_check_definition_bytes(
-            path=source_path, definition_bytes=definition_bytes
+        execution_definition, definition_sha256, script_snapshot = (
+            _build_check_definition_snapshot(
+                source_path=source_path, definition_bytes=definition_bytes
+            )
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     if execution_definition != expected_definition:
         msg = f"Check definition changed after discovery: {source_path}"
         raise SystemExit(msg)
+
+    return execution_definition, definition_sha256, script_snapshot
+
+
+def _build_check_definition_snapshot(
+    *, source_path: Path, definition_bytes: bytes
+) -> tuple[CheckDefinition, str, FrozenDeterministicScript | None]:
+    """Build one canonical definition snapshot from exact YAML bytes."""
+
+    execution_definition = load_check_definition_bytes(
+        path=source_path, definition_bytes=definition_bytes
+    )
 
     script_snapshot = None
     if isinstance(execution_definition, DeterministicCheckDefinition):
@@ -118,6 +132,29 @@ def _snapshot_check_definition(
         definition_bytes=definition_bytes, script_snapshot=script_snapshot
     )
     return execution_definition, definition_sha256, script_snapshot
+
+
+def compute_check_definition_sha256(*, source_path: Path) -> str:
+    """Return eval-banana's canonical digest for one current check definition.
+
+    The digest uses the same versioned framing as :func:`run_checks`. It binds
+    the exact YAML bytes and, for a deterministic ``script_path`` check, the
+    referenced script bytes (or the canonical unavailable-script marker).
+    ``source_path`` is resolved once before either component is read, matching
+    discovery and runtime behavior for symlinked YAML definitions.
+    Callers can therefore validate a reported ``check_definition_sha256``
+    without reimplementing eval-banana's digest protocol.
+
+    ``OSError`` is raised when the YAML file cannot be read and ``ValueError``
+    when its exact bytes do not form a valid check definition.
+    """
+
+    resolved_source_path = source_path.resolve()
+    definition_bytes = resolved_source_path.read_bytes()
+    _, definition_sha256, _ = _build_check_definition_snapshot(
+        source_path=resolved_source_path, definition_bytes=definition_bytes
+    )
+    return definition_sha256
 
 
 def _frame_digest_component(*, name: bytes, content: bytes) -> bytes:

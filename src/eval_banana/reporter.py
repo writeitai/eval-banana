@@ -22,7 +22,9 @@ def emit_console_report(*, report: EvalReport) -> None:
         )
 
 
-def _safe_file_stem(text: str) -> str:
+def safe_file_stem(*, text: str) -> str:
+    """Return the deterministic filesystem-safe stem for one check ID."""
+
     collapsed = re.sub(r"[^a-zA-Z0-9._-]+", "_", text).strip("._")
     if collapsed:
         return collapsed
@@ -82,7 +84,7 @@ def write_report_files(*, report: EvalReport, output_dir: Path) -> None:
     )
 
     for check in report.checks:
-        stem = _safe_file_stem(check.check_id)
+        stem = safe_file_stem(text=check.check_id)
         (checks_dir / f"{stem}.json").write_text(
             check.model_dump_json(indent=2), encoding="utf-8"
         )

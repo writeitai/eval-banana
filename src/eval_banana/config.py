@@ -53,6 +53,11 @@ model = "gpt-5.6-sol"
 # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
 reasoning_effort = "high"
 
+# Maximum wall-clock seconds for each harness_judge agent subprocess.
+# Increase this for large repository reviews. Must be a positive integer.
+# Env: EVAL_BANANA_HARNESS_TIMEOUT_SECONDS
+timeout_seconds = 300
+
 # Extra environment variables injected into the harness subprocess.
 # [harness.env]
 # MY_VAR = "value"
@@ -112,6 +117,7 @@ class Config:
     harness_agent: str | None = None
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
+    harness_timeout_seconds: int = 300
     harness_env: dict[str, str] = field(default_factory=dict)
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
@@ -220,6 +226,34 @@ def _get_int(data: dict[str, object], *, section: str, key: str, default: int) -
     if isinstance(value, int) and not isinstance(value, bool):
         return value
     return default
+
+
+def _get_positive_int(
+    *, data: dict[str, object], section: str, key: str, default: int
+) -> int:
+    """Return a required positive integer or reject the configured value."""
+
+    value = _get_nested_value(data=data, section=section, key=key)
+    if value is None:
+        return default
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        msg = f"[{section}] {key} must be a positive integer"
+        raise SystemExit(msg)
+    return value
+
+
+def _parse_positive_int_environment_value(*, env_name: str, raw_value: str) -> int:
+    """Parse one positive-integer environment override with a clean error."""
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        msg = f"{env_name} must be a positive integer"
+        raise SystemExit(msg) from exc
+    if value <= 0:
+        msg = f"{env_name} must be a positive integer"
+        raise SystemExit(msg)
+    return value
 
 
 def _get_string_list(
@@ -424,7 +458,14 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
         )
         raise SystemExit(msg)
 
-    allowed_keys = {"agent", "model", "reasoning_effort", "env", "skills_dir"}
+    allowed_keys = {
+        "agent",
+        "model",
+        "reasoning_effort",
+        "timeout_seconds",
+        "env",
+        "skills_dir",
+    }
     unknown_keys = set(raw_harness) - allowed_keys
     if unknown_keys:
         unknown_keys_text = ", ".join(sorted(unknown_keys))
@@ -447,6 +488,7 @@ def load_config(
     harness_agent: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
+    harness_timeout_seconds: int | None = None,
     use_project_config: bool = True,
 ) -> Config:
     """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
@@ -477,6 +519,14 @@ def load_config(
         _reject_legacy_llm_section(data=local_config, path=local_config_path)
         merged = _deep_merge(base=merged, override=local_config)
 
+    if harness_timeout_seconds is not None:
+        _set_nested_value(
+            data=merged,
+            section="harness",
+            key="timeout_seconds",
+            value=harness_timeout_seconds,
+        )
+
     env_specs: list[tuple[str, str, str, type[Any]]] = [
         ("EVAL_BANANA_OUTPUT_DIR", "core", "output_dir", str),
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
@@ -490,6 +540,19 @@ def load_config(
         if raw is None:
             continue
         _set_nested_value(data=merged, section=section, key=key, value=caster(raw))
+
+    if harness_timeout_seconds is None:
+        timeout_env_name = "EVAL_BANANA_HARNESS_TIMEOUT_SECONDS"
+        raw_timeout = os.getenv(timeout_env_name)
+        if raw_timeout is not None:
+            _set_nested_value(
+                data=merged,
+                section="harness",
+                key="timeout_seconds",
+                value=_parse_positive_int_environment_value(
+                    env_name=timeout_env_name, raw_value=raw_timeout
+                ),
+            )
 
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
@@ -539,6 +602,9 @@ def load_config(
             value=_get_nested_value(
                 data=merged, section="harness", key="reasoning_effort"
             )
+        ),
+        harness_timeout_seconds=_get_positive_int(
+            data=merged, section="harness", key="timeout_seconds", default=300
         ),
         harness_env=_get_string_dict(data=merged, section="harness", key="env"),
         agent_templates=agent_templates,
