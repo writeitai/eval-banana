@@ -403,6 +403,38 @@ def test_cli_and_env_precedence_for_harness_fields(
     assert config.harness_timeout_seconds == 10800
 
 
+def test_invalid_harness_timeout_environment_has_clean_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject a malformed timeout environment value without a traceback."""
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT_SECONDS", "not-an-integer")
+
+    with pytest.raises(
+        SystemExit,
+        match="EVAL_BANANA_HARNESS_TIMEOUT_SECONDS must be a positive integer",
+    ):
+        load_config(cwd=str(project), use_project_config=False)
+
+
+def test_valid_cli_timeout_overrides_malformed_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Apply the highest-precedence CLI timeout before inspecting its env peer."""
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT_SECONDS", "not-an-integer")
+
+    config = load_config(
+        cwd=str(project), harness_timeout_seconds=10800, use_project_config=False
+    )
+
+    assert config.harness_timeout_seconds == 10800
+
+
 def test_reject_legacy_harness_skip_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

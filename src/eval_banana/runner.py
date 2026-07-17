@@ -140,6 +140,8 @@ def compute_check_definition_sha256(*, source_path: Path) -> str:
     The digest uses the same versioned framing as :func:`run_checks`. It binds
     the exact YAML bytes and, for a deterministic ``script_path`` check, the
     referenced script bytes (or the canonical unavailable-script marker).
+    ``source_path`` is resolved once before either component is read, matching
+    discovery and runtime behavior for symlinked YAML definitions.
     Callers can therefore validate a reported ``check_definition_sha256``
     without reimplementing eval-banana's digest protocol.
 
@@ -147,9 +149,10 @@ def compute_check_definition_sha256(*, source_path: Path) -> str:
     when its exact bytes do not form a valid check definition.
     """
 
-    definition_bytes = source_path.read_bytes()
+    resolved_source_path = source_path.resolve()
+    definition_bytes = resolved_source_path.read_bytes()
     _, definition_sha256, _ = _build_check_definition_snapshot(
-        source_path=source_path, definition_bytes=definition_bytes
+        source_path=resolved_source_path, definition_bytes=definition_bytes
     )
     return definition_sha256
 

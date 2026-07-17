@@ -45,11 +45,12 @@ Config values are resolved in this order (highest priority first):
 - Relative `output_dir` resolves from the project root
 - `run --flat-output --output-dir PATH` writes `report.json`, `report.md`, and
   `checks/` directly into `PATH`. For each invoked harness judge, `checks/`
-  includes the exact agent input as `<check_id>.prompt.txt` alongside its result
-  and captured output. The command requires the explicit CLI output path and
-  refuses a symlink, file, or non-empty directory. The mode is intended for a
-  caller that already allocates one unique directory per attempt. Ordinary runs
-  retain the default `<output_dir>/<run_id>/` layout.
+  includes the exact agent input as `<safe_check_id_stem>.prompt.txt` alongside
+  the result JSON with that same normalized stem and any captured output. The
+  command requires the explicit CLI output path and refuses a symlink, file, or
+  non-empty directory. The mode is intended for a caller that already allocates
+  one unique directory per attempt. Ordinary runs retain the default
+  `<output_dir>/<run_id>/` layout.
 - `run` and `validate` accept `--no-project-config` for hermetic callers that
   must not discover `.eval-banana/config.toml` in the working directory or any
   ancestor. With this flag, `--cwd` itself is the project root; explicit CLI

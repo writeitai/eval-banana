@@ -242,6 +242,20 @@ def _get_positive_int(
     return value
 
 
+def _parse_positive_int_environment_value(*, env_name: str, raw_value: str) -> int:
+    """Parse one positive-integer environment override with a clean error."""
+
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        msg = f"{env_name} must be a positive integer"
+        raise SystemExit(msg) from exc
+    if value <= 0:
+        msg = f"{env_name} must be a positive integer"
+        raise SystemExit(msg)
+    return value
+
+
 def _get_string_list(
     data: dict[str, object], *, section: str, key: str, default: list[str]
 ) -> list[str]:
@@ -505,6 +519,14 @@ def load_config(
         _reject_legacy_llm_section(data=local_config, path=local_config_path)
         merged = _deep_merge(base=merged, override=local_config)
 
+    if harness_timeout_seconds is not None:
+        _set_nested_value(
+            data=merged,
+            section="harness",
+            key="timeout_seconds",
+            value=harness_timeout_seconds,
+        )
+
     env_specs: list[tuple[str, str, str, type[Any]]] = [
         ("EVAL_BANANA_OUTPUT_DIR", "core", "output_dir", str),
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
@@ -512,7 +534,6 @@ def load_config(
         ("EVAL_BANANA_HARNESS_AGENT", "harness", "agent", str),
         ("EVAL_BANANA_HARNESS_MODEL", "harness", "model", str),
         ("EVAL_BANANA_HARNESS_REASONING_EFFORT", "harness", "reasoning_effort", str),
-        ("EVAL_BANANA_HARNESS_TIMEOUT_SECONDS", "harness", "timeout_seconds", int),
     ]
     for env_name, section, key, caster in env_specs:
         raw = os.getenv(env_name)
@@ -520,13 +541,25 @@ def load_config(
             continue
         _set_nested_value(data=merged, section=section, key=key, value=caster(raw))
 
+    if harness_timeout_seconds is None:
+        timeout_env_name = "EVAL_BANANA_HARNESS_TIMEOUT_SECONDS"
+        raw_timeout = os.getenv(timeout_env_name)
+        if raw_timeout is not None:
+            _set_nested_value(
+                data=merged,
+                section="harness",
+                key="timeout_seconds",
+                value=_parse_positive_int_environment_value(
+                    env_name=timeout_env_name, raw_value=raw_timeout
+                ),
+            )
+
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
         (pass_threshold, "core", "pass_threshold"),
         (harness_agent, "harness", "agent"),
         (harness_model, "harness", "model"),
         (harness_reasoning_effort, "harness", "reasoning_effort"),
-        (harness_timeout_seconds, "harness", "timeout_seconds"),
     ]
     for value, section, key in cli_overrides:
         if value is None:

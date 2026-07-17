@@ -18,6 +18,7 @@ from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.models import HarnessJudgeCheckDefinition
+from eval_banana.reporter import safe_file_stem
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,8 @@ def _persist_judge_prompt(*, output_dir: Path, check_id: str, prompt: str) -> Pa
     """Persist the exact judge input under its filesystem-safe check ID."""
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    prompt_path = output_dir / f"{check_id}.prompt.txt"
+    stem = safe_file_stem(text=check_id)
+    prompt_path = output_dir / f"{stem}.prompt.txt"
     prompt_path.write_text(data=prompt, encoding="utf-8")
     return prompt_path
 

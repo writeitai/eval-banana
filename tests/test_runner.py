@@ -137,7 +137,7 @@ def test_flat_output_retains_exact_harness_judge_prompt(
         data="\n".join(
             [
                 "schema_version: 1",
-                "id: judge",
+                "id: _judge_",
                 "type: harness_judge",
                 "description: Judge output.",
                 "instructions: Inspect the complete implementation.",
@@ -178,6 +178,8 @@ def test_flat_output_retains_exact_harness_judge_prompt(
     assert isinstance(command, list)
     prompt_path = output_dir / "checks" / "judge.prompt.txt"
     assert prompt_path.read_text(encoding="utf-8") == command[-1]
+    assert (output_dir / "checks" / "judge.json").is_file()
+    assert not (output_dir / "checks" / "_judge_.prompt.txt").exists()
     assert report.run_passed is True
 
 
@@ -237,6 +239,49 @@ def test_public_definition_digest_preserves_exact_yaml_bytes(tmp_path: Path) -> 
     check_path.write_bytes(crlf_bytes.replace(b"\r\n", b"\n"))
 
     assert compute_check_definition_sha256(source_path=check_path) != crlf_digest
+
+
+def test_public_definition_digest_resolves_yaml_symlink_before_adjacent_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Match discovery/runtime when a YAML symlink references an adjacent script."""
+
+    definitions_dir = tmp_path / "definitions"
+    definitions_dir.mkdir()
+    definition_path = definitions_dir / "one.yaml"
+    definition_path.write_text(
+        data="\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script_path: adjacent.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    real_script = b"raise SystemExit(0)\n"
+    definitions_dir.joinpath("adjacent.py").write_bytes(real_script)
+
+    project_root = tmp_path / "project"
+    checks_dir = project_root / "eval_checks"
+    checks_dir.mkdir(parents=True)
+    check_link = checks_dir / "linked.yaml"
+    check_link.symlink_to(definition_path)
+    checks_dir.joinpath("adjacent.py").write_bytes(b"raise SystemExit(9)\n")
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(
+        config=make_config(project_root=project_root, cwd=str(project_root))
+    )
+
+    expected = _expected_definition_digest(
+        definition_bytes=definition_path.read_bytes(), script_bytes=real_script
+    )
+    assert report.checks[0].status == CheckStatus.passed
+    assert report.checks[0].check_definition_sha256 == expected
+    assert compute_check_definition_sha256(source_path=check_link) == expected
 
 
 def test_referenced_script_bytes_change_digest_and_verdict(

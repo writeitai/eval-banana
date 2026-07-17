@@ -12,9 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Harness-judge runs now retain the exact prompt passed to each agent as
-  `checks/<check_id>.prompt.txt`, including failed and timed-out invocations.
-  Attempt-level trace collectors therefore capture judge inputs alongside the
-  existing structured result, stdout, and stderr artifacts.
+  `checks/<safe_check_id_stem>.prompt.txt`, including failed and timed-out
+  invocations. The prompt and result JSON share the same normalized safe stem,
+  so attempt-level trace collectors can correlate judge inputs with the existing
+  structured result, stdout, and stderr artifacts.
 - Harness-judge subprocess timeouts are configurable with
   `[harness] timeout_seconds`, `EVAL_BANANA_HARNESS_TIMEOUT_SECONDS`, or
   `--harness-timeout-seconds`. The positive-integer setting defaults to 300
@@ -303,7 +304,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/writeitai/eval-banana/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/writeitai/eval-banana/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/writeitai/eval-banana/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/writeitai/eval-banana/compare/v0.2.0...v0.3.0

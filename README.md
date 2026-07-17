@@ -232,10 +232,10 @@ Each run creates a timestamped directory under the configured `output_dir`:
   report.json       # Machine-readable full report
   report.md         # Human-readable Markdown report
   checks/
-    <check_id>.json       # Per-check result
-    <check_id>.prompt.txt # Exact harness-judge input (harness checks only)
-    <check_id>.stdout.txt # Captured stdout (if any)
-    <check_id>.stderr.txt # Captured stderr (if any)
+    <safe_check_id_stem>.json       # Per-check result
+    <safe_check_id_stem>.prompt.txt # Exact harness-judge input (harness only)
+    <safe_check_id_stem>.stdout.txt # Captured stdout (if any)
+    <safe_check_id_stem>.stderr.txt # Captured stderr (if any)
 ```
 
 An orchestration system that already owns an attempt-unique directory can use
@@ -253,15 +253,18 @@ contents instead of overwriting them. Without this flag, the timestamped
 `<output_dir>/<run_id>/` layout is unchanged.
 
 For every harness process that is invoked, eval-banana writes the exact prompt
-argument first as `checks/<check_id>.prompt.txt`. The check ID schema makes the
-filename deterministic and filesystem-safe. The prompt remains available when
-the agent fails, times out, or returns an invalid verdict, so an attempt-level
-trace naturally inventories both the judge input and its outputs.
+argument first as `checks/<safe_check_id_stem>.prompt.txt`. The prompt and its
+result JSON use the same deterministic filesystem-safe stem: unsafe characters
+become underscores and leading/trailing dots or underscores are trimmed. The
+prompt remains available when the agent fails, times out, or returns an invalid
+verdict, so an attempt-level trace naturally inventories both the judge input
+and its outputs.
 
 `report.json` declares `"schema_version": 1`; readers can therefore reject a
 future incompatible report shape explicitly. Every check result in that report
-and in `checks/<check_id>.json` includes `check_definition_sha256`, formatted as
-`sha256:<64 lowercase hex>`. The digest binds every byte that defines the check:
+and in `checks/<safe_check_id_stem>.json` includes `check_definition_sha256`,
+formatted as `sha256:<64 lowercase hex>`. The digest binds every byte that defines
+the check:
 the exact YAML bytes and, for `script_path` deterministic checks, the referenced
 script bytes frozen before execution. The runner executes that same frozen script
 snapshot, so a concurrent file change cannot produce a verdict under the older
