@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-17
+
+### Fixed
+
+- Per-check artifact stems now combine a bounded human-readable label with the
+  full SHA-256 of the exact check ID. Distinct IDs such as `judge`, `_judge_`,
+  and `Judge` therefore retain distinct result, prompt, stdout, and stderr files
+  on case-insensitive filesystems, and arbitrarily long valid IDs stay below
+  filesystem filename limits. Every artifact for one check shares that same
+  deterministic stem.
+
 ## [0.3.3] - 2026-07-17
 
 ### Added
@@ -304,7 +315,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/writeitai/eval-banana/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/writeitai/eval-banana/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/writeitai/eval-banana/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/writeitai/eval-banana/compare/v0.3.0...v0.3.1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 from typing import cast
@@ -15,6 +16,7 @@ from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
+from eval_banana.reporter import safe_file_stem
 from eval_banana.runner import _snapshot_check_definition
 from eval_banana.runner import compute_check_definition_sha256
 from eval_banana.runner import run_checks
@@ -126,27 +128,34 @@ def test_flat_output_writes_directly_into_exact_empty_directory(
     )
 
 
-def test_flat_output_retains_exact_harness_judge_prompt(
+def test_flat_output_keeps_all_distinct_check_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
-    """Place each exact spawned-agent input in the caller-owned trace directory."""
+    """Keep colliding labels, case-only IDs, and long-ID artifacts distinct."""
 
     checks_dir = tmp_path / "eval_checks"
     checks_dir.mkdir()
-    checks_dir.joinpath("judge.yaml").write_text(
-        data="\n".join(
-            [
-                "schema_version: 1",
-                "id: _judge_",
-                "type: harness_judge",
-                "description: Judge output.",
-                "instructions: Inspect the complete implementation.",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    check_specs = [
+        ("plain.yaml", "judge", "plain-marker"),
+        ("underscored.yaml", "_judge_", "underscore-marker"),
+        ("case.yaml", "Judge", "case-marker"),
+        ("long.yaml", "x" * 600, "long-marker"),
+    ]
+    for filename, check_id, marker in check_specs:
+        checks_dir.joinpath(filename).write_text(
+            data="\n".join(
+                [
+                    "schema_version: 1",
+                    f"id: {check_id}",
+                    "type: harness_judge",
+                    f"description: Judge {marker}.",
+                    f"instructions: Inspect {marker}.",
+                ]
+            ),
+            encoding="utf-8",
+        )
     output_dir = tmp_path / "attempt-eval"
-    captured: dict[str, object] = {}
+    captured: dict[str, tuple[str, str]] = {}
     monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
 
     def fake_run(
@@ -154,12 +163,13 @@ def test_flat_output_retains_exact_harness_judge_prompt(
     ) -> subprocess.CompletedProcess[str]:
         """Capture the exact prompt argument supplied to the harness process."""
 
-        captured["args"] = args
+        prompt = args[-1]
+        sequence = len(captured)
+        stdout = f'{{"score": 1, "reason": "complete-{sequence}"}}'
+        stderr = f"diagnostic-{sequence}"
+        captured[prompt] = (stdout, stderr)
         return subprocess.CompletedProcess(
-            args=args,
-            returncode=0,
-            stdout='{"score": 1, "reason": "complete"}',
-            stderr="",
+            args=args, returncode=0, stdout=stdout, stderr=stderr
         )
 
     monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
@@ -174,12 +184,50 @@ def test_flat_output_retains_exact_harness_judge_prompt(
         flat_output=True,
     )
 
-    command = captured["args"]
-    assert isinstance(command, list)
-    prompt_path = output_dir / "checks" / "judge.prompt.txt"
-    assert prompt_path.read_text(encoding="utf-8") == command[-1]
-    assert (output_dir / "checks" / "judge.json").is_file()
-    assert not (output_dir / "checks" / "_judge_.prompt.txt").exists()
+    output_checks = output_dir / "checks"
+    stems = {
+        check_id: safe_file_stem(text=check_id)
+        for _filename, check_id, _marker in check_specs
+    }
+    assert len({stem.casefold() for stem in stems.values()}) == len(check_specs)
+    for check_id, stem in stems.items():
+        digest = hashlib.sha256(string=check_id.encode(encoding="utf-8")).hexdigest()
+        assert stem.endswith(f"-{digest}")
+        assert len(stem) <= 105
+
+    for _filename, check_id, marker in check_specs:
+        stem = stems[check_id]
+        matching_prompts = [
+            prompt for prompt in captured if f"Inspect {marker}." in prompt
+        ]
+        assert len(matching_prompts) == 1
+        prompt = matching_prompts[0]
+        stdout, stderr = captured[prompt]
+        assert (
+            output_checks.joinpath(f"{stem}.prompt.txt").read_text(encoding="utf-8")
+            == prompt
+        )
+        payload = json.loads(
+            s=output_checks.joinpath(f"{stem}.json").read_text(encoding="utf-8")
+        )
+        assert payload["check_id"] == check_id
+        assert payload["stdout"] == stdout
+        assert payload["stderr"] == stderr
+        assert (
+            output_checks.joinpath(f"{stem}.stdout.txt").read_text(encoding="utf-8")
+            == stdout
+        )
+        assert (
+            output_checks.joinpath(f"{stem}.stderr.txt").read_text(encoding="utf-8")
+            == stderr
+        )
+
+    expected_stems = set(stems.values())
+    for suffix in (".json", ".prompt.txt", ".stdout.txt", ".stderr.txt"):
+        assert {
+            path.name.removesuffix(suffix) for path in output_checks.glob(f"*{suffix}")
+        } == expected_stems
+    assert report.total_checks == len(check_specs)
     assert report.run_passed is True
 
 

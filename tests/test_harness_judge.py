@@ -9,6 +9,7 @@ import pytest
 from eval_banana.config import Config
 from eval_banana.harness.template import AgentTemplate
 from eval_banana.models import HarnessJudgeCheckDefinition
+from eval_banana.reporter import safe_file_stem
 from eval_banana.runners.harness_judge import _extract_last_verdict
 from eval_banana.runners.harness_judge import run_harness_judge_check
 
@@ -105,7 +106,8 @@ def test_harness_judge_success_path(
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
     assert captured["text"] is True
-    prompt_path = tmp_path / "out" / "checks" / "judge_check.prompt.txt"
+    stem = safe_file_stem(text="judge_check")
+    prompt_path = tmp_path / "out" / "checks" / f"{stem}.prompt.txt"
     assert prompt_path.read_text(encoding="utf-8") == captured_command[-1]
 
 
@@ -474,7 +476,8 @@ def test_timeout_returns_error(
     assert "timed out" in (result.error_detail or "")
     assert result.stdout == "partial stdout"
     assert result.stderr == "partial stderr"
-    prompt_path = tmp_path / "out" / "checks" / "judge_check.prompt.txt"
+    stem = safe_file_stem(text="judge_check")
+    prompt_path = tmp_path / "out" / "checks" / f"{stem}.prompt.txt"
     assert "Check Description:\nJudge the README." in prompt_path.read_text(
         encoding="utf-8"
     )
