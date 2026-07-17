@@ -51,9 +51,16 @@ not change.
   "description": "Check description",
   "project_root": "/absolute/project/root",
   "source_path": "/absolute/path/to/check.yaml",
-  "output_dir": "/absolute/path/to/output/checks/my_check"
+  "output_dir": "/absolute/path/to/output/checks/my_check-<sha256-of-exact-id>"
 }
 ```
+
+`output_dir` is the check's durable evidence directory. Its final component is
+the same safe stem used by the check's result, stdout, stderr, and (for a
+harness judge) prompt artifacts: a readable label of at most 40 characters,
+followed by the full SHA-256 of the exact check ID. This keeps case-only IDs,
+IDs whose readable labels normalize alike, and arbitrarily long valid IDs
+distinct without exceeding common filesystem filename limits.
 
 ### Example
 
@@ -84,10 +91,11 @@ Invoke the configured harness agent with evaluation instructions. The agent can 
 ### How it works
 
 1. A judging prompt is built from the check description and instructions
-2. The configured harness agent subprocess receives that prompt
-3. The final verdict must include `{"score": 0|1, "reason": "..."}`
-4. Score 1 = passed, 0 = failed, parse error = error
-5. Harness spawn failures or the configured per-agent timeout = error
+2. The exact prompt is retained as `checks/<safe_check_id_stem>.prompt.txt`
+3. The configured harness agent subprocess receives that prompt
+4. The final verdict must include `{"score": 0|1, "reason": "..."}`
+5. Score 1 = passed, 0 = failed, parse error = error
+6. Harness spawn failures or the configured per-agent timeout = error
 
 ### Example
 

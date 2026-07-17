@@ -49,7 +49,7 @@ def _build_judge_prompt(*, check: HarnessJudgeCheckDefinition) -> str:
 
 
 def _persist_judge_prompt(*, output_dir: Path, check_id: str, prompt: str) -> Path:
-    """Persist the exact judge input under its filesystem-safe check ID."""
+    """Persist the exact judge input under its shared safe artifact stem."""
 
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = safe_file_stem(text=check_id)

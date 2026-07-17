@@ -8,6 +8,7 @@ import subprocess
 from typing import cast
 
 import pytest
+import yaml
 
 from eval_banana.config import Config
 from eval_banana.config import load_config
@@ -229,6 +230,84 @@ def test_flat_output_keeps_all_distinct_check_artifacts(
         } == expected_stems
     assert report.total_checks == len(check_specs)
     assert report.run_passed is True
+
+
+def test_deterministic_context_output_dirs_are_safe_and_distinct(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Give real deterministic checks distinct evidence dirs for tricky IDs."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_ids = ["probe", "Probe", "_probe_", "probe_", "x" * 600]
+    evidence_script = """\
+import json
+import sys
+from pathlib import Path
+
+context = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+output_dir = Path(context["output_dir"])
+output_dir.mkdir(parents=True, exist_ok=True)
+output_dir.joinpath("context-evidence.json").write_text(
+    data=json.dumps(
+        {
+            "check_id": context["check_id"],
+            "output_dir": context["output_dir"],
+        },
+        sort_keys=True,
+    ),
+    encoding="utf-8",
+)
+"""
+    for index, check_id in enumerate(check_ids):
+        definition = {
+            "schema_version": 1,
+            "id": check_id,
+            "type": "deterministic",
+            "description": f"Record context evidence for check {index}.",
+            "script": evidence_script,
+        }
+        checks_dir.joinpath(f"check-{index}.yaml").write_text(
+            data=yaml.safe_dump(data=definition, sort_keys=False), encoding="utf-8"
+        )
+
+    output_dir = tmp_path / "attempt-eval"
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(
+        config=make_config(
+            project_root=tmp_path, cwd=str(tmp_path), output_dir=str(output_dir)
+        ),
+        flat_output=True,
+    )
+
+    output_checks = output_dir / "checks"
+    stems = {check_id: safe_file_stem(text=check_id) for check_id in check_ids}
+    assert len({stem.casefold() for stem in stems.values()}) == len(check_ids)
+    assert report.total_checks == len(check_ids)
+    assert all(result.status == CheckStatus.passed for result in report.checks)
+
+    expected_context_dirs: set[Path] = set()
+    for check_id, stem in stems.items():
+        expected_context_dir = (output_checks / stem).resolve()
+        expected_context_dirs.add(expected_context_dir)
+        evidence = json.loads(
+            s=expected_context_dir.joinpath("context-evidence.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert evidence == {
+            "check_id": check_id,
+            "output_dir": str(expected_context_dir),
+        }
+        result_payload = json.loads(
+            s=output_checks.joinpath(f"{stem}.json").read_text(encoding="utf-8")
+        )
+        assert result_payload["check_id"] == check_id
+
+    assert {path.resolve() for path in output_checks.iterdir() if path.is_dir()} == (
+        expected_context_dirs
+    )
 
 
 def test_public_definition_digest_matches_harness_judge_report(
