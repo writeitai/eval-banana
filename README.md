@@ -254,11 +254,14 @@ contents instead of overwriting them. Without this flag, the timestamped
 
 For every harness process that is invoked, eval-banana writes the exact prompt
 argument first as `checks/<safe_check_id_stem>.prompt.txt`. The prompt and its
-result JSON use the same deterministic filesystem-safe stem: unsafe characters
-become underscores and leading/trailing dots or underscores are trimmed. The
-prompt remains available when the agent fails, times out, or returns an invalid
-verdict, so an attempt-level trace naturally inventories both the judge input
-and its outputs.
+result JSON use the same deterministic filesystem-safe stem. The stem is a
+normalized human-readable label of at most 40 characters plus the full SHA-256
+of the exact check ID. The digest keeps case-only, underscore-only, and other
+distinct valid IDs separate even on case-insensitive filesystems, while the
+bounded label keeps arbitrarily long IDs below filename limits. The prompt
+remains available when the agent fails, times out, or returns an invalid verdict,
+so an attempt-level trace naturally inventories both the judge input and its
+outputs.
 
 `report.json` declares `"schema_version": 1`; readers can therefore reject a
 future incompatible report shape explicitly. Every check result in that report

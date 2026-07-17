@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 import json
 from pathlib import Path
 
@@ -43,13 +44,17 @@ def test_json_and_markdown_file_creation(
     )
     assert report_payload["schema_version"] == 1
     assert (tmp_path / "report" / "report.md").is_file()
-    assert (tmp_path / "report" / "checks" / "check_one.json").is_file()
-    assert (tmp_path / "report" / "checks" / "check_one.stdout.txt").is_file()
-    assert (tmp_path / "report" / "checks" / "check_one.stderr.txt").is_file()
+    stem = safe_file_stem(text="check_one")
+    assert (tmp_path / "report" / "checks" / f"{stem}.json").is_file()
+    assert (tmp_path / "report" / "checks" / f"{stem}.stdout.txt").is_file()
+    assert (tmp_path / "report" / "checks" / f"{stem}.stderr.txt").is_file()
 
 
 def test_safe_filename_generation() -> None:
-    assert safe_file_stem(text="bad name/with spaces") == "bad_name_with_spaces"
+    check_id = "bad name/with spaces"
+    digest = hashlib.sha256(string=check_id.encode(encoding="utf-8")).hexdigest()
+
+    assert safe_file_stem(text=check_id) == f"bad_name_with_spaces-{digest}"
 
 
 def test_markdown_contains_tables(

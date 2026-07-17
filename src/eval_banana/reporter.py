@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 import re
@@ -7,6 +8,8 @@ import re
 from eval_banana.models import EvalReport
 
 logger = logging.getLogger(__name__)
+
+_SAFE_STEM_LABEL_LENGTH = 40
 
 
 def emit_console_report(*, report: EvalReport) -> None:
@@ -23,12 +26,17 @@ def emit_console_report(*, report: EvalReport) -> None:
 
 
 def safe_file_stem(*, text: str) -> str:
-    """Return the deterministic filesystem-safe stem for one check ID."""
+    """Return a bounded label plus the full SHA-256 of one exact check ID.
 
-    collapsed = re.sub(r"[^a-zA-Z0-9._-]+", "_", text).strip("._")
-    if collapsed:
-        return collapsed
-    return "check"
+    The digest preserves practical uniqueness across case-insensitive
+    filesystems and arbitrarily long valid IDs. The short normalized prefix is
+    only a human-readable label; every artifact for a check uses this one stem.
+    """
+
+    collapsed = re.sub(pattern=r"[^a-zA-Z0-9._-]+", repl="_", string=text).strip("._")
+    label = collapsed[:_SAFE_STEM_LABEL_LENGTH] or "check"
+    digest = hashlib.sha256(string=text.encode(encoding="utf-8")).hexdigest()
+    return f"{label}-{digest}"
 
 
 def _build_markdown_report(*, report: EvalReport) -> str:

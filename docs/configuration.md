@@ -46,10 +46,13 @@ Config values are resolved in this order (highest priority first):
 - `run --flat-output --output-dir PATH` writes `report.json`, `report.md`, and
   `checks/` directly into `PATH`. For each invoked harness judge, `checks/`
   includes the exact agent input as `<safe_check_id_stem>.prompt.txt` alongside
-  the result JSON with that same normalized stem and any captured output. The
-  command requires the explicit CLI output path and refuses a symlink, file, or
-  non-empty directory. The mode is intended for a caller that already allocates
-  one unique directory per attempt. Ordinary runs retain the default
+  the result JSON with that same stem and any captured output. The stem combines
+  a normalized label of at most 40 characters with the full SHA-256 of the exact
+  check ID. This keeps case-only and other distinct IDs separate on
+  case-insensitive filesystems and bounds filenames for arbitrarily long valid
+  IDs. The command requires the explicit CLI output path and refuses a symlink,
+  file, or non-empty directory. The mode is intended for a caller that already
+  allocates one unique directory per attempt. Ordinary runs retain the default
   `<output_dir>/<run_id>/` layout.
 - `run` and `validate` accept `--no-project-config` for hermetic callers that
   must not discover `.eval-banana/config.toml` in the working directory or any
