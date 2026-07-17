@@ -61,7 +61,7 @@ def _persist_judge_prompt(*, output_dir: Path, check_id: str, prompt: str) -> Pa
 def _build_json_string_mask(*, text: str) -> list[bool]:
     """Return a boolean mask where ``True`` marks characters inside JSON strings.
 
-    Used by :func:`_extract_last_verdict` so that braces inside quoted
+    Used by :func:`_extract_last_plain_verdict` so that braces inside quoted
     values are not treated as JSON structural delimiters.
     """
     mask = [False] * len(text)
@@ -86,7 +86,7 @@ def _parse_verdict_payload(*, text: str) -> tuple[int, str | None]:
     Raises :class:`ValueError` if *text* is not a JSON object with a
     ``score`` of ``0`` or ``1``.
     """
-    raw = json.loads(text)
+    raw = json.loads(s=text)
     if not isinstance(raw, dict):
         msg = "Harness judge response must be a JSON object"
         raise ValueError(msg)
@@ -103,13 +103,12 @@ def _parse_verdict_payload(*, text: str) -> tuple[int, str | None]:
     return score, reason
 
 
-def _extract_last_verdict(*, text: str) -> tuple[int, str | None]:
-    """Find the **last** valid ``{"score": 0|1}`` JSON object in *text*.
+def _extract_last_plain_verdict(*, text: str) -> tuple[int, str | None]:
+    """Find the last valid verdict in plain agent response text.
 
-    Agents may emit preamble, streaming events, or multiple JSON blobs.
-    This function scans backwards with brace-depth tracking (respecting
-    quoted strings via :func:`_build_json_string_mask`) so the final
-    verdict wins.  Raises :class:`ValueError` if no valid verdict is found.
+    The scan walks backwards with brace-depth tracking and respects quoted
+    strings, so the final unescaped score object wins. Raises ``ValueError``
+    if no valid verdict is found.
     """
     mask = _build_json_string_mask(text=text)
     for end_index in range(len(text) - 1, -1, -1):
@@ -139,6 +138,53 @@ def _extract_last_verdict(*, text: str) -> tuple[int, str | None]:
         '"score": 0 or 1.'
     )
     raise ValueError(msg)
+
+
+def _extract_stream_result_verdict(*, text: str) -> tuple[int, str | None] | None:
+    """Return the verdict from the newest successful JSONL result event.
+
+    Claude's stream output stores its final response inside the terminal
+    event's quoted ``result`` string. Only that authoritative event is eligible,
+    so prompts, tool outputs, and older events cannot become judge verdicts.
+    Return ``None`` only when no successful terminal result event exists.
+    """
+
+    for line in reversed(text.splitlines()):
+        try:
+            event = json.loads(s=line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if not (
+            event.get("type") == "result"
+            and event.get("subtype") == "success"
+            and event.get("is_error") is False
+        ):
+            continue
+        result_text = event.get("result")
+        if not isinstance(result_text, str):
+            msg = (
+                "Harness judge output did not contain a valid JSON verdict with "
+                '"score": 0 or 1.'
+            )
+            raise ValueError(msg)
+        return _extract_last_plain_verdict(text=result_text)
+    return None
+
+
+def _extract_last_verdict(*, text: str) -> tuple[int, str | None]:
+    """Extract the authoritative final verdict from structured or plain output.
+
+    Successful terminal JSONL result payloads take precedence over raw stdout,
+    which prevents earlier examples from overriding a later agent verdict.
+    Plain-output agents retain the existing brace-aware fallback.
+    """
+
+    stream_verdict = _extract_stream_result_verdict(text=text)
+    if stream_verdict is not None:
+        return stream_verdict
+    return _extract_last_plain_verdict(text=text)
 
 
 def _normalize_timeout_text(*, value: str | bytes | None) -> str:
