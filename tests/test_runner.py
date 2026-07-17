@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import hashlib
 from pathlib import Path
+import subprocess
 from typing import cast
 
 import pytest
@@ -15,6 +16,7 @@ from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.runner import _snapshot_check_definition
+from eval_banana.runner import compute_check_definition_sha256
 from eval_banana.runner import run_checks
 from eval_banana.runners.deterministic import run_deterministic_check
 
@@ -22,13 +24,18 @@ _CHECK_DIGEST_DOMAIN = b"eval-banana/check-definition-sha256/v1\0"
 
 
 def _expected_definition_digest(
-    *, definition_bytes: bytes, script_bytes: bytes | None = None
+    *,
+    definition_bytes: bytes,
+    script_bytes: bytes | None = None,
+    script_unavailable: bool = False,
 ) -> str:
     """Reproduce the documented v1 digest framing independently of production."""
 
     components = [(b"definition.yaml", definition_bytes)]
     if script_bytes is not None:
         components.append((b"referenced-script", script_bytes))
+    elif script_unavailable:
+        components.append((b"referenced-script-unavailable", b""))
     framed_components = [
         b"".join(
             (
@@ -87,6 +94,9 @@ def test_full_orchestration_happy_path(
     assert report.checks[0].check_definition_sha256 == _expected_definition_digest(
         definition_bytes=check_path.read_bytes()
     )
+    assert compute_check_definition_sha256(source_path=check_path) == (
+        report.checks[0].check_definition_sha256
+    )
 
 
 def test_flat_output_writes_directly_into_exact_empty_directory(
@@ -114,6 +124,119 @@ def test_flat_output_writes_directly_into_exact_empty_directory(
     assert report.checks[0].check_definition_sha256 == _expected_definition_digest(
         definition_bytes=check_path.read_bytes()
     )
+
+
+def test_flat_output_retains_exact_harness_judge_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Place each exact spawned-agent input in the caller-owned trace directory."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    checks_dir.joinpath("judge.yaml").write_text(
+        data="\n".join(
+            [
+                "schema_version: 1",
+                "id: judge",
+                "type: harness_judge",
+                "description: Judge output.",
+                "instructions: Inspect the complete implementation.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "attempt-eval"
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_run(
+        *, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        """Capture the exact prompt argument supplied to the harness process."""
+
+        captured["args"] = args
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout='{"score": 1, "reason": "complete"}',
+            stderr="",
+        )
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    report = run_checks(
+        config=make_config(
+            project_root=tmp_path,
+            cwd=str(tmp_path),
+            output_dir=str(output_dir),
+            harness_agent="codex",
+        ),
+        flat_output=True,
+    )
+
+    command = captured["args"]
+    assert isinstance(command, list)
+    prompt_path = output_dir / "checks" / "judge.prompt.txt"
+    assert prompt_path.read_text(encoding="utf-8") == command[-1]
+    assert report.run_passed is True
+
+
+def test_public_definition_digest_matches_harness_judge_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Expose the producer's canonical harness-check digest to orchestrators."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "judge.yaml"
+    check_path.write_bytes(
+        b"schema_version: 1\r\nid: judge\r\ntype: harness_judge\r\n"
+        b"description: Judge output.\r\ninstructions: Inspect the result.\r\n"
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_runner(**kwargs: object) -> CheckResult:
+        """Return a passing harness result with the supplied canonical digest."""
+
+        return CheckResult(
+            check_id="judge",
+            check_type=CheckType.harness_judge,
+            check_definition_sha256=str(kwargs["check_definition_sha256"]),
+            description="Judge output.",
+            source_path=str(check_path),
+            status=CheckStatus.passed,
+            score=1,
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+        )
+
+    monkeypatch.setattr("eval_banana.runner._select_runner", lambda check: fake_runner)
+
+    report = run_checks(
+        config=make_config(
+            project_root=tmp_path, cwd=str(tmp_path), harness_agent="codex"
+        )
+    )
+
+    expected = _expected_definition_digest(definition_bytes=check_path.read_bytes())
+    assert compute_check_definition_sha256(source_path=check_path) == expected
+    assert report.checks[0].check_definition_sha256 == expected
+
+
+def test_public_definition_digest_preserves_exact_yaml_bytes(tmp_path: Path) -> None:
+    """Treat line endings as definition bytes rather than normalized YAML."""
+
+    check_path = tmp_path / "one.yaml"
+    crlf_bytes = (
+        b"schema_version: 1\r\nid: one\r\ntype: deterministic\r\n"
+        b"description: desc\r\nscript: print('ok')\r\n"
+    )
+    check_path.write_bytes(crlf_bytes)
+    crlf_digest = compute_check_definition_sha256(source_path=check_path)
+    check_path.write_bytes(crlf_bytes.replace(b"\r\n", b"\n"))
+
+    assert compute_check_definition_sha256(source_path=check_path) != crlf_digest
 
 
 def test_referenced_script_bytes_change_digest_and_verdict(
@@ -157,9 +280,44 @@ def test_referenced_script_bytes_change_digest_and_verdict(
     assert failing_result.check_definition_sha256 == _expected_definition_digest(
         definition_bytes=check_path.read_bytes(), script_bytes=failing_script
     )
+    assert compute_check_definition_sha256(source_path=check_path) == (
+        failing_result.check_definition_sha256
+    )
     assert (
         passing_result.check_definition_sha256 != failing_result.check_definition_sha256
     )
+
+
+def test_public_definition_digest_matches_unavailable_script_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Keep the public digest in parity with an unavailable-script error run."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "one.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: one",
+                "type: deterministic",
+                "description: desc",
+                "script_path: missing.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    report = run_checks(config=make_config(project_root=tmp_path, cwd=str(tmp_path)))
+
+    expected = _expected_definition_digest(
+        definition_bytes=check_path.read_bytes(), script_unavailable=True
+    )
+    assert report.checks[0].status == CheckStatus.error
+    assert report.checks[0].check_definition_sha256 == expected
+    assert compute_check_definition_sha256(source_path=check_path) == expected
 
 
 def test_referenced_script_executes_frozen_bytes_after_live_file_changes(

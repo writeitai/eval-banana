@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-17
+
+### Added
+
+- Harness-judge runs now retain the exact prompt passed to each agent as
+  `checks/<check_id>.prompt.txt`, including failed and timed-out invocations.
+  Attempt-level trace collectors therefore capture judge inputs alongside the
+  existing structured result, stdout, and stderr artifacts.
+- Harness-judge subprocess timeouts are configurable with
+  `[harness] timeout_seconds`, `EVAL_BANANA_HARNESS_TIMEOUT_SECONDS`, or
+  `--harness-timeout-seconds`. The positive-integer setting defaults to 300
+  seconds and is recorded in every harness result's provenance.
+- Orchestrators can call the keyword-only
+  `eval_banana.runner.compute_check_definition_sha256(source_path=...)` API to
+  recompute the same versioned canonical check digest that `report.json`
+  records, including referenced deterministic-script bytes.
+
+### Fixed
+
+- External receipt validators no longer need to mistake a raw YAML file hash
+  for `check_definition_sha256`. The supported API shares the runner's exact
+  domain-separated, length-framed digest implementation while preserving the
+  existing hash-and-execute binding for deterministic `script_path` checks.
+
 ## [0.3.2] - 2026-07-16
 
 ### Added

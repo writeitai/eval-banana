@@ -161,6 +161,7 @@ def test_toml_mapping_table_is_applied(
                 'agent = "codex"',
                 'model = "gpt-5.6-sol"',
                 'reasoning_effort = "medium"',
+                "timeout_seconds = 7200",
                 "",
                 "[discovery]",
                 'exclude_dirs = ["one", "two"]',
@@ -177,6 +178,7 @@ def test_toml_mapping_table_is_applied(
     assert config.harness_agent == "codex"
     assert config.harness_model == "gpt-5.6-sol"
     assert config.harness_reasoning_effort == "medium"
+    assert config.harness_timeout_seconds == 7200
     assert config.discovery_exclude_dirs == ["one", "two"]
 
 
@@ -226,7 +228,25 @@ def test_config_template_does_not_contain_legacy_timeout_keys() -> None:
     assert "deterministic_timeout_seconds" not in template
     assert "llm_timeout_seconds" not in template
     assert "task_timeout_seconds" not in template
-    assert "timeout" not in template
+    assert "timeout_seconds = 300" in template
+
+
+@pytest.mark.parametrize("raw_value", ["0", "-1", '"slow"', "true"])
+def test_harness_timeout_requires_positive_integer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, raw_value: str
+) -> None:
+    """Reject non-positive and non-integer harness timeout configuration."""
+
+    project = tmp_path / "project"
+    config_dir = project / ".eval-banana"
+    config_dir.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    config_dir.joinpath("config.toml").write_text(
+        data=f"[harness]\ntimeout_seconds = {raw_value}\n", encoding="utf-8"
+    )
+
+    with pytest.raises(SystemExit, match="timeout_seconds must be a positive integer"):
+        load_config(cwd=str(project))
 
 
 def test_parse_minimal_harness_config(
@@ -365,16 +385,22 @@ def test_cli_and_env_precedence_for_harness_fields(
     (project / ".eval-banana").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     (project / ".eval-banana" / "config.toml").write_text(
-        "\n".join(["[harness]", 'agent = "claude"']), encoding="utf-8"
+        "\n".join(["[harness]", 'agent = "claude"', "timeout_seconds = 300"]),
+        encoding="utf-8",
     )
     monkeypatch.setenv("EVAL_BANANA_HARNESS_AGENT", "gemini")
+    monkeypatch.setenv("EVAL_BANANA_HARNESS_TIMEOUT_SECONDS", "900")
 
     config = load_config(
-        cwd=str(project), harness_agent="opencode", harness_reasoning_effort="high"
+        cwd=str(project),
+        harness_agent="opencode",
+        harness_reasoning_effort="high",
+        harness_timeout_seconds=10800,
     )
 
     assert config.harness_agent == "opencode"
     assert config.harness_reasoning_effort == "high"
+    assert config.harness_timeout_seconds == 10800
 
 
 def test_reject_legacy_harness_skip_key(

@@ -21,7 +21,6 @@ from eval_banana.models import HarnessJudgeCheckDefinition
 
 logger = logging.getLogger(__name__)
 
-_HARNESS_JUDGE_TIMEOUT_SECONDS = 300
 _JUDGE_PROMPT_PREFIX = (
     "You are an evaluation judge. Read the following files and evaluate them "
     "according to the instructions below. Respond with ONLY a JSON object in this "
@@ -46,6 +45,15 @@ def _build_judge_prompt(*, check: HarnessJudgeCheckDefinition) -> str:
         check.instructions,
     ]
     return "\n".join(sections).strip()
+
+
+def _persist_judge_prompt(*, output_dir: Path, check_id: str, prompt: str) -> Path:
+    """Persist the exact judge input under its filesystem-safe check ID."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    prompt_path = output_dir / f"{check_id}.prompt.txt"
+    prompt_path.write_text(data=prompt, encoding="utf-8")
+    return prompt_path
 
 
 def _build_json_string_mask(*, text: str) -> list[bool]:
@@ -153,16 +161,15 @@ def run_harness_judge_check(
 
     Builds a judging prompt from *check* instructions and target-file
     contents, invokes the configured harness agent via ``subprocess.run``
-    (with a 300 s timeout), and extracts the last valid
+    (with the resolved harness timeout), and extracts the last valid
     ``{"score": 0|1, "reason": "..."}`` JSON from the agent's stdout.
 
     Returns a :class:`CheckResult` with ``status=passed`` when the agent exits
     zero and scores 1, ``status=failed`` when it exits zero and scores 0, and
     ``status=error`` for every non-zero exit, launch failure, timeout, or
-    unparseable output. Result details record the resolved agent, model, and
-    nullable reasoning effort.
+    unparseable output. Result details record the resolved agent, model,
+    nullable reasoning effort, and effective timeout.
     """
-    del output_dir
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
 
@@ -181,7 +188,7 @@ def run_harness_judge_check(
             completed_at=completed.isoformat(),
             duration_ms=_duration_ms(started=started, completed=completed),
             error_detail="Harness judge requires config.harness_agent to be set",
-            details={},
+            details={"timeout_seconds": config.harness_timeout_seconds},
         )
 
     template = resolve_template(
@@ -228,6 +235,7 @@ def run_harness_judge_check(
                 "model": None,
                 "agent_type": config.harness_agent,
                 "reasoning_effort": None,
+                "timeout_seconds": config.harness_timeout_seconds,
                 "raw_response": "",
             },
         )
@@ -235,11 +243,13 @@ def run_harness_judge_check(
         "model": effective_model,
         "agent_type": config.harness_agent,
         "reasoning_effort": effective_reasoning_effort,
+        "timeout_seconds": config.harness_timeout_seconds,
         "raw_response": "",
     }
 
     try:
         prompt = _build_judge_prompt(check=check)
+        _persist_judge_prompt(output_dir=output_dir, check_id=check.id, prompt=prompt)
         command = build_command_from_template(
             template=template, prompt=prompt, model=command_model
         )
@@ -251,7 +261,7 @@ def run_harness_judge_check(
             agent_type=config.harness_agent,
         )
         completed_process = subprocess.run(
-            command,
+            args=command,
             capture_output=True,
             check=False,
             cwd=project_root,
@@ -259,7 +269,7 @@ def run_harness_judge_check(
             env=env,
             errors="replace",
             text=True,
-            timeout=_HARNESS_JUDGE_TIMEOUT_SECONDS,
+            timeout=config.harness_timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
         stdout_text = _normalize_timeout_text(value=exc.stdout)
@@ -280,7 +290,7 @@ def run_harness_judge_check(
             duration_ms=_duration_ms(started=started, completed=completed),
             error_detail=(
                 f"Harness judge subprocess timed out after "
-                f"{_HARNESS_JUDGE_TIMEOUT_SECONDS} seconds"
+                f"{config.harness_timeout_seconds} seconds"
             ),
             stdout=stdout_text,
             stderr=stderr_text,

@@ -53,6 +53,11 @@ model = "gpt-5.6-sol"
 # Not all agents honor this. Env: EVAL_BANANA_HARNESS_REASONING_EFFORT
 reasoning_effort = "high"
 
+# Maximum wall-clock seconds for each harness_judge agent subprocess.
+# Increase this for large repository reviews. Must be a positive integer.
+# Env: EVAL_BANANA_HARNESS_TIMEOUT_SECONDS
+timeout_seconds = 300
+
 # Extra environment variables injected into the harness subprocess.
 # [harness.env]
 # MY_VAR = "value"
@@ -112,6 +117,7 @@ class Config:
     harness_agent: str | None = None
     harness_model: str | None = None
     harness_reasoning_effort: str | None = None
+    harness_timeout_seconds: int = 300
     harness_env: dict[str, str] = field(default_factory=dict)
     agent_templates: dict[str, AgentTemplate] = field(default_factory=dict)
 
@@ -220,6 +226,20 @@ def _get_int(data: dict[str, object], *, section: str, key: str, default: int) -
     if isinstance(value, int) and not isinstance(value, bool):
         return value
     return default
+
+
+def _get_positive_int(
+    *, data: dict[str, object], section: str, key: str, default: int
+) -> int:
+    """Return a required positive integer or reject the configured value."""
+
+    value = _get_nested_value(data=data, section=section, key=key)
+    if value is None:
+        return default
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        msg = f"[{section}] {key} must be a positive integer"
+        raise SystemExit(msg)
+    return value
 
 
 def _get_string_list(
@@ -424,7 +444,14 @@ def _sanitize_harness_section(data: dict[str, object]) -> None:
         )
         raise SystemExit(msg)
 
-    allowed_keys = {"agent", "model", "reasoning_effort", "env", "skills_dir"}
+    allowed_keys = {
+        "agent",
+        "model",
+        "reasoning_effort",
+        "timeout_seconds",
+        "env",
+        "skills_dir",
+    }
     unknown_keys = set(raw_harness) - allowed_keys
     if unknown_keys:
         unknown_keys_text = ", ".join(sorted(unknown_keys))
@@ -447,6 +474,7 @@ def load_config(
     harness_agent: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
+    harness_timeout_seconds: int | None = None,
     use_project_config: bool = True,
 ) -> Config:
     """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
@@ -484,6 +512,7 @@ def load_config(
         ("EVAL_BANANA_HARNESS_AGENT", "harness", "agent", str),
         ("EVAL_BANANA_HARNESS_MODEL", "harness", "model", str),
         ("EVAL_BANANA_HARNESS_REASONING_EFFORT", "harness", "reasoning_effort", str),
+        ("EVAL_BANANA_HARNESS_TIMEOUT_SECONDS", "harness", "timeout_seconds", int),
     ]
     for env_name, section, key, caster in env_specs:
         raw = os.getenv(env_name)
@@ -497,6 +526,7 @@ def load_config(
         (harness_agent, "harness", "agent"),
         (harness_model, "harness", "model"),
         (harness_reasoning_effort, "harness", "reasoning_effort"),
+        (harness_timeout_seconds, "harness", "timeout_seconds"),
     ]
     for value, section, key in cli_overrides:
         if value is None:
@@ -539,6 +569,9 @@ def load_config(
             value=_get_nested_value(
                 data=merged, section="harness", key="reasoning_effort"
             )
+        ),
+        harness_timeout_seconds=_get_positive_int(
+            data=merged, section="harness", key="timeout_seconds", default=300
         ),
         harness_env=_get_string_dict(data=merged, section="harness", key="env"),
         agent_templates=agent_templates,

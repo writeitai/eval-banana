@@ -87,7 +87,7 @@ Invoke the configured harness agent with evaluation instructions. The agent can 
 2. The configured harness agent subprocess receives that prompt
 3. The final verdict must include `{"score": 0|1, "reason": "..."}`
 4. Score 1 = passed, 0 = failed, parse error = error
-5. Harness spawn failures or timeouts = error
+5. Harness spawn failures or the configured per-agent timeout = error
 
 ### Example
 
