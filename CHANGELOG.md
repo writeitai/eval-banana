@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-17
+
+### Changed
+
+- A deterministic check's `context.json` now exposes its evidence directory
+  under the same hashed safe stem used by result, prompt, stdout, and stderr
+  artifacts. Consumers that assumed `checks/<raw_check_id>` must use the
+  supplied absolute `output_dir` instead.
+
+### Fixed
+
+- Deterministic checks with case-only or normalized-label ID differences no
+  longer share evidence directories, and a bounded temporary-directory prefix
+  prevents arbitrarily long valid IDs from crashing before execution.
+
 ## [0.3.4] - 2026-07-17
 
 ### Fixed
@@ -315,7 +330,8 @@ Initial public release.
 - `eb` / `eval-banana` CLI with `init`, `run`, `list`, and `validate` commands.
 - Explanatory comments in generated TOML config templates.
 
-[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/writeitai/eval-banana/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/writeitai/eval-banana/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/writeitai/eval-banana/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/writeitai/eval-banana/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/writeitai/eval-banana/compare/v0.3.1...v0.3.2

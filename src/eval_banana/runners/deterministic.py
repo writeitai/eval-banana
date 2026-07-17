@@ -16,6 +16,7 @@ from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.models import DeterministicCheckDefinition
+from eval_banana.reporter import safe_file_stem
 
 logger = logging.getLogger(__name__)
 
@@ -125,14 +126,16 @@ def _build_context_payload(
     check: DeterministicCheckDefinition,
     source_path: Path,
     project_root: Path,
-    output_dir: Path,
+    check_output_dir: Path,
 ) -> dict[str, Any]:
+    """Build the immutable context supplied to one deterministic check."""
+
     return {
         "check_id": check.id,
         "description": check.description,
         "project_root": str(project_root),
         "source_path": str(source_path.resolve()),
-        "output_dir": str((output_dir / check.id).resolve()),
+        "output_dir": str(check_output_dir.resolve()),
     }
 
 
@@ -194,11 +197,12 @@ def run_deterministic_check(
 
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
-    check_output_dir = output_dir / check.id
-    check_output_dir.mkdir(parents=True, exist_ok=True)
+    artifact_stem = safe_file_stem(text=check.id)
+    check_output_dir = output_dir / artifact_stem
 
     try:
-        with tempfile.TemporaryDirectory(prefix=f"{check.id}_") as temp_dir_name:
+        check_output_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f"{artifact_stem}_") as temp_dir_name:
             temp_dir = Path(temp_dir_name)
             script_path = _resolve_script_path(
                 check=check,
@@ -210,7 +214,7 @@ def run_deterministic_check(
                 check=check,
                 source_path=source_path,
                 project_root=project_root,
-                output_dir=output_dir,
+                check_output_dir=check_output_dir,
             )
             context_path = temp_dir / "context.json"
             context_path.write_text(
