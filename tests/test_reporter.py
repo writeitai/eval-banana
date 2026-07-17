@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 from pathlib import Path
 
 from eval_banana.models import CheckResult
@@ -13,6 +14,7 @@ from eval_banana.reporter import write_report_files
 def test_json_and_markdown_file_creation(
     tmp_path: Path, make_check_result: Callable[..., CheckResult]
 ) -> None:
+    """Write versioned JSON plus the human and per-check report artifacts."""
     report = EvalReport(
         run_id="run1",
         project_root=str(tmp_path),
@@ -36,6 +38,10 @@ def test_json_and_markdown_file_creation(
     write_report_files(report=report, output_dir=tmp_path / "report")
 
     assert (tmp_path / "report" / "report.json").is_file()
+    report_payload = json.loads(
+        (tmp_path / "report" / "report.json").read_text(encoding="utf-8")
+    )
+    assert report_payload["schema_version"] == 1
     assert (tmp_path / "report" / "report.md").is_file()
     assert (tmp_path / "report" / "checks" / "check_one.json").is_file()
     assert (tmp_path / "report" / "checks" / "check_one.stdout.txt").is_file()

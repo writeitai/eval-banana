@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from datetime import timezone
+import hashlib
 import logging
 from pathlib import Path
 import uuid
@@ -12,17 +13,26 @@ import yaml
 from eval_banana.config import Config
 from eval_banana.discovery import discover_check_files
 from eval_banana.loader import load_check_definition
+from eval_banana.loader import load_check_definition_bytes
 from eval_banana.loader import load_check_definitions
 from eval_banana.models import CheckDefinition
 from eval_banana.models import CheckResult
+from eval_banana.models import DeterministicCheckDefinition
 from eval_banana.models import EvalReport
 from eval_banana.reporter import emit_console_report
 from eval_banana.reporter import write_report_files
+from eval_banana.runners.deterministic import freeze_referenced_script
+from eval_banana.runners.deterministic import FrozenDeterministicScript
 from eval_banana.runners.deterministic import run_deterministic_check
 from eval_banana.runners.harness_judge import run_harness_judge_check
 from eval_banana.scorer import score_results
 
 logger = logging.getLogger(__name__)
+
+_CHECK_DIGEST_DOMAIN = b"eval-banana/check-definition-sha256/v1\0"
+_YAML_COMPONENT_NAME = b"definition.yaml"
+_SCRIPT_COMPONENT_NAME = b"referenced-script"
+_UNAVAILABLE_SCRIPT_COMPONENT_NAME = b"referenced-script-unavailable"
 
 
 def _make_run_id() -> str:
@@ -31,15 +41,126 @@ def _make_run_id() -> str:
     return f"{timestamp}_{suffix}"
 
 
-def _prepare_run_output_dir(*, config: Config, run_id: str) -> Path:
+def _prepare_run_output_dir(
+    *, config: Config, run_id: str, flat_output: bool = False
+) -> Path:
+    """Create the artifact directory without overwriting caller-owned contents.
+
+    Normal runs receive a generated ``run_id`` child. Flat runs use the exact
+    configured directory and require it to be empty, real, and non-symlinked.
+    """
+
     base_output_dir = Path(config.output_dir)
+    if flat_output:
+        run_output_dir = base_output_dir.resolve()
+        if base_output_dir.is_symlink():
+            msg = (
+                "Refusing --flat-output because the exact output path is a symlink: "
+                f"{base_output_dir}"
+            )
+            raise SystemExit(msg)
+        if run_output_dir.exists():
+            if not run_output_dir.is_dir():
+                msg = (
+                    "Refusing --flat-output because the output path is not a "
+                    f"directory: {run_output_dir}"
+                )
+                raise SystemExit(msg)
+            if any(run_output_dir.iterdir()):
+                msg = (
+                    "Refusing --flat-output because the output directory is not "
+                    f"empty: {run_output_dir}"
+                )
+                raise SystemExit(msg)
+        else:
+            run_output_dir.mkdir(parents=True)
+        (run_output_dir / "checks").mkdir()
+        return run_output_dir
+
     run_output_dir = (base_output_dir / run_id).resolve()
     run_output_dir.mkdir(parents=True, exist_ok=True)
     (run_output_dir / "checks").mkdir(parents=True, exist_ok=True)
     return run_output_dir
 
 
-def _select_runner(check: CheckDefinition) -> Callable[..., CheckResult]:
+def _snapshot_check_definition(
+    *, source_path: Path, expected_definition: CheckDefinition
+) -> tuple[CheckDefinition, str, FrozenDeterministicScript | None]:
+    """Freeze and hash every definition byte sequence used for execution.
+
+    A definition that changed since discovery is rejected so the reported hash
+    cannot describe different YAML from the check object passed to a runner.
+    Referenced deterministic scripts are also frozen here, included in the
+    canonical digest, and passed to the runner as the execution source.
+    """
+
+    try:
+        definition_bytes = source_path.read_bytes()
+    except OSError as exc:
+        msg = f"Failed to hash check definition {source_path}: {exc}"
+        raise SystemExit(msg) from exc
+    try:
+        execution_definition = load_check_definition_bytes(
+            path=source_path, definition_bytes=definition_bytes
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if execution_definition != expected_definition:
+        msg = f"Check definition changed after discovery: {source_path}"
+        raise SystemExit(msg)
+
+    script_snapshot = None
+    if isinstance(execution_definition, DeterministicCheckDefinition):
+        script_snapshot = freeze_referenced_script(
+            check=execution_definition, source_path=source_path
+        )
+    definition_sha256 = _canonical_check_definition_sha256(
+        definition_bytes=definition_bytes, script_snapshot=script_snapshot
+    )
+    return execution_definition, definition_sha256, script_snapshot
+
+
+def _frame_digest_component(*, name: bytes, content: bytes) -> bytes:
+    """Encode one named digest component with unambiguous 64-bit lengths."""
+
+    return b"".join(
+        (
+            len(name).to_bytes(length=8, byteorder="big"),
+            name,
+            len(content).to_bytes(length=8, byteorder="big"),
+            content,
+        )
+    )
+
+
+def _canonical_check_definition_sha256(
+    *, definition_bytes: bytes, script_snapshot: FrozenDeterministicScript | None
+) -> str:
+    """Hash the v1 canonical framing of YAML and referenced script bytes."""
+
+    components = [
+        _frame_digest_component(name=_YAML_COMPONENT_NAME, content=definition_bytes)
+    ]
+    if script_snapshot is not None:
+        if script_snapshot.content is not None:
+            components.append(
+                _frame_digest_component(
+                    name=_SCRIPT_COMPONENT_NAME, content=script_snapshot.content
+                )
+            )
+        else:
+            components.append(
+                _frame_digest_component(
+                    name=_UNAVAILABLE_SCRIPT_COMPONENT_NAME, content=b""
+                )
+            )
+    digest_input = b"".join((_CHECK_DIGEST_DOMAIN, *components))
+    return f"sha256:{hashlib.sha256(string=digest_input).hexdigest()}"
+
+
+def _select_runner(*, check: CheckDefinition) -> Callable[..., CheckResult]:
+    """Return the type-specific runner responsible for one validated check."""
+
     if check.type == "deterministic":
         return run_deterministic_check
     return run_harness_judge_check
@@ -114,6 +235,7 @@ def run_checks(
     check_dir: Path | None = None,
     check_id: str | None = None,
     tags: list[str] | None = None,
+    flat_output: bool = False,
 ) -> EvalReport:
     """Top-level orchestration: discover checks, execute checks, and score.
 
@@ -122,8 +244,10 @@ def run_checks(
     2. Load and validate check definitions (or a single one via *check_id*).
     3. Filter by *tags* if provided.
     4. Validate that ``harness_judge`` checks have a configured harness.
-    5. Execute each selected check via its type-specific runner.
-    6. Score results, emit reports, and return the :class:`EvalReport`.
+    5. Freeze and hash each YAML definition and referenced script byte sequence.
+    6. Prepare either a generated or caller-owned flat artifact directory.
+    7. Execute each selected check via its type-specific runner.
+    8. Score results, emit reports, and return the :class:`EvalReport`.
     """
     if config.project_root is None:
         msg = "Config.project_root must be set"
@@ -162,25 +286,60 @@ def run_checks(
 
     require_harness_for_harness_judge(config=config, selected_checks=selected_checks)
 
+    execution_checks = [
+        (
+            source_path,
+            *_snapshot_check_definition(
+                source_path=source_path, expected_definition=definition
+            ),
+        )
+        for source_path, definition in sorted(
+            selected_checks, key=lambda item: str(item[0])
+        )
+    ]
+
     started = datetime.now(timezone.utc)
     started_at = started.isoformat()
     run_id = _make_run_id()
-    run_output_dir = _prepare_run_output_dir(config=config, run_id=run_id)
+    run_output_dir = _prepare_run_output_dir(
+        config=config, run_id=run_id, flat_output=flat_output
+    )
     checks_output_dir = run_output_dir / "checks"
 
     results: list[CheckResult] = []
-    for source_path, definition in sorted(
-        selected_checks, key=lambda item: str(item[0])
-    ):
-        logger.info("Running check %s", definition.id)
-        runner = _select_runner(definition)
-        result = runner(
-            check=definition,
-            source_path=source_path,
-            project_root=config.project_root,
-            output_dir=checks_output_dir,
-            config=config,
-        )
+    for (
+        source_path,
+        execution_definition,
+        check_definition_sha256,
+        script_snapshot,
+    ) in execution_checks:
+        logger.info("Running check %s", execution_definition.id)
+        runner = _select_runner(check=execution_definition)
+        if isinstance(execution_definition, DeterministicCheckDefinition):
+            result = runner(
+                check=execution_definition,
+                check_definition_sha256=check_definition_sha256,
+                source_path=source_path,
+                project_root=config.project_root,
+                output_dir=checks_output_dir,
+                config=config,
+                script_snapshot=script_snapshot,
+            )
+        else:
+            result = runner(
+                check=execution_definition,
+                check_definition_sha256=check_definition_sha256,
+                source_path=source_path,
+                project_root=config.project_root,
+                output_dir=checks_output_dir,
+                config=config,
+            )
+        if result.check_definition_sha256 != check_definition_sha256:
+            msg = (
+                "Runner returned the wrong definition hash for check "
+                f"'{execution_definition.id}'"
+            )
+            raise RuntimeError(msg)
         results.append(result)
 
     completed = datetime.now(timezone.utc)

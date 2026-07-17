@@ -12,6 +12,8 @@ from eval_banana.config import Config
 from eval_banana.harness.registry import build_command_from_template
 from eval_banana.harness.registry import resolve_template
 from eval_banana.harness.runner import build_harness_env
+from eval_banana.harness.template import template_supports_model
+from eval_banana.harness.template import template_supports_reasoning_effort
 from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
@@ -141,6 +143,7 @@ def _normalize_timeout_text(*, value: str | bytes | None) -> str:
 def run_harness_judge_check(
     *,
     check: HarnessJudgeCheckDefinition,
+    check_definition_sha256: str,
     source_path: Path,
     project_root: Path,
     output_dir: Path,
@@ -153,9 +156,11 @@ def run_harness_judge_check(
     (with a 300 s timeout), and extracts the last valid
     ``{"score": 0|1, "reason": "..."}`` JSON from the agent's stdout.
 
-    Returns a :class:`CheckResult` with ``status=passed`` when the agent
-    scores 1, ``status=failed`` for 0, and ``status=error`` for crashes,
-    timeouts, or unparseable output.
+    Returns a :class:`CheckResult` with ``status=passed`` when the agent exits
+    zero and scores 1, ``status=failed`` when it exits zero and scores 0, and
+    ``status=error`` for every non-zero exit, launch failure, timeout, or
+    unparseable output. Result details record the resolved agent, model, and
+    nullable reasoning effort.
     """
     del output_dir
     started = datetime.now(timezone.utc)
@@ -166,6 +171,7 @@ def run_harness_judge_check(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
             description=check.description,
             source_path=str(source_path.resolve()),
             tags=check.tags,
@@ -186,9 +192,49 @@ def run_harness_judge_check(
 
     command_model = check.model or config.harness_model
     effective_model = command_model or template.default_model
+    effective_reasoning_effort = template.reasoning_effort
+    unsupported: list[str] = []
+    if effective_model is not None and not template_supports_model(template=template):
+        unsupported.append(
+            f"model {effective_model!r} (configure model_flag or model_env_vars)"
+        )
+    if effective_reasoning_effort is not None and not (
+        template_supports_reasoning_effort(template=template)
+    ):
+        unsupported.append(
+            "reasoning effort "
+            f"{effective_reasoning_effort!r} (configure reasoning_effort_flag "
+            "with an {effort} placeholder)"
+        )
+    if unsupported:
+        completed = datetime.now(timezone.utc)
+        return CheckResult(
+            check_id=check.id,
+            check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
+            description=check.description,
+            source_path=str(source_path.resolve()),
+            tags=check.tags,
+            status=CheckStatus.error,
+            score=0,
+            started_at=started_at,
+            completed_at=completed.isoformat(),
+            duration_ms=_duration_ms(started=started, completed=completed),
+            error_detail=(
+                f"Harness judge agent template {config.harness_agent!r} cannot "
+                f"inject the selected {' and '.join(unsupported)}"
+            ),
+            details={
+                "model": None,
+                "agent_type": config.harness_agent,
+                "reasoning_effort": None,
+                "raw_response": "",
+            },
+        )
     details: dict[str, object] = {
         "model": effective_model,
         "agent_type": config.harness_agent,
+        "reasoning_effort": effective_reasoning_effort,
         "raw_response": "",
     }
 
@@ -209,7 +255,9 @@ def run_harness_judge_check(
             capture_output=True,
             check=False,
             cwd=project_root,
+            encoding="utf-8",
             env=env,
+            errors="replace",
             text=True,
             timeout=_HARNESS_JUDGE_TIMEOUT_SECONDS,
         )
@@ -221,6 +269,7 @@ def run_harness_judge_check(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
             description=check.description,
             source_path=str(source_path.resolve()),
             tags=check.tags,
@@ -242,6 +291,7 @@ def run_harness_judge_check(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
             description=check.description,
             source_path=str(source_path.resolve()),
             tags=check.tags,
@@ -254,8 +304,8 @@ def run_harness_judge_check(
             details=details,
         )
 
-    stdout_text = completed_process.stdout
-    stderr_text = completed_process.stderr
+    stdout_text = _normalize_timeout_text(value=completed_process.stdout)
+    stderr_text = _normalize_timeout_text(value=completed_process.stderr)
     exit_code = completed_process.returncode
     details["raw_response"] = stdout_text
 
@@ -270,6 +320,7 @@ def run_harness_judge_check(
         return CheckResult(
             check_id=check.id,
             check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
             description=check.description,
             source_path=str(source_path.resolve()),
             tags=check.tags,
@@ -286,9 +337,29 @@ def run_harness_judge_check(
         )
 
     completed = datetime.now(timezone.utc)
+    if exit_code != 0:
+        return CheckResult(
+            check_id=check.id,
+            check_type=CheckType.harness_judge,
+            check_definition_sha256=check_definition_sha256,
+            description=check.description,
+            source_path=str(source_path.resolve()),
+            tags=check.tags,
+            status=CheckStatus.error,
+            score=0,
+            started_at=started_at,
+            completed_at=completed.isoformat(),
+            duration_ms=_duration_ms(started=started, completed=completed),
+            error_detail=f"Harness judge agent exited with code {exit_code}",
+            stdout=stdout_text,
+            stderr=stderr_text,
+            exit_code=exit_code,
+            details=details,
+        )
     return CheckResult(
         check_id=check.id,
         check_type=CheckType.harness_judge,
+        check_definition_sha256=check_definition_sha256,
         description=check.description,
         source_path=str(source_path.resolve()),
         tags=check.tags,

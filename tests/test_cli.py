@@ -48,7 +48,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
     monkeypatch.setattr("eval_banana.cli.load_config", fake_load_config)
     monkeypatch.setattr(
         "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id, tags: EvalReport(
+        lambda config, check_dir, check_id, tags, flat_output: EvalReport(
             run_id="run1",
             project_root="/tmp",
             output_dir="/tmp/out",
@@ -83,6 +83,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
             "gpt-5.6-sol",
             "--harness-reasoning-effort",
             "high",
+            "--no-project-config",
             "--cwd",
             "/tmp/project",
         ],
@@ -93,6 +94,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
     assert captured["harness_agent"] == "codex"
     assert captured["harness_model"] == "gpt-5.6-sol"
     assert captured["harness_reasoning_effort"] == "high"
+    assert captured["use_project_config"] is False
     assert captured["cwd"] == "/tmp/project"
 
 
@@ -101,7 +103,7 @@ def test_run_exit_code_one(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("eval_banana.cli.load_config", lambda **kwargs: object())
     monkeypatch.setattr(
         "eval_banana.cli.run_checks",
-        lambda config, check_dir, check_id, tags: EvalReport(
+        lambda config, check_dir, check_id, tags, flat_output: EvalReport(
             run_id="run1",
             project_root="/tmp",
             output_dir="/tmp/out",
@@ -137,11 +139,13 @@ def test_run_passes_tags_to_run_checks(monkeypatch: pytest.MonkeyPatch) -> None:
         check_dir: Path | None,
         check_id: str | None,
         tags: list[str] | None,
+        flat_output: bool,
     ) -> EvalReport:
         captured["config"] = config
         captured["check_dir"] = check_dir
         captured["check_id"] = check_id
         captured["tags"] = tags
+        captured["flat_output"] = flat_output
         return EvalReport(
             run_id="run1",
             project_root="/tmp",
@@ -168,6 +172,51 @@ def test_run_passes_tags_to_run_checks(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.exit_code == 0
     assert captured["tags"] == ["migration", "smoke"]
+    assert captured["flat_output"] is False
+
+
+def test_run_flat_output_requires_explicit_output_dir() -> None:
+    result = CliRunner().invoke(main, ["run", "--flat-output"])
+
+    assert result.exit_code == 2
+    assert "--flat-output requires an explicit --output-dir" in result.output
+
+
+def test_run_passes_flat_output_to_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = CliRunner()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("eval_banana.cli.load_config", lambda **kwargs: object())
+
+    def fake_run_checks(**kwargs: object) -> EvalReport:
+        captured.update(kwargs)
+        return EvalReport(
+            run_id="run1",
+            project_root="/tmp",
+            output_dir="/tmp/out",
+            started_at="2026-04-09T12:00:00+00:00",
+            completed_at="2026-04-09T12:00:01+00:00",
+            duration_ms=1000,
+            total_checks=1,
+            passed_checks=1,
+            failed_checks=0,
+            errored_checks=0,
+            points_earned=1,
+            total_points=1,
+            percentage=100.0,
+            pass_threshold=1.0,
+            meets_threshold=True,
+            run_passed=True,
+            checks=[],
+        )
+
+    monkeypatch.setattr("eval_banana.cli.run_checks", fake_run_checks)
+
+    result = runner.invoke(
+        main, ["run", "--flat-output", "--output-dir", "/tmp/attempt-eval"]
+    )
+
+    assert result.exit_code == 0
+    assert captured["flat_output"] is True
 
 
 def test_list_prints_discovered_checks(
@@ -330,6 +379,42 @@ def test_validate_succeeds_when_harness_configured_for_harness_judge(
     assert result.exit_code == 0
     assert "Validated 1 checks successfully." in result.output
     assert gate_calls == [("codex", 1)]
+
+
+def test_validate_accepts_explicit_harness_agent_without_project_config(
+    tmp_path: Path,
+) -> None:
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    (checks_dir / "judge.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge_check",
+                "type: harness_judge",
+                "description: desc",
+                "instructions: Judge the output.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "validate",
+            "--cwd",
+            str(tmp_path),
+            "--check-dir",
+            str(checks_dir),
+            "--harness-agent",
+            "codex",
+            "--no-project-config",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Validated 1 checks successfully." in result.output
 
 
 def test_list_does_not_enforce_harness_rule(

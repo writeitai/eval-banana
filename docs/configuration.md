@@ -43,6 +43,15 @@ Config values are resolved in this order (highest priority first):
 ### Notes
 
 - Relative `output_dir` resolves from the project root
+- `run --flat-output --output-dir PATH` writes `report.json`, `report.md`, and
+  `checks/` directly into `PATH`. It requires the explicit CLI output path and
+  refuses a symlink, file, or non-empty directory. The mode is intended for a
+  caller that already allocates one unique directory per attempt. Ordinary runs
+  retain the default `<output_dir>/<run_id>/` layout.
+- `run` and `validate` accept `--no-project-config` for hermetic callers that
+  must not discover `.eval-banana/config.toml` in the working directory or any
+  ancestor. With this flag, `--cwd` itself is the project root; explicit CLI
+  options, environment variables, and built-in defaults still apply.
 
 ## Harness configuration
 
@@ -55,6 +64,16 @@ The harness config selects the agent used by `harness_judge` checks.
 | `agent` | (none) | `EVAL_BANANA_HARNESS_AGENT` | Agent template name (e.g. `codex`, `claude`, `gemini`) |
 | `model` | (none) | `EVAL_BANANA_HARNESS_MODEL` | Override agent's default model |
 | `reasoning_effort` | (none) | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | Reasoning effort level |
+
+The resolved agent name, model, and nullable reasoning effort are copied into
+each harness-judge result's `details`. This makes the durable report identify
+the judge configuration actually selected after template and run overrides.
+The judge CLI must exit zero in addition to returning a valid JSON verdict; a
+non-zero exit is recorded as an errored check with score `0`.
+An agent template may report a selected model only when it has `model_flag` or
+`model_env_vars`, and may report a reasoning effort only when one of its
+`reasoning_effort_flag` tokens contains `{effort}`. Selecting an unsupported
+value errors before process launch rather than recording an ineffective value.
 
 ### `[harness.env]` section
 
@@ -120,7 +139,11 @@ ANTHROPIC_API_KEY = ""
 
 ### `harness_judge` requires a harness
 
-If any loaded `harness_judge` check is discovered, eval-banana aborts before running any check when no harness is configured. Fix by setting `[harness] agent` in config or passing `--harness-agent` on the command line.
+If any loaded `harness_judge` check is discovered, eval-banana aborts before
+running any check when no harness is configured. Fix by setting `[harness]
+agent` in config or passing `--harness-agent` to `run` or `validate`. The
+`validate` command uses the agent only to verify that the required setting is
+present; it does not execute the agent.
 
 ## Migration note
 

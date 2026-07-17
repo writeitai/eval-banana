@@ -447,6 +447,7 @@ def load_config(
     harness_agent: str | None = None,
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
+    use_project_config: bool = True,
 ) -> Config:
     """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
 
@@ -456,10 +457,16 @@ def load_config(
     3. Project-level ``.eval-banana/config.toml`` (walked upward from *cwd*).
     4. Built-in defaults on :class:`Config`.
 
+    When *use_project_config* is false, config discovery is disabled and *cwd*
+    itself becomes the project root. Environment variables, explicit keyword
+    arguments, and built-in defaults still apply.
+
     Raises :class:`SystemExit` on invalid TOML or legacy ``[llm]`` sections.
     """
     cwd_path = Path(cwd or ".").resolve()
-    local_config_path = find_local_config(start=cwd_path)
+    local_config_path = (
+        find_local_config(start=cwd_path) if use_project_config else None
+    )
     project_root = _resolve_project_root(
         cwd=cwd_path, local_config_path=local_config_path
     )
@@ -482,7 +489,7 @@ def load_config(
         raw = os.getenv(env_name)
         if raw is None:
             continue
-        _set_nested_value(merged, section=section, key=key, value=caster(raw))
+        _set_nested_value(data=merged, section=section, key=key, value=caster(raw))
 
     cli_overrides: list[tuple[object | None, str, str]] = [
         (output_dir, "core", "output_dir"),
@@ -494,24 +501,27 @@ def load_config(
     for value, section, key in cli_overrides:
         if value is None:
             continue
-        _set_nested_value(merged, section=section, key=key, value=value)
+        _set_nested_value(data=merged, section=section, key=key, value=value)
 
-    _sanitize_harness_section(merged)
+    _sanitize_harness_section(data=merged)
 
-    agent_templates = _parse_agent_templates(merged)
+    agent_templates = _parse_agent_templates(data=merged)
 
     config = Config(
         output_dir=_get_string(
-            merged, section="core", key="output_dir", default=".eval-banana/results"
+            data=merged,
+            section="core",
+            key="output_dir",
+            default=".eval-banana/results",
         ),
         pass_threshold=_get_float(
-            merged, section="core", key="pass_threshold", default=1.0
+            data=merged, section="core", key="pass_threshold", default=1.0
         ),
         llm_max_input_chars=_get_int(
-            merged, section="core", key="llm_max_input_chars", default=0
+            data=merged, section="core", key="llm_max_input_chars", default=0
         ),
         discovery_exclude_dirs=_get_string_list(
-            merged,
+            data=merged,
             section="discovery",
             key="exclude_dirs",
             default=Config().discovery_exclude_dirs,
@@ -520,21 +530,25 @@ def load_config(
         project_root=project_root,
         local_config_path=local_config_path,
         harness_agent=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="agent")
+            value=_get_nested_value(data=merged, section="harness", key="agent")
         ),
         harness_model=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="model")
+            value=_get_nested_value(data=merged, section="harness", key="model")
         ),
         harness_reasoning_effort=_normalize_optional_string(
-            value=_get_nested_value(merged, section="harness", key="reasoning_effort")
+            value=_get_nested_value(
+                data=merged, section="harness", key="reasoning_effort"
+            )
         ),
-        harness_env=_get_string_dict(merged, section="harness", key="env"),
+        harness_env=_get_string_dict(data=merged, section="harness", key="env"),
         agent_templates=agent_templates,
     )
 
     output_path = Path(config.output_dir)
     if not output_path.is_absolute():
-        output_path = (project_root / output_path).resolve()
+        # Keep the caller's final path component intact. Flat-output mode must
+        # be able to detect when that exact component is a symlink.
+        output_path = project_root / output_path
     config.output_dir = str(output_path)
 
     logger.debug("Resolved config: %s", config)

@@ -21,7 +21,7 @@ Two check types:
 | Type | Purpose | How it works |
 |---|---|---|
 | `deterministic` | Objective assertions (file existence, content, structure) | Runs a Python script via subprocess; exit 0 = pass |
-| `harness_judge` | LLM-as-a-judge (coherence, accuracy, tone) | Invokes the configured AI agent to score target files; expects `{"score": 0\|1}` |
+| `harness_judge` | LLM-as-a-judge (coherence, accuracy, tone) | Invokes the configured AI agent; requires exit `0` and a `{"score": 0\|1}` verdict |
 
 The harness judge uses one of the following: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
 
@@ -209,12 +209,14 @@ Options for run/list/validate:
   --check-dir PATH              Scan only this directory
   --check-id TEXT               Run only this check ID
   --output-dir TEXT             Override output directory
+  --flat-output                 Write directly to an explicit empty output dir
   --pass-threshold FLOAT        Minimum pass ratio (0.0-1.0)
+  --no-project-config           Ignore .eval-banana/config.toml (run/validate)
   --verbose                     Enable debug logging
   --cwd TEXT                    Working directory
 
-Harness options (run only):
-  --harness-agent TEXT          Agent CLI used by harness_judge checks
+Harness options:
+  --harness-agent TEXT          Agent used by harness_judge checks (run/validate)
   --harness-model TEXT          Model override for the agent
   --harness-reasoning-effort TEXT  Reasoning effort level
 ```
@@ -232,6 +234,47 @@ Each run creates a timestamped directory under the configured `output_dir`:
     <check_id>.stdout.txt # Captured stdout (if any)
     <check_id>.stderr.txt # Captured stderr (if any)
 ```
+
+An orchestration system that already owns an attempt-unique directory can use
+an exact, non-nested layout:
+
+```bash
+eval-banana run \
+  --flat-output \
+  --output-dir /absolute/path/to/attempt/eval
+```
+
+`--flat-output` requires an explicit `--output-dir`. The exact path must be
+absent or an empty, non-symlink directory; eval-banana refuses conflicting
+contents instead of overwriting them. Without this flag, the timestamped
+`<output_dir>/<run_id>/` layout is unchanged.
+
+`report.json` declares `"schema_version": 1`; readers can therefore reject a
+future incompatible report shape explicitly. Every check result in that report
+and in `checks/<check_id>.json` includes `check_definition_sha256`, formatted as
+`sha256:<64 lowercase hex>`. The digest binds every byte that defines the check:
+the exact YAML bytes and, for `script_path` deterministic checks, the referenced
+script bytes frozen before execution. The runner executes that same frozen script
+snapshot, so a concurrent file change cannot produce a verdict under the older
+digest. Its private launcher preserves the original resolved script path as
+`__file__` and `sys.argv[0]`, plus its parent as the first import path. Inline
+scripts are already part of the YAML component.
+
+The canonical digest input is versioned and length-framed. It starts with the
+ASCII domain `eval-banana/check-definition-sha256/v1` followed by a NUL byte.
+Each component is `u64be(name_length) || name || u64be(content_length) || content`.
+The first component is always `definition.yaml`; a readable referenced script adds
+`referenced-script`. A missing or unreadable referenced script adds an empty
+`referenced-script-unavailable` component and produces an error result. The
+reported value is SHA-256 over the complete framed input.
+
+Harness-judge `details` also record the resolved `agent_type`, `model`, and
+nullable `reasoning_effort`.
+A judge result is accepted only when its process exits `0`; a non-zero exit is
+an `error` with score `0`, even when stdout contains valid passing JSON.
+If the selected template has no model flag/environment variable or no
+reasoning-effort flag containing `{effort}`, an attempted override becomes an
+error before launch and the corresponding effective detail remains `null`.
 
 ## Development
 

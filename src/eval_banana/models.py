@@ -116,6 +116,7 @@ class CheckResult(BaseModel):
 
     check_id: str
     check_type: CheckType
+    check_definition_sha256: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     description: str
     source_path: str
     tags: list[str] = Field(default_factory=list)
@@ -143,6 +144,7 @@ class CheckResult(BaseModel):
 class EvalReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: Literal[1] = 1
     run_id: str
     project_root: str
     output_dir: str
