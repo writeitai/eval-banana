@@ -435,6 +435,66 @@ def test_valid_cli_timeout_overrides_malformed_environment(
     assert config.harness_timeout_seconds == 10800
 
 
+def test_max_parallel_checks_defaults_to_four(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default the concurrency cap when nothing configures it."""
+
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    config = load_config(cwd=str(project), use_project_config=False)
+
+    assert config.max_parallel_checks == 4
+
+
+def test_max_parallel_checks_cli_beats_env_beats_toml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resolve the concurrency cap as CLI > env > project TOML."""
+
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(["[core]", "max_parallel_checks = 2"]), encoding="utf-8"
+    )
+    monkeypatch.setenv("EVAL_BANANA_MAX_PARALLEL_CHECKS", "8")
+
+    toml_and_env = load_config(cwd=str(project))
+    assert toml_and_env.max_parallel_checks == 8
+
+    all_three = load_config(cwd=str(project), max_parallel_checks=16)
+    assert all_three.max_parallel_checks == 16
+
+
+def test_max_parallel_checks_requires_positive_integer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject a non-positive concurrency cap without a traceback."""
+
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    (project / ".eval-banana").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    (project / ".eval-banana" / "config.toml").write_text(
+        "\n".join(["[core]", "max_parallel_checks = 0"]), encoding="utf-8"
+    )
+
+    with pytest.raises(
+        SystemExit, match="max_parallel_checks must be a positive integer"
+    ):
+        load_config(cwd=str(project))
+
+
+def test_config_template_documents_max_parallel_checks() -> None:
+    """Ship the concurrency cap in the generated project config template."""
+
+    assert "max_parallel_checks = 4" in get_local_config_template()
+
+
 def test_reject_legacy_harness_skip_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

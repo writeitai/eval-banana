@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-18
+
+### Added
+
+- Checks now run concurrently. A new positive-integer `max_parallel_checks`
+  setting (`[core]` in the project config, `EVAL_BANANA_MAX_PARALLEL_CHECKS`,
+  or `--max-parallel-checks`) caps how many checks execute at once and defaults
+  to 4. Because each `harness_judge` check is a subprocess that can run up to
+  `[harness] timeout_seconds`, parallelism cuts wall-clock time for multi-check
+  runs. Report ordering stays deterministic — results are collected by their
+  original position regardless of completion order — and every check writes only
+  stem-unique artifacts, so concurrent runs never contend for the same file.
+
+### Changed
+
+- `report.json` no longer duplicates each judge's full stdout stream. The
+  multi-megabyte `stream-json` output is persisted once to
+  `checks/<stem>.stdout.txt`, and a check's `stdout` field now holds only a
+  bounded tail (the last 2000 characters, prefixed with a truncation banner
+  naming the full-output file when truncated). This drops real-world reports
+  from ~1.5–3.7 MB to tens of KB. The same bounding is applied to deterministic
+  check stdout.
+
+  **Compatibility:** `details.raw_response` (the full duplicate) is replaced by
+  `details.raw_response_path`, a run-directory-relative path to the persisted
+  full stdout (`null` when the check produced no output). Consumers that read
+  the full judge response should open that file instead of
+  `details.raw_response`. The canonical `check_definition_sha256` digest — its
+  computation, field name, and location — is unchanged, so eval-receipt binding
+  in loopy-loop 0.7.1+ is unaffected. `report.md` content is unchanged.
+
 ## [0.3.6] - 2026-07-17
 
 ### Fixed

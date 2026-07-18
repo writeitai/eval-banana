@@ -8,6 +8,8 @@ from pathlib import Path
 from eval_banana.models import CheckResult
 from eval_banana.models import EvalReport
 from eval_banana.reporter import _build_markdown_report
+from eval_banana.reporter import bound_stdout_tail
+from eval_banana.reporter import persist_check_stdout
 from eval_banana.reporter import safe_file_stem
 from eval_banana.reporter import write_report_files
 
@@ -46,8 +48,63 @@ def test_json_and_markdown_file_creation(
     assert (tmp_path / "report" / "report.md").is_file()
     stem = safe_file_stem(text="check_one")
     assert (tmp_path / "report" / "checks" / f"{stem}.json").is_file()
-    assert (tmp_path / "report" / "checks" / f"{stem}.stdout.txt").is_file()
     assert (tmp_path / "report" / "checks" / f"{stem}.stderr.txt").is_file()
+    # The full stdout stream is persisted by the runner, not the reporter, so
+    # write_report_files never rewrites the (bounded) stdout tail to disk.
+    assert not (tmp_path / "report" / "checks" / f"{stem}.stdout.txt").exists()
+
+
+def test_bound_stdout_tail_returns_short_output_unchanged() -> None:
+    """Leave output that fits under the tail budget exactly as produced."""
+
+    assert (
+        bound_stdout_tail(
+            stdout="short output", raw_response_path="checks/x.stdout.txt"
+        )
+        == "short output"
+    )
+
+
+def test_bound_stdout_tail_truncates_long_output_with_banner() -> None:
+    """Replace long output with a banner naming the file plus the trailing tail."""
+
+    text = "HEAD" + ("z" * 5000) + "TAIL"
+    bounded = bound_stdout_tail(
+        stdout=text, raw_response_path="checks/judge.stdout.txt"
+    )
+
+    assert len(bounded) < len(text)
+    assert "HEAD" not in bounded
+    assert "checks/judge.stdout.txt" in bounded
+    assert "truncated to the last 2000" in bounded
+    assert bounded.endswith(text[-2000:])
+
+
+def test_persist_check_stdout_writes_full_stream_and_returns_relpath(
+    tmp_path: Path,
+) -> None:
+    """Persist the untruncated stream and return its run-relative location."""
+
+    checks_dir = tmp_path / "checks"
+    relpath = persist_check_stdout(
+        output_dir=checks_dir, check_id="judge", stdout="the full stream"
+    )
+
+    assert relpath is not None
+    assert relpath.startswith("checks/")
+    assert (tmp_path / relpath).read_text(encoding="utf-8") == "the full stream"
+
+
+def test_persist_check_stdout_skips_empty_output(tmp_path: Path) -> None:
+    """Skip persistence entirely when a check produced no stdout."""
+
+    assert (
+        persist_check_stdout(
+            output_dir=tmp_path / "checks", check_id="judge", stdout=""
+        )
+        is None
+    )
+    assert not (tmp_path / "checks").exists()
 
 
 def test_safe_filename_generation() -> None:

@@ -18,6 +18,8 @@ from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.models import HarnessJudgeCheckDefinition
+from eval_banana.reporter import bound_stdout_tail
+from eval_banana.reporter import persist_check_stdout
 from eval_banana.reporter import safe_file_stem
 
 logger = logging.getLogger(__name__)
@@ -284,7 +286,7 @@ def run_harness_judge_check(
                 "agent_type": config.harness_agent,
                 "reasoning_effort": None,
                 "timeout_seconds": config.harness_timeout_seconds,
-                "raw_response": "",
+                "raw_response_path": None,
             },
         )
     details: dict[str, object] = {
@@ -292,7 +294,7 @@ def run_harness_judge_check(
         "agent_type": config.harness_agent,
         "reasoning_effort": effective_reasoning_effort,
         "timeout_seconds": config.harness_timeout_seconds,
-        "raw_response": "",
+        "raw_response_path": None,
     }
 
     try:
@@ -322,7 +324,10 @@ def run_harness_judge_check(
     except subprocess.TimeoutExpired as exc:
         stdout_text = _normalize_timeout_text(value=exc.stdout)
         stderr_text = _normalize_timeout_text(value=exc.stderr)
-        details["raw_response"] = stdout_text
+        raw_response_path = persist_check_stdout(
+            output_dir=output_dir, check_id=check.id, stdout=stdout_text
+        )
+        details["raw_response_path"] = raw_response_path
         completed = datetime.now(timezone.utc)
         return CheckResult(
             check_id=check.id,
@@ -340,7 +345,9 @@ def run_harness_judge_check(
                 f"Harness judge subprocess timed out after "
                 f"{config.harness_timeout_seconds} seconds"
             ),
-            stdout=stdout_text,
+            stdout=bound_stdout_tail(
+                stdout=stdout_text, raw_response_path=raw_response_path
+            ),
             stderr=stderr_text,
             details=details,
         )
@@ -365,7 +372,13 @@ def run_harness_judge_check(
     stdout_text = _normalize_timeout_text(value=completed_process.stdout)
     stderr_text = _normalize_timeout_text(value=completed_process.stderr)
     exit_code = completed_process.returncode
-    details["raw_response"] = stdout_text
+    raw_response_path = persist_check_stdout(
+        output_dir=output_dir, check_id=check.id, stdout=stdout_text
+    )
+    details["raw_response_path"] = raw_response_path
+    stdout_tail = bound_stdout_tail(
+        stdout=stdout_text, raw_response_path=raw_response_path
+    )
 
     try:
         score, reason = _extract_last_verdict(text=stdout_text)
@@ -388,7 +401,7 @@ def run_harness_judge_check(
             completed_at=completed.isoformat(),
             duration_ms=_duration_ms(started=started, completed=completed),
             error_detail=error_detail,
-            stdout=stdout_text,
+            stdout=stdout_tail,
             stderr=stderr_text,
             exit_code=exit_code,
             details=details,
@@ -409,7 +422,7 @@ def run_harness_judge_check(
             completed_at=completed.isoformat(),
             duration_ms=_duration_ms(started=started, completed=completed),
             error_detail=f"Harness judge agent exited with code {exit_code}",
-            stdout=stdout_text,
+            stdout=stdout_tail,
             stderr=stderr_text,
             exit_code=exit_code,
             details=details,
@@ -427,7 +440,7 @@ def run_harness_judge_check(
         completed_at=completed.isoformat(),
         duration_ms=_duration_ms(started=started, completed=completed),
         reason=reason,
-        stdout=stdout_text,
+        stdout=stdout_tail,
         stderr=stderr_text,
         exit_code=exit_code,
         details=details,

@@ -16,6 +16,8 @@ from eval_banana.models import CheckResult
 from eval_banana.models import CheckStatus
 from eval_banana.models import CheckType
 from eval_banana.models import DeterministicCheckDefinition
+from eval_banana.reporter import bound_stdout_tail
+from eval_banana.reporter import persist_check_stdout
 from eval_banana.reporter import safe_file_stem
 
 logger = logging.getLogger(__name__)
@@ -259,6 +261,9 @@ def run_deterministic_check(
         status = CheckStatus.failed
         score = 0
 
+    raw_response_path = persist_check_stdout(
+        output_dir=output_dir, check_id=check.id, stdout=completed_process.stdout
+    )
     return CheckResult(
         check_id=check.id,
         check_type=CheckType.deterministic,
@@ -271,7 +276,9 @@ def run_deterministic_check(
         started_at=started_at,
         completed_at=completed.isoformat(),
         duration_ms=_duration_ms(started=started, completed=completed),
-        stdout=completed_process.stdout,
+        stdout=bound_stdout_tail(
+            stdout=completed_process.stdout, raw_response_path=raw_response_path
+        ),
         stderr=completed_process.stderr,
         exit_code=completed_process.returncode,
     )

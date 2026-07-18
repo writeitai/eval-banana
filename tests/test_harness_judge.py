@@ -560,6 +560,47 @@ def test_pretty_printed_multiline_json_is_parsed(
     assert result.status.value == "passed"
 
 
+def test_large_stdout_is_bounded_in_report_and_persisted_in_full(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Keep a bounded stdout tail in the result while persisting the full stream."""
+
+    filler = "z" * 5000
+    stdout = f'{filler}\n{{"score": 1, "reason": "ok"}}'
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.resolve_template",
+        lambda **kwargs: AgentTemplate(command=("codex", "exec")),
+    )
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.subprocess.run",
+        lambda *args, **kwargs: _completed_process(stdout=stdout),
+    )
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path, harness_agent="codex"),
+    )
+
+    assert result.status.value == "passed"
+    # report.json field holds only a bounded tail, not the multi-KB stream.
+    assert len(result.stdout) < len(stdout)
+    assert "truncated to the last 2000" in result.stdout
+    assert result.stdout.endswith('{"score": 1, "reason": "ok"}')
+    # The full duplicate is gone; a path replaces it.
+    assert "raw_response" not in result.details
+    raw_response_path = result.details["raw_response_path"]
+    assert raw_response_path is not None
+    assert raw_response_path in result.stdout
+    # The path names an existing file that holds the untruncated stream.
+    full_stdout_file = tmp_path / "out" / str(raw_response_path)
+    assert full_stdout_file.is_file()
+    assert full_stdout_file.read_text(encoding="utf-8") == stdout
+
+
 def test_timeout_returns_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:

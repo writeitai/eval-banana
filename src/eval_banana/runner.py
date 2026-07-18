@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from datetime import timezone
 import hashlib
 import logging
 from pathlib import Path
+from typing import cast
 import uuid
 
 import yaml
@@ -266,6 +269,52 @@ def require_harness_for_harness_judge(
     raise SystemExit(msg)
 
 
+def _execute_check(
+    *,
+    source_path: Path,
+    execution_definition: CheckDefinition,
+    check_definition_sha256: str,
+    script_snapshot: FrozenDeterministicScript | None,
+    checks_output_dir: Path,
+    config: Config,
+) -> CheckResult:
+    """Run one already-snapshotted check and verify its bound definition hash.
+
+    Isolated from :func:`run_checks` so checks can run on a thread pool. Each
+    check writes only stem-unique artifacts under *checks_output_dir*, so
+    concurrent invocations never contend for the same file.
+    """
+
+    logger.info("Running check %s", execution_definition.id)
+    runner = _select_runner(check=execution_definition)
+    if isinstance(execution_definition, DeterministicCheckDefinition):
+        result = runner(
+            check=execution_definition,
+            check_definition_sha256=check_definition_sha256,
+            source_path=source_path,
+            project_root=config.project_root,
+            output_dir=checks_output_dir,
+            config=config,
+            script_snapshot=script_snapshot,
+        )
+    else:
+        result = runner(
+            check=execution_definition,
+            check_definition_sha256=check_definition_sha256,
+            source_path=source_path,
+            project_root=config.project_root,
+            output_dir=checks_output_dir,
+            config=config,
+        )
+    if result.check_definition_sha256 != check_definition_sha256:
+        msg = (
+            "Runner returned the wrong definition hash for check "
+            f"'{execution_definition.id}'"
+        )
+        raise RuntimeError(msg)
+    return result
+
+
 def run_checks(
     *,
     config: Config,
@@ -343,42 +392,30 @@ def run_checks(
     )
     checks_output_dir = run_output_dir / "checks"
 
-    results: list[CheckResult] = []
-    for (
-        source_path,
-        execution_definition,
-        check_definition_sha256,
-        script_snapshot,
-    ) in execution_checks:
-        logger.info("Running check %s", execution_definition.id)
-        runner = _select_runner(check=execution_definition)
-        if isinstance(execution_definition, DeterministicCheckDefinition):
-            result = runner(
-                check=execution_definition,
-                check_definition_sha256=check_definition_sha256,
+    ordered_results: list[CheckResult | None] = [None] * len(execution_checks)
+    max_workers = min(config.max_parallel_checks, len(execution_checks))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {
+            executor.submit(
+                _execute_check,
                 source_path=source_path,
-                project_root=config.project_root,
-                output_dir=checks_output_dir,
-                config=config,
+                execution_definition=execution_definition,
+                check_definition_sha256=check_definition_sha256,
                 script_snapshot=script_snapshot,
-            )
-        else:
-            result = runner(
-                check=execution_definition,
-                check_definition_sha256=check_definition_sha256,
-                source_path=source_path,
-                project_root=config.project_root,
-                output_dir=checks_output_dir,
+                checks_output_dir=checks_output_dir,
                 config=config,
-            )
-        if result.check_definition_sha256 != check_definition_sha256:
-            msg = (
-                "Runner returned the wrong definition hash for check "
-                f"'{execution_definition.id}'"
-            )
-            raise RuntimeError(msg)
-        results.append(result)
+            ): index
+            for index, (
+                source_path,
+                execution_definition,
+                check_definition_sha256,
+                script_snapshot,
+            ) in enumerate(execution_checks)
+        }
+        for future in as_completed(future_to_index):
+            ordered_results[future_to_index[future]] = future.result()
 
+    results = cast(list[CheckResult], ordered_results)
     completed = datetime.now(timezone.utc)
     report = score_results(
         run_id=run_id,

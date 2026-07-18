@@ -1224,6 +1224,132 @@ def test_mixed_checks_without_harness_aborts_on_harness_judge(
     assert str(checks_dir / "b_judge.yaml") in str(excinfo.value)
 
 
+def test_harness_report_json_binds_digest_and_points_at_full_stdout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Keep the digest field intact while report.json only points at full stdout."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    check_path = checks_dir / "judge.yaml"
+    check_path.write_text(
+        "\n".join(
+            [
+                "schema_version: 1",
+                "id: judge",
+                "type: harness_judge",
+                "description: Judge output.",
+                "instructions: Inspect the result.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+    stdout = f'{"y" * 5000}\n{{"score": 1, "reason": "ok"}}'
+    monkeypatch.setattr(
+        "eval_banana.runners.harness_judge.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["codex", "exec"], returncode=0, stdout=stdout, stderr=""
+        ),
+    )
+
+    report = run_checks(
+        config=make_config(
+            project_root=tmp_path, cwd=str(tmp_path), harness_agent="codex"
+        )
+    )
+
+    check = report.checks[0]
+    assert check.check_definition_sha256 == compute_check_definition_sha256(
+        source_path=check_path
+    )
+    report_path = Path(report.output_dir) / "report.json"
+    payload = json.loads(s=report_path.read_text(encoding="utf-8"))
+    reported = payload["checks"][0]
+    assert reported["check_definition_sha256"] == check.check_definition_sha256
+    assert len(reported["stdout"]) < len(stdout)
+    assert "raw_response" not in reported["details"]
+    raw_response_path = reported["details"]["raw_response_path"]
+    full_stdout_file = Path(report.output_dir) / raw_response_path
+    assert full_stdout_file.read_text(encoding="utf-8") == stdout
+    assert report_path.stat().st_size < len(stdout)
+
+
+def test_parallel_and_serial_runs_produce_identical_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """Run the same fixtures serially and in parallel with identical verdicts/order."""
+
+    checks_dir = tmp_path / "eval_checks"
+    checks_dir.mkdir()
+    for index in range(5):
+        checks_dir.joinpath(f"check_{index}.yaml").write_text(
+            "\n".join(
+                [
+                    "schema_version: 1",
+                    f"id: check_{index}",
+                    "type: harness_judge",
+                    f"description: Judge {index}.",
+                    f"instructions: Inspect marker={index}.",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    monkeypatch.setattr("eval_banana.runner.emit_console_report", lambda report: None)
+
+    def fake_run(
+        *, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        """Return a per-check verdict so mis-ordering changes the report."""
+
+        prompt = args[-1]
+        marker = prompt.rsplit("marker=", 1)[-1].split(".", 1)[0]
+        verdict = json.dumps(obj={"score": 1, "reason": f"reason-{marker}"})
+        return subprocess.CompletedProcess(
+            args=args, returncode=0, stdout=verdict, stderr=""
+        )
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    def verdicts(report: object) -> list[tuple[str, str, int, str | None, str, str]]:
+        return [
+            (
+                check.check_id,
+                check.status.value,
+                check.score,
+                check.reason,
+                check.check_definition_sha256,
+                check.stdout,
+            )
+            for check in report.checks  # type: ignore[attr-defined]
+        ]
+
+    serial_report = run_checks(
+        config=make_config(
+            project_root=tmp_path,
+            cwd=str(tmp_path),
+            harness_agent="codex",
+            max_parallel_checks=1,
+        )
+    )
+    parallel_report = run_checks(
+        config=make_config(
+            project_root=tmp_path,
+            cwd=str(tmp_path),
+            harness_agent="codex",
+            max_parallel_checks=4,
+        )
+    )
+
+    assert [check.check_id for check in parallel_report.checks] == [
+        f"check_{index}" for index in range(5)
+    ]
+    assert [check.reason for check in parallel_report.checks] == [
+        f"reason-{index}" for index in range(5)
+    ]
+    assert verdicts(serial_report) == verdicts(parallel_report)
+
+
 def test_multiple_harness_judge_without_harness_reports_sorted_first(
     tmp_path: Path, make_config: Callable[..., Config]
 ) -> None:

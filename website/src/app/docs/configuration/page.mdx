@@ -35,6 +35,7 @@ A CLI flag always wins over an env var, which wins over the file, which wins ove
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where run output is written |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0–1.0) for the run to pass |
 | `llm_max_input_chars` | `0` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Reserved. Accepted and parsed, but the current `harness_judge` runner does not read it, so it has no runtime effect yet. |
+| `max_parallel_checks` | `4` | `EVAL_BANANA_MAX_PARALLEL_CHECKS` | Positive number of checks run concurrently. Each `harness_judge` check is its own subprocess, so parallelism cuts wall-clock time; report ordering stays deterministic regardless. Also settable per run with `--max-parallel-checks`. |
 
 With `pass_threshold` at its default of `1.0`, every check must pass for the run to pass. Lower it (e.g. `0.8`) to tolerate some failures. Note that a single `error` fails the run regardless of the threshold — see [Concepts](/docs/concepts).
 
@@ -74,6 +75,7 @@ Every core and harness setting has an `EVAL_BANANA_*` environment variable, whic
 | `EVAL_BANANA_OUTPUT_DIR` | `output_dir` |
 | `EVAL_BANANA_PASS_THRESHOLD` | `pass_threshold` |
 | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | `llm_max_input_chars` |
+| `EVAL_BANANA_MAX_PARALLEL_CHECKS` | `max_parallel_checks` |
 | `EVAL_BANANA_HARNESS_AGENT` | `harness.agent` |
 | `EVAL_BANANA_HARNESS_MODEL` | `harness.model` |
 | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | `harness.reasoning_effort` |

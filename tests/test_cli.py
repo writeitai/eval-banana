@@ -85,6 +85,8 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
             "high",
             "--harness-timeout-seconds",
             "10800",
+            "--max-parallel-checks",
+            "6",
             "--no-project-config",
             "--cwd",
             "/tmp/project",
@@ -97,6 +99,7 @@ def test_run_exit_code_zero_and_harness_overrides_reach_load_config(
     assert captured["harness_model"] == "gpt-5.6-sol"
     assert captured["harness_reasoning_effort"] == "high"
     assert captured["harness_timeout_seconds"] == 10800
+    assert captured["max_parallel_checks"] == 6
     assert captured["use_project_config"] is False
     assert captured["cwd"] == "/tmp/project"
 
@@ -105,6 +108,15 @@ def test_run_rejects_non_positive_harness_timeout() -> None:
     """Validate the CLI timeout before loading config or launching an agent."""
 
     result = CliRunner().invoke(main, ["run", "--harness-timeout-seconds", "0"])
+
+    assert result.exit_code == 2
+    assert "not in the range x>=1" in result.output
+
+
+def test_run_rejects_non_positive_max_parallel_checks() -> None:
+    """Validate the CLI concurrency cap before loading config."""
+
+    result = CliRunner().invoke(main, ["run", "--max-parallel-checks", "0"])
 
     assert result.exit_code == 2
     assert "not in the range x>=1" in result.output

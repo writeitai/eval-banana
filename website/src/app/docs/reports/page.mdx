@@ -22,10 +22,10 @@ Each run creates a directory under the configured `output_dir` (default `.eval-b
     └── <check_id>.stderr.txt  # captured stderr (only if non-empty)
 ```
 
-- **`report.json`** is the complete, structured report — parse this in tooling.
-- **`report.md`** is a condensed, human-readable summary; `report.json` remains the full record.
+- **`report.json`** is the structured report — parse this in tooling. Its per-check `stdout` is a bounded tail, not the whole stream (see [Large output](#large-output) below).
+- **`report.md`** is a condensed, human-readable summary with each check's verdict and reason.
 - **`checks/<check_id>.json`** holds one check's status, score, and reason.
-- **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land.
+- **`.stdout.txt` / `.stderr.txt`** are written only when the check produced output — for deterministic checks, this is where the diagnostics you printed to `stderr` land. `.stdout.txt` always holds the **complete** captured stdout stream, even though `report.json` keeps only a bounded tail of it.
 
 Every per-check JSON object includes `check_definition_sha256` in
 `sha256:<64 lowercase hex>` form. Its versioned, length-framed input covers the
@@ -60,6 +60,21 @@ eb run --flat-output --output-dir /absolute/path/to/attempt/eval
 The exact directory must be absent or empty and cannot be a symlink. Existing
 contents are refused, never overwritten. Runs without `--flat-output` keep the
 default timestamped layout shown above.
+
+## Large output
+
+A check's `stdout` field in `report.json` (and in `checks/<stem>.json`) holds
+only a bounded **tail** — the last 2000 characters — prefixed with a truncation
+banner naming the full-output file whenever it was shortened. The complete,
+untruncated stream is always written to `checks/<stem>.stdout.txt`. This keeps
+`report.json` small (tens of KB) even when a `harness_judge` agent emits
+multi-megabyte `stream-json` output, so tooling can read the report without
+loading megabytes it does not need.
+
+For `harness_judge`, `details.raw_response_path` records the run-relative path
+to that full stdout file (`null` when the check produced no output), replacing
+the pre-0.4.0 `details.raw_response` that duplicated the entire stream inline.
+Open that file only when the bounded tail in `report.json` is not enough.
 
 ## Console summary
 

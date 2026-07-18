@@ -63,6 +63,11 @@ def init(force: bool) -> None:
     help="Maximum wall-clock seconds for each harness_judge agent subprocess.",
 )
 @click.option(
+    "--max-parallel-checks",
+    type=click.IntRange(min=1),
+    help="Maximum number of checks executed concurrently (default 4).",
+)
+@click.option(
     "--no-project-config",
     is_flag=True,
     help="Do not discover or load .eval-banana/config.toml.",
@@ -80,6 +85,7 @@ def run_cli(
     harness_model: str | None,
     harness_reasoning_effort: str | None,
     harness_timeout_seconds: int | None,
+    max_parallel_checks: int | None,
     no_project_config: bool,
     cwd: str,
     verbose: bool,
@@ -100,6 +106,7 @@ def run_cli(
         harness_model=harness_model,
         harness_reasoning_effort=harness_reasoning_effort,
         harness_timeout_seconds=harness_timeout_seconds,
+        max_parallel_checks=max_parallel_checks,
         use_project_config=not no_project_config,
         cwd=cwd,
     )
