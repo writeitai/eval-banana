@@ -195,6 +195,7 @@ Create it with `eb init`.
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` |
 | `llm_max_input_chars` | `0` | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` |
+| `max_parallel_checks` | `4` | `EVAL_BANANA_MAX_PARALLEL_CHECKS` |
 | `harness.agent` | unset | `EVAL_BANANA_HARNESS_AGENT` |
 | `harness.model` | unset | `EVAL_BANANA_HARNESS_MODEL` |
 
@@ -212,6 +213,7 @@ Options for run/list/validate:
   --output-dir TEXT             Override output directory
   --flat-output                 Write directly to an explicit empty output dir
   --pass-threshold FLOAT        Minimum pass ratio (0.0-1.0)
+  --max-parallel-checks INTEGER Checks to run concurrently (run; default: 4)
   --no-project-config           Ignore .eval-banana/config.toml (run/validate)
   --verbose                     Enable debug logging
   --cwd TEXT                    Working directory
@@ -234,7 +236,7 @@ Each run creates a timestamped directory under the configured `output_dir`:
   checks/
     <safe_check_id_stem>.json       # Per-check result
     <safe_check_id_stem>.prompt.txt # Exact harness-judge input (harness only)
-    <safe_check_id_stem>.stdout.txt # Captured stdout (if any)
+    <safe_check_id_stem>.stdout.txt # Full captured stdout stream (if any)
     <safe_check_id_stem>.stderr.txt # Captured stderr (if any)
 ```
 
@@ -306,6 +308,13 @@ Harness-judge `details` also record the resolved `agent_type`, `model`, nullable
 wall-clock limit with `[harness] timeout_seconds`,
 `EVAL_BANANA_HARNESS_TIMEOUT_SECONDS`, or `--harness-timeout-seconds`; it
 defaults to 300 seconds.
+
+A check's `stdout` in `report.json` is a bounded tail (the last 2000 characters,
+prefixed with a truncation banner naming the full file when shortened); the
+complete stream is always persisted to `checks/<stem>.stdout.txt`. Harness-judge
+`details.raw_response_path` holds the run-relative path to that file (`null` when
+there was no output), replacing the pre-0.4.0 `details.raw_response` that
+duplicated the whole stream inline.
 A judge result is accepted only when its process exits `0`; a non-zero exit is
 an `error` with score `0`, even when stdout contains valid passing JSON.
 If the selected template has no model flag/environment variable or no

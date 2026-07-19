@@ -172,7 +172,7 @@ Each run writes to `.eval-banana/results/<run_id>/`:
     ├── <safe_check_id_stem>/            # Deterministic-check evidence directory
     ├── <safe_check_id_stem>.json        # Per-check CheckResult
     ├── <safe_check_id_stem>.prompt.txt  # Exact harness-judge input
-    ├── <safe_check_id_stem>.stdout.txt  # Captured stdout (only if non-empty)
+    ├── <safe_check_id_stem>.stdout.txt  # Full captured stdout stream (only if non-empty)
     └── <safe_check_id_stem>.stderr.txt  # Captured stderr (only if non-empty)
 ```
 
@@ -180,6 +180,15 @@ Each run writes to `.eval-banana/results/<run_id>/`:
 exact check ID. All artifacts for one check share it, while IDs that differ only
 by case or normalization remain distinct. The evidence directory is created for
 deterministic checks; the prompt file is created for harness-judge checks.
+
+**Prefer `report.md` and per-check artifacts over `report.json` for reading.**
+Since 0.4.0, a check's `stdout` in `report.json` is only a bounded tail (the last
+2000 characters, with a truncation banner naming the full file); the complete
+stream lives in `checks/<stem>.stdout.txt`. For harness-judge checks,
+`details.raw_response_path` is the run-relative path to that full stdout file
+(`null` when empty), replacing the pre-0.4.0 `details.raw_response`. Read
+`report.md` for verdicts and reasons, and open a check's `.stdout.txt` only when
+investigating a specific failure — don't load `report.json` wholesale.
 
 The console output shows:
 - Run ID

@@ -29,6 +29,7 @@ eval-banana init --force  # Overwrite existing
 | `output_dir` | `.eval-banana/results` | Where run artifacts are written (relative to project root) |
 | `pass_threshold` | `1.0` | Minimum `points/total` ratio for the run to pass (0.0-1.0) |
 | `llm_max_input_chars` | `0` (disabled) | Max characters sent to `harness_judge` per target file; 0 = no limit |
+| `max_parallel_checks` | `4` | Positive number of checks run concurrently; report ordering stays deterministic. Also `--max-parallel-checks`. |
 
 ### `[harness]` section
 
@@ -62,6 +63,7 @@ Config values are resolved in this order (highest priority first):
 | `EVAL_BANANA_OUTPUT_DIR` | `core.output_dir` |
 | `EVAL_BANANA_PASS_THRESHOLD` | `core.pass_threshold` |
 | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | `core.llm_max_input_chars` |
+| `EVAL_BANANA_MAX_PARALLEL_CHECKS` | `core.max_parallel_checks` |
 | `EVAL_BANANA_HARNESS_AGENT` | `harness.agent` |
 | `EVAL_BANANA_HARNESS_MODEL` | `harness.model` |
 | `EVAL_BANANA_HARNESS_REASONING_EFFORT` | `harness.reasoning_effort` |
@@ -91,6 +93,7 @@ Created by `eval-banana init` at `.eval-banana/config.toml`:
 output_dir = ".eval-banana/results"
 pass_threshold = 1.0
 llm_max_input_chars = 0
+max_parallel_checks = 4
 
 [harness]
 agent = "codex"

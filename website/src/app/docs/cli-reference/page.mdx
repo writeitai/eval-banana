@@ -47,6 +47,8 @@ eb run --flat-output --output-dir /absolute/path/to/attempt/eval
 | `--harness-agent TEXT` | Agent template used by `harness_judge` checks. |
 | `--harness-model TEXT` | Model override for the harness agent. |
 | `--harness-reasoning-effort TEXT` | Reasoning-effort level for the agent. |
+| `--harness-timeout-seconds INT` | Positive per-agent wall-clock limit for each `harness_judge` subprocess (default `300`). |
+| `--max-parallel-checks INT` | Positive number of checks run concurrently (default `4`). Report ordering stays deterministic regardless. |
 | `--no-project-config` | Do not discover or load `.eval-banana/config.toml`; treat `--cwd` as the project root. |
 | `--cwd TEXT` | Working directory (default `.`). |
 | `--verbose` | Enable debug logging. |

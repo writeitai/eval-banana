@@ -10,6 +10,7 @@ from eval_banana.models import EvalReport
 logger = logging.getLogger(__name__)
 
 _SAFE_STEM_LABEL_LENGTH = 40
+_STDOUT_TAIL_CHARS = 2000
 
 
 def emit_console_report(*, report: EvalReport) -> None:
@@ -37,6 +38,43 @@ def safe_file_stem(*, text: str) -> str:
     label = collapsed[:_SAFE_STEM_LABEL_LENGTH] or "check"
     digest = hashlib.sha256(string=text.encode(encoding="utf-8")).hexdigest()
     return f"{label}-{digest}"
+
+
+def persist_check_stdout(*, output_dir: Path, check_id: str, stdout: str) -> str | None:
+    """Persist one check's full stdout stream and return its run-relative path.
+
+    ``output_dir`` is the run's ``checks`` directory. The file always holds the
+    untruncated stream so report consumers can open it when the report's bounded
+    ``stdout`` tail is not enough. Runners own this artifact -- the report only
+    keeps a pointer to it. Returns ``None`` when there is no output to persist.
+    The stem is unique per check ID, so concurrent checks never collide.
+    """
+
+    if not stdout:
+        return None
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stem = safe_file_stem(text=check_id)
+    (output_dir / f"{stem}.stdout.txt").write_text(stdout, encoding="utf-8")
+    return f"{output_dir.name}/{stem}.stdout.txt"
+
+
+def bound_stdout_tail(*, stdout: str, raw_response_path: str | None) -> str:
+    """Return ``stdout`` bounded to its final characters for in-report display.
+
+    Short output is returned unchanged. Longer output is replaced by a banner
+    naming the persisted full-output file followed by the last
+    ``_STDOUT_TAIL_CHARS`` characters, keeping enough tail for error display
+    while dropping the multi-megabyte judge streams from ``report.json``.
+    """
+
+    if len(stdout) <= _STDOUT_TAIL_CHARS:
+        return stdout
+    location = raw_response_path or "the persisted stdout artifact"
+    banner = (
+        f"[eval-banana: stdout truncated to the last {_STDOUT_TAIL_CHARS} "
+        f"characters; full output at {location}]\n"
+    )
+    return banner + stdout[-_STDOUT_TAIL_CHARS:]
 
 
 def _build_markdown_report(*, report: EvalReport) -> str:
@@ -96,10 +134,9 @@ def write_report_files(*, report: EvalReport, output_dir: Path) -> None:
         (checks_dir / f"{stem}.json").write_text(
             check.model_dump_json(indent=2), encoding="utf-8"
         )
-        if check.stdout:
-            (checks_dir / f"{stem}.stdout.txt").write_text(
-                check.stdout, encoding="utf-8"
-            )
+        # The full stdout stream is persisted by the runner (see
+        # persist_check_stdout); report.json keeps only the bounded tail plus a
+        # pointer, so the reporter never rewrites the truncated stdout here.
         if check.stderr:
             (checks_dir / f"{stem}.stderr.txt").write_text(
                 check.stderr, encoding="utf-8"

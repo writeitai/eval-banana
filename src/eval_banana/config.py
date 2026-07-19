@@ -33,6 +33,13 @@ pass_threshold = 1.0
 # content is sent to the harness agent regardless of size.
 # Env: EVAL_BANANA_LLM_MAX_INPUT_CHARS
 llm_max_input_chars = 0
+
+# Maximum number of checks executed concurrently. Each harness_judge check is a
+# subprocess that can run up to [harness] timeout_seconds, so running them in
+# parallel cuts wall-clock time. Report ordering stays deterministic regardless
+# of this value. Must be a positive integer.
+# Env: EVAL_BANANA_MAX_PARALLEL_CHECKS
+max_parallel_checks = 4
 """
 
 
@@ -98,6 +105,7 @@ class Config:
     output_dir: str = ".eval-banana/results"
     pass_threshold: float = 1.0
     llm_max_input_chars: int = 0
+    max_parallel_checks: int = 4
     discovery_exclude_dirs: list[str] = field(
         default_factory=lambda: [
             ".git",
@@ -489,6 +497,7 @@ def load_config(
     harness_model: str | None = None,
     harness_reasoning_effort: str | None = None,
     harness_timeout_seconds: int | None = None,
+    max_parallel_checks: int | None = None,
     use_project_config: bool = True,
 ) -> Config:
     """Build a fully-resolved :class:`Config` from TOML, env vars, and CLI overrides.
@@ -527,6 +536,14 @@ def load_config(
             value=harness_timeout_seconds,
         )
 
+    if max_parallel_checks is not None:
+        _set_nested_value(
+            data=merged,
+            section="core",
+            key="max_parallel_checks",
+            value=max_parallel_checks,
+        )
+
     env_specs: list[tuple[str, str, str, type[Any]]] = [
         ("EVAL_BANANA_OUTPUT_DIR", "core", "output_dir", str),
         ("EVAL_BANANA_PASS_THRESHOLD", "core", "pass_threshold", float),
@@ -551,6 +568,19 @@ def load_config(
                 key="timeout_seconds",
                 value=_parse_positive_int_environment_value(
                     env_name=timeout_env_name, raw_value=raw_timeout
+                ),
+            )
+
+    if max_parallel_checks is None:
+        parallel_env_name = "EVAL_BANANA_MAX_PARALLEL_CHECKS"
+        raw_parallel = os.getenv(parallel_env_name)
+        if raw_parallel is not None:
+            _set_nested_value(
+                data=merged,
+                section="core",
+                key="max_parallel_checks",
+                value=_parse_positive_int_environment_value(
+                    env_name=parallel_env_name, raw_value=raw_parallel
                 ),
             )
 
@@ -582,6 +612,9 @@ def load_config(
         ),
         llm_max_input_chars=_get_int(
             data=merged, section="core", key="llm_max_input_chars", default=0
+        ),
+        max_parallel_checks=_get_positive_int(
+            data=merged, section="core", key="max_parallel_checks", default=4
         ),
         discovery_exclude_dirs=_get_string_list(
             data=merged,

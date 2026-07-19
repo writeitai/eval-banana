@@ -22,6 +22,7 @@ eval-banana init --force   # Overwrite existing config
 | `output_dir` | `.eval-banana/results` | `EVAL_BANANA_OUTPUT_DIR` | Where output files go |
 | `pass_threshold` | `1.0` | `EVAL_BANANA_PASS_THRESHOLD` | Minimum pass ratio (0.0-1.0) |
 | `llm_max_input_chars` | `0` (disabled) | `EVAL_BANANA_LLM_MAX_INPUT_CHARS` | Max characters sent to `harness_judge` per target file; 0 = no limit |
+| `max_parallel_checks` | `4` | `EVAL_BANANA_MAX_PARALLEL_CHECKS` | Positive number of checks executed concurrently. Report ordering stays deterministic regardless. Also settable per run with `--max-parallel-checks`. |
 
 ### `[discovery]` section
 
