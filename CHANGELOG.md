@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-20
+
+### Added
+
+- Built-in `grok` harness agent for Grok Build CLI judges: plain stdout,
+  `--always-approve`, `--no-auto-update`, default model `grok-4.5`, default
+  reasoning effort `high`. Auth is external (`XAI_API_KEY` or `grok login`).
+
+### Migration
+
+- Existing custom `[agents.grok]` sections inherit new built-in defaults for
+  omitted fields. Rename the custom agent or explicitly clear/replace
+  inherited values if the name was used for an unrelated binary.
+
 ## [0.4.0] - 2026-07-18
 
 ### Added

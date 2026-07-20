@@ -69,6 +69,17 @@ DEFAULT_AGENT_TEMPLATES: dict[str, AgentTemplate] = {
         ),
         reasoning_effort_flag=("--effort", "{effort}"),
     ),
+    "grok": AgentTemplate(
+        # Plain stdout (no streaming-json) so harness_judge can extract
+        # {"score": 0|1} from the response. Auth: XAI_API_KEY or `grok login`.
+        command=("grok",),
+        shared_flags=("--always-approve", "--no-auto-update"),
+        prompt_flag="-p",
+        model_flag="--model",
+        default_model="grok-4.5",
+        reasoning_effort="high",
+        reasoning_effort_flag=("--reasoning-effort", "{effort}"),
+    ),
     "openhands": AgentTemplate(
         command=("openhands",),
         shared_flags=("--headless", "--json", "--override-with-envs"),

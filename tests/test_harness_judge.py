@@ -361,6 +361,43 @@ def test_stock_codex_model_and_effort_remain_supported(
     assert "model_reasoning_effort=high" in captured["command"]
 
 
+def test_stock_grok_plain_judge_command_and_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(
+        *, args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        captured["command"] = args
+        return _completed_process(stdout='{"score": 1, "reason": "ok"}')
+
+    monkeypatch.setattr("eval_banana.runners.harness_judge.subprocess.run", fake_run)
+
+    result = run_harness_judge_check(
+        check=_make_check(),
+        check_definition_sha256=_CHECK_DEFINITION_SHA256,
+        source_path=tmp_path / "eval_checks" / "judge.yaml",
+        project_root=tmp_path,
+        output_dir=tmp_path / "out" / "checks",
+        config=make_config(project_root=tmp_path, harness_agent="grok"),
+    )
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert result.status.value == "passed"
+    assert result.details["agent_type"] == "grok"
+    assert result.details["model"] == "grok-4.5"
+    assert result.details["reasoning_effort"] == "high"
+    assert command[:3] == ["grok", "--always-approve", "--no-auto-update"]
+    assert "--model" in command
+    assert "grok-4.5" in command
+    assert "--reasoning-effort" in command
+    assert "high" in command
+    assert "-p" in command
+    assert "--output-format" not in command
+
+
 def test_malformed_json_returns_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
 ) -> None:
