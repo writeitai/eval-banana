@@ -46,7 +46,7 @@ max_parallel_checks = 4
 _HARNESS_TEMPLATE = """\
 [harness]
 # AI coding agent used by harness_judge checks. One of:
-#   claude, codex, gemini, openhands, opencode, pi
+#   claude, codex, gemini, grok, openhands, opencode, pi
 # Env: EVAL_BANANA_HARNESS_AGENT
 agent = "codex"
 
@@ -81,6 +81,13 @@ timeout_seconds = 300
 #
 # [agents.claude]
 # shared_flags = ["-p", "--dangerously-skip-permissions", "--output-format", "stream-json", "--verbose"]
+#
+# [agents.grok]
+# shared_flags = ["--always-approve", "--no-auto-update"]
+# default_model = "grok-4.5"
+# Auth: XAI_API_KEY or `grok login`. Uses plain stdout for score extraction.
+# If you previously defined a custom [agents.grok] for an unrelated binary,
+# rename it or explicitly clear/replace inherited fields after upgrading.
 """
 
 _DISCOVERY_SECTION = """\

@@ -117,7 +117,7 @@ runtime effect.
 
 ### `[agents.*]` sections
 
-Override built-in agent templates or define custom ones. Built-in templates exist for: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`.
+Override built-in agent templates or define custom ones. Built-in templates exist for: `codex`, `gemini`, `claude`, `grok`, `openhands`, `opencode`, `pi`. The `grok` template uses plain stdout with `--always-approve` and `--no-auto-update` (auth: `XAI_API_KEY` or `grok login`). If you previously defined a custom `[agents.grok]` for an unrelated binary, rename it or explicitly clear/replace inherited fields after upgrading.
 
 ```toml
 [agents.codex]

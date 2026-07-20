@@ -23,7 +23,7 @@ Two check types:
 | `deterministic` | Objective assertions (file existence, content, structure) | Runs a Python script via subprocess; exit 0 = pass |
 | `harness_judge` | LLM-as-a-judge (coherence, accuracy, tone) | Invokes the configured AI agent; requires exit `0` and a `{"score": 0\|1}` verdict |
 
-The harness judge uses one of the following: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
+The harness judge uses one of the following: `codex`, `gemini`, `claude`, `grok`, `openhands`, `opencode`, `pi`
 
 ## Writing checks
 

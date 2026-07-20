@@ -45,6 +45,25 @@ def test_build_command_gemini_uses_prompt_flag() -> None:
     assert command[-2:] == ["-p", "Investigate the failure"]
 
 
+def test_build_command_grok_plain_headless_defaults() -> None:
+    command = build_command_from_template(
+        template=DEFAULT_AGENT_TEMPLATES["grok"], prompt="Score the work"
+    )
+
+    assert command == [
+        "grok",
+        "--always-approve",
+        "--no-auto-update",
+        "--model",
+        "grok-4.5",
+        "--reasoning-effort",
+        "high",
+        "-p",
+        "Score the work",
+    ]
+    assert "--output-format" not in command
+
+
 def test_build_command_claude_preserves_shared_p_flag_shape() -> None:
     command = build_command_from_template(
         template=DEFAULT_AGENT_TEMPLATES["claude"], prompt="Review the diff"

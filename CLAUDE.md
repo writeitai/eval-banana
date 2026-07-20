@@ -65,7 +65,7 @@ tests/               # One test file per source module
 eval-banana uses harness configuration for `harness_judge` checks only.
 
 - Configured via `[harness]` and `[agents.*]` TOML sections or `--harness-*` CLI flags
-- Built-in templates: `codex`, `gemini`, `claude`, `openhands`, `opencode`, `pi`
+- Built-in templates: `codex`, `gemini`, `claude`, `grok`, `openhands`, `opencode`, `pi`
 - Agent skills are installed via `npx skills add https://github.com/writeitai/eval-banana` (see https://github.com/vercel-labs/skills)
 - `harness_judge` checks require a configured harness; `run` and `validate` fail fast otherwise.
 - Harness environment setup lives in `build_harness_env()`
