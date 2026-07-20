@@ -20,9 +20,7 @@ def test_default_agent_templates_match_expected_values() -> None:
     assert harness_template.DEFAULT_AGENT_TEMPLATES["claude"].shared_flags[0] == "-p"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["openhands"].model_flag is None
     assert harness_template.DEFAULT_AGENT_TEMPLATES["grok"].command == ("grok",)
-    assert (
-        harness_template.DEFAULT_AGENT_TEMPLATES["grok"].default_model == "grok-4.5"
-    )
+    assert harness_template.DEFAULT_AGENT_TEMPLATES["grok"].default_model == "grok-4.5"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["grok"].reasoning_effort == "high"
     assert harness_template.DEFAULT_AGENT_TEMPLATES["grok"].shared_flags == (
         "--always-approve",
