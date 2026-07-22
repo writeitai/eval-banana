@@ -1,14 +1,67 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 from pathlib import Path
+import subprocess
 
 from click.testing import CliRunner
 import pytest
 
+from eval_banana.cli import _classify_run_failure
 from eval_banana.cli import main
 from eval_banana.config import Config
+from eval_banana.models import CheckResult
+from eval_banana.models import CheckStatus
+from eval_banana.models import CheckType
 from eval_banana.models import EvalReport
+from eval_banana.result_output import observe_dirty_tree
+from eval_banana.result_output import ResultStatus
+
+
+def _passing_report(*, checks: list[CheckResult]) -> EvalReport:
+    return EvalReport(
+        run_id="run1",
+        project_root="/tmp/project",
+        output_dir="/tmp/project/out",
+        started_at="2026-07-22T12:00:00+00:00",
+        completed_at="2026-07-22T12:00:01+00:00",
+        duration_ms=1000,
+        total_checks=len(checks),
+        passed_checks=len(checks),
+        failed_checks=0,
+        errored_checks=0,
+        points_earned=len(checks),
+        total_points=len(checks),
+        percentage=100.0,
+        pass_threshold=1.0,
+        meets_threshold=True,
+        run_passed=True,
+        checks=checks,
+    )
+
+
+def _init_git_repo(*, path: Path) -> str:
+    def _git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args], cwd=path, capture_output=True, text=True, check=True
+        )
+
+    _git("init", "-q")
+    _git("config", "user.email", "test@example.com")
+    _git("config", "user.name", "Test")
+    _git("config", "commit.gpgsign", "false")
+    (path / "tracked.txt").write_text("hello\n", encoding="utf-8")
+    _git("add", ".")
+    _git("commit", "-q", "-m", "init")
+    return _git("rev-parse", "HEAD").stdout.strip()
+
+
+def _fenced_json(*, text: str) -> dict[str, object]:
+    lines = text.splitlines()
+    start = lines.index("```eval-banana-result v1")
+    end = lines.index("```", start + 1)
+    return json.loads("\n".join(lines[start + 1 : end]))
 
 
 def test_init_writes_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -468,3 +521,332 @@ def test_list_does_not_enforce_harness_rule(
 
     assert result.exit_code == 0
     assert "judge_check" in result.output
+
+
+def test_run_without_result_out_writes_no_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Absent --result-out is pure backward-compat: no document is written."""
+
+    runner = CliRunner()
+    monkeypatch.setattr("eval_banana.cli.load_config", lambda **kwargs: object())
+    monkeypatch.setattr(
+        "eval_banana.cli.run_checks", lambda **kwargs: _passing_report(checks=[])
+    )
+    write_calls: list[object] = []
+    monkeypatch.setattr(
+        "eval_banana.cli.write_result_document",
+        lambda **kwargs: write_calls.append(kwargs),
+    )
+
+    result = runner.invoke(main, ["run"])
+
+    assert result.exit_code == 0
+    assert write_calls == []
+
+
+def test_run_result_out_completed_writes_stamped_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    commit = _init_git_repo(path=tmp_path)
+    check = CheckResult(
+        check_id="goal_outcome",
+        check_type=CheckType.harness_judge,
+        check_definition_sha256="sha256:" + "0" * 64,
+        description="desc",
+        source_path=str(tmp_path / "check.yaml"),
+        status=CheckStatus.passed,
+        score=1,
+        started_at="2026-07-22T12:00:00+00:00",
+        completed_at="2026-07-22T12:00:01+00:00",
+        duration_ms=1000,
+        reason="looks good",
+        details={"model": "gpt-5.6-sol", "reasoning_effort": "xhigh"},
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(
+            project_root=tmp_path, cwd=str(tmp_path), harness_agent="codex"
+        ),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.run_checks", lambda **kwargs: _passing_report(checks=[check])
+    )
+    result_out = tmp_path / "out" / "eval_results.md"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "run",
+            "--result-out",
+            str(result_out),
+            "--provenance-attempt",
+            "attempt-7",
+            "--provenance-field",
+            "session=s1",
+            "--cwd",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result_out.is_file()
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "completed"
+    assert payload["run_passed"] is True
+    assert payload["harness"] == {"family": "codex", "effort": "xhigh"}
+    assert payload["provenance"] == {"attempt": "attempt-7", "session": "s1"}
+    assert payload["observed"]["commit_before"] == commit
+    assert payload["observed"]["commit_after"] == commit
+    assert payload["observed"]["dirty_tree_digest"] is not None
+    assert payload["observed"]["dirty_tree_algorithm"] == "eb-git-status-v2-sha256"
+    assert payload["checks"] == [
+        {
+            "id": "goal_outcome",
+            "status": "passed",
+            "reason": "looks good",
+            "model": "gpt-5.6-sol",
+        }
+    ]
+
+
+def test_run_result_out_json_format(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.run_checks", lambda **kwargs: _passing_report(checks=[])
+    )
+    result_out = tmp_path / "result.json"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "run",
+            "--result-out",
+            str(result_out),
+            "--result-format",
+            "json",
+            "--cwd",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "completed"
+    assert payload["schema_version"] == 1
+
+
+def test_run_result_out_no_checks_status(tmp_path: Path) -> None:
+    """A real no-checks run still writes a stamped document (non-git => nulls)."""
+
+    result_out = tmp_path / "result.md"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "run",
+            "--result-out",
+            str(result_out),
+            "--no-project-config",
+            "--cwd",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert result_out.is_file()
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "no_checks"
+    assert payload["run_passed"] is False
+    assert payload["checks"] == []
+    assert "No checks found" in str(payload["error"])
+    assert payload["observed"]["commit_before"] is None
+    assert payload["observed"]["dirty_tree_digest"] is None
+    assert payload["observed"]["dirty_tree_algorithm"] is None
+
+
+def test_run_result_out_harness_error_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+
+    def raise_harness(**kwargs: object) -> EvalReport:
+        raise SystemExit(
+            "harness_judge check requires a harness but none is configured"
+        )
+
+    monkeypatch.setattr("eval_banana.cli.run_checks", raise_harness)
+    result_out = tmp_path / "result.md"
+
+    result = CliRunner().invoke(
+        main, ["run", "--result-out", str(result_out), "--cwd", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "harness_error"
+    assert payload["run_passed"] is False
+    assert "requires a harness" in str(payload["error"])
+
+
+def test_run_result_out_config_error_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+
+    def raise_config(**kwargs: object) -> EvalReport:
+        raise SystemExit("Config.project_root must be set")
+
+    monkeypatch.setattr("eval_banana.cli.run_checks", raise_config)
+    result_out = tmp_path / "result.md"
+
+    result = CliRunner().invoke(
+        main, ["run", "--result-out", str(result_out), "--cwd", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "config_error"
+    assert payload["run_passed"] is False
+
+
+def test_run_result_out_refuses_symlink_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.run_checks", lambda **kwargs: _passing_report(checks=[])
+    )
+    real_file = tmp_path / "real.md"
+    real_file.write_text("original\n", encoding="utf-8")
+    link = tmp_path / "eval_results.md"
+    link.symlink_to(real_file)
+
+    result = CliRunner().invoke(
+        main, ["run", "--result-out", str(link), "--cwd", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+    assert "symlink" in result.output
+    assert real_file.read_text(encoding="utf-8") == "original\n"
+
+
+def test_run_result_out_rejects_malformed_provenance_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+    monkeypatch.setattr(
+        "eval_banana.cli.run_checks", lambda **kwargs: _passing_report(checks=[])
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "run",
+            "--result-out",
+            str(tmp_path / "result.md"),
+            "--provenance-field",
+            "novalue",
+            "--cwd",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--provenance-field must be key=value" in result.output
+
+
+def test_run_result_out_stamps_config_load_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A load_config failure with --result-out still writes config_error."""
+
+    def raise_load(**kwargs: object) -> Config:
+        raise SystemExit("Invalid TOML in .eval-banana/config.toml: bad")
+
+    monkeypatch.setattr("eval_banana.cli.load_config", raise_load)
+    result_out = tmp_path / "result.md"
+
+    result = CliRunner().invoke(
+        main, ["run", "--result-out", str(result_out), "--cwd", str(tmp_path)]
+    )
+
+    assert result.exit_code == 1
+    assert result_out.is_file()
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    assert payload["status"] == "config_error"
+    assert payload["run_passed"] is False
+    assert payload["checks"] == []
+    assert "Invalid TOML" in str(payload["error"])
+
+
+def test_run_result_out_dirty_digest_observed_at_run_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, make_config: Callable[..., Config]
+) -> None:
+    """A mid-run tree change must not alter the recorded dirty digest."""
+
+    _init_git_repo(path=tmp_path)
+    clean_digest = observe_dirty_tree(cwd=str(tmp_path)).digest
+    monkeypatch.setattr(
+        "eval_banana.cli.load_config",
+        lambda **kwargs: make_config(project_root=tmp_path, cwd=str(tmp_path)),
+    )
+
+    def dirty_run(**kwargs: object) -> EvalReport:
+        (tmp_path / "tracked.txt").write_text("mutated by run\n", encoding="utf-8")
+        return _passing_report(checks=[])
+
+    monkeypatch.setattr("eval_banana.cli.run_checks", dirty_run)
+    result_out = tmp_path / "out" / "result.md"
+
+    result = CliRunner().invoke(
+        main, ["run", "--result-out", str(result_out), "--cwd", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    payload = _fenced_json(text=result_out.read_text(encoding="utf-8"))
+    # The run dirtied the tree, so a post-run observation differs; the recorded
+    # digest matches the pre-run (clean) state, proving run-start observation.
+    post_run_digest = observe_dirty_tree(cwd=str(tmp_path)).digest
+    assert post_run_digest != clean_digest
+    assert payload["observed"]["dirty_tree_digest"] == clean_digest
+
+
+def test_classify_run_failure_keys_on_known_messages() -> None:
+    assert _classify_run_failure(message="No checks found") == ResultStatus.no_checks
+    # A bad --check-id is a usage/config error, not an empty selection.
+    assert (
+        _classify_run_failure(message="No check found with id 'x'")
+        == ResultStatus.config_error
+    )
+    assert (
+        _classify_run_failure(
+            message="harness_judge check requires a harness but none is configured"
+        )
+        == ResultStatus.harness_error
+    )
+    assert (
+        _classify_run_failure(message="Config.project_root must be set")
+        == ResultStatus.config_error
+    )
+    assert (
+        _classify_run_failure(message="Duplicate check id 'x' found in a and b")
+        == ResultStatus.config_error
+    )

@@ -7,8 +7,8 @@ from pathlib import Path
 
 from eval_banana.models import CheckResult
 from eval_banana.models import EvalReport
-from eval_banana.reporter import _build_markdown_report
 from eval_banana.reporter import bound_stdout_tail
+from eval_banana.reporter import build_markdown_report
 from eval_banana.reporter import persist_check_stdout
 from eval_banana.reporter import safe_file_stem
 from eval_banana.reporter import write_report_files
@@ -137,7 +137,7 @@ def test_markdown_contains_tables(
         checks=[make_check_result(status="failed", score=0, reason="bad")],
     )
 
-    markdown = _build_markdown_report(report=report)
+    markdown = build_markdown_report(report=report)
 
     assert "| Field | Value |" in markdown
     assert "| Check ID | Type | Status | Score | Duration (ms) |" in markdown
