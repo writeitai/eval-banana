@@ -77,7 +77,7 @@ def bound_stdout_tail(*, stdout: str, raw_response_path: str | None) -> str:
     return banner + stdout[-_STDOUT_TAIL_CHARS:]
 
 
-def _build_markdown_report(*, report: EvalReport) -> str:
+def build_markdown_report(*, report: EvalReport) -> str:
     lines = [
         "# eval-banana report",
         "",
@@ -126,7 +126,7 @@ def write_report_files(*, report: EvalReport, output_dir: Path) -> None:
         report.model_dump_json(indent=2), encoding="utf-8"
     )
     (output_dir / "report.md").write_text(
-        _build_markdown_report(report=report), encoding="utf-8"
+        build_markdown_report(report=report), encoding="utf-8"
     )
 
     for check in report.checks:

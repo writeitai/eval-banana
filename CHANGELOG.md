@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `eval-banana run` can now write a single caller-named, provenance-stamped
+  result document with `--result-out <path>`. The document reuses the compact
+  `report.md` body under a fenced, machine-parseable `eval-banana-result v1`
+  block (`--result-format md`, the default) or emits the same structured object
+  as standalone JSON (`--result-format json`). It is written atomically
+  (temp sibling + `os.replace`), creates parent directories, and refuses a
+  symlink target, mirroring the existing `--flat-output` symlink refusal.
+- The document stamps observed git provenance that eval-banana reads itself —
+  never a caller-supplied commit: `commit_before` and the working-tree dirty
+  digest observed at run start, plus `commit_after` after the run. The digest
+  folds `git status --porcelain` with unstaged and staged (`git diff --cached`)
+  content under the named algorithm `eb-git-status-v2-sha256`. Outside a git
+  tree every field is `null`.
+- Callers echo their own semantics verbatim with `--provenance-attempt <id>`
+  and repeatable `--provenance-field k=v`; eval-banana does not interpret them.
+- A formal `status` envelope (`completed`, `no_checks`, `config_error`,
+  `harness_error`) guarantees the destination is always freshly stamped: a run
+  that fails before a normal report exists still writes the document with the
+  right status, `run_passed: false`, the observed git block, an `error` string,
+  and empty `checks`, then exits non-zero as before. Per-check `model` and the
+  run-level harness `family`/`effort` are recorded from the run.
+- Without `--result-out`, behavior is exactly as before (pure backward
+  compatibility).
+
 ## [0.4.1] - 2026-07-20
 
 ### Added
